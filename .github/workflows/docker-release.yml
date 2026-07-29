@@ -1,0 +1,70 @@
+name: Docker Release
+
+# Triggered when a GitHub Release is published.
+# Builds a multi-platform Docker image and pushes it to GitHub Container Registry (GHCR).
+#
+# Image: ghcr.io/<your-org>/traittutor
+# Tags:
+#   - Version tag stripped of 'v' prefix (e.g. release v1.2.3 → image tag 1.2.3)
+#   - latest (always points to the most recently published release)
+#
+# Platforms: linux/amd64, linux/arm64
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    name: Build and Push Multi-Platform Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Required for linux/arm64 cross-compilation on GitHub-hosted ubuntu runners
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # Enable BuildKit with multi-platform build support
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Extract tags from the release:
+      #   type=semver strips the leading 'v' (v1.2.3 → 1.2.3)
+      #   type=raw adds a 'latest' tag on every published release
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/<your-org>/traittutor
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: production
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Use GitHub Actions cache to speed up repeated builds
+          # mode=max caches all intermediate layers (frontend-builder and python-base are expensive)
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

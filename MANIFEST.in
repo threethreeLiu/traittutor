@@ -1,0 +1,2 @@
+recursive-include traittutor_web *
+recursive-include traittutor_web/.next *

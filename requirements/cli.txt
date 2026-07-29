@@ -1,0 +1,65 @@
+# ============================================
+# TraitTutor CLI — Full Dependencies
+# ============================================
+# Mirrors pyproject.toml `[project.optional-dependencies].cli` plus core deps.
+# Keep in sync with pyproject.toml when adding/updating dependencies.
+#
+# Public install: pip install traittutor-cli
+# Source compatibility: pip install -e ".[cli]"
+# Use this file for Docker/CI when pyproject.toml/source code aren't yet available.
+
+# --- Config & templating ---
+PyYAML>=6.0
+jinja2>=3.1.0
+
+# --- LLM ---
+openai>=1.30.0
+tiktoken>=0.5.0
+
+# --- LLM provider SDKs ---
+anthropic>=0.30.0
+dashscope>=1.14.0
+perplexityai>=0.1.0
+oauth-cli-kit>=0.1.1; python_version >= "3.11"
+
+# --- HTTP clients ---
+aiohttp>=3.9.4
+httpx>=0.27.0
+requests>=2.32.2
+
+# --- Async helpers ---
+nest_asyncio>=1.5.8
+tenacity>=8.0.0
+
+# --- Data models & storage ---
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+aiosqlite>=0.19.0
+
+# --- RAG (LlamaIndex) ---
+llama-index>=0.14.12
+llama-index-retrievers-bm25>=0.7.1,<0.8.0
+# FAISS vector store: ANN retrieval replacing SimpleVectorStore brute force for
+# large KBs (issue #552); imported lazily with SimpleVectorStore fallback.
+llama-index-vector-stores-faiss>=0.4.0,<1.0.0
+faiss-cpu>=1.8.0,<2.0.0
+PyMuPDF>=1.26.0
+numpy>=1.24.0,<3.0.0
+arxiv>=2.0.0
+
+# --- Document text extraction (chat attachments) + office-skill authoring libs ---
+python-docx>=1.1.0
+openpyxl>=3.1.0
+python-pptx>=1.0.0
+pypdf>=4.0.0
+pdfplumber>=0.11.0,<0.11.8  # 0.11.8+ pins pdfminer.six==20251230, conflicts with mineru (via raganything)
+reportlab>=4.0.0
+defusedxml>=0.7.1
+
+# --- Web search ---
+ddgs>=9.9.1
+
+# --- CLI framework ---
+typer>=0.9.0
+rich>=13.0.0
+prompt_toolkit>=3.0.36

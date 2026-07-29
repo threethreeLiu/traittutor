@@ -1,0 +1,55 @@
+# Code-defined LLM models for TraitTutor.
+#
+# This file is the single source of truth for which LLM models the app can use and
+# select. Models are code-defined: nobody edits keys through the admin UI.
+#
+# Usage:
+#   cp config/models.local.example.yaml config/models.local.yaml   # then fill keys
+#   # or auto-generate from CC Switch:
+#   traittutor models sync-cc-switch
+#
+# config/models.local.yaml is gitignored (see .gitignore). NEVER commit real keys.
+# When the file is absent or empty, the LLM catalog falls back to its JSON default
+# (empty) — define at least one model to enable chat.
+#
+# Schema:
+#   active  -> id of the default model (optional; defaults to the first entry)
+#   models  -> list of entries; each becomes one selectable model
+#     id            stable slug (used in selections; keep stable across edits)
+#     name          human label shown in the model picker
+#     binding       wire protocol / provider key, e.g.:
+#                   custom_anthropic -> Anthropic-API-compatible endpoint
+#                                       (CC Switch "claude" providers)
+#                   custom           -> OpenAI-compatible endpoint
+#                                       (CC Switch "codex" providers)
+#                   (anthropic, openai, deepseek, zhipu, moonshot, ... also work —
+#                    see traittutor/services/provider_registry.py PROVIDERS)
+#     base_url      provider endpoint ("route")
+#     api_key       literal key, OR env(VAR_NAME) to read from the environment
+#     model         clean model id sent to the API (no [..] suffixes)
+#     extra_headers optional dict (default {})
+#     api_version   optional string (default "", used by azure_openai)
+
+active: zhipu-glm
+
+models:
+  - id: zhipu-glm
+    name: Zhipu GLM 5.2
+    binding: custom_anthropic
+    base_url: https://open.bigmodel.cn/api/anthropic
+    api_key: env(ZHIPU_API_KEY)
+    model: glm-5.2
+
+  - id: deepseek-v4
+    name: DeepSeek V4
+    binding: custom_anthropic
+    base_url: https://api.deepseek.com/anthropic
+    api_key: env(DEEPSEEK_API_KEY)
+    model: deepseek-v4-pro
+
+  - id: kimi-k3
+    name: Kimi K3
+    binding: custom_anthropic
+    base_url: https://api.moonshot.cn/anthropic
+    api_key: env(MOONSHOT_API_KEY)
+    model: kimi-k3

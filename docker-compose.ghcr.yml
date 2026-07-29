@@ -1,0 +1,67 @@
+# ============================================
+# TraitTutor Docker Compose — Pre-built GHCR Image
+# ============================================
+# Run TraitTutor using the official pre-built image from GitHub Container Registry.
+# No local build required — the image is pulled automatically.
+#
+# Usage:
+#   python scripts/docker_compose.py -f docker-compose.ghcr.yml up -d
+#
+# To pin a specific version:
+#   Edit the image tag below, e.g. ghcr.io/<your-org>/traittutor:1.0.0
+#
+# Prerequisites:
+#   1. Configure providers in data/user/settings/model_catalog.json or the UI
+#   2. Use scripts/docker_compose.py so port mappings are rendered from system.json
+#   3. Read the API URL note below before starting
+#
+# Local LLM (LM Studio / Ollama / vLLM):
+#   Use "host.docker.internal" instead of "localhost" in provider base_url fields.
+#   Configure provider endpoints in data/user/settings/model_catalog.json or the UI.
+#
+# ============================================
+# IMPORTANT: Frontend-to-Backend API URL
+# ============================================
+# The frontend (Next.js) runs entirely in the user's browser — not in the container.
+# This means "localhost" in the browser refers to the USER'S MACHINE, not the Docker host.
+#
+# LOCAL deployment (Docker on the same machine you browse from):
+#   Leave system.next_public_api_base_external blank. The default http://localhost:8001 works
+#   because Docker maps port 8001 from the container to your local machine.
+#
+# REMOTE SERVER deployment (Docker on a server, accessed from another machine):
+#   Set system.next_public_api_base_external to your server's public IP or hostname, e.g.:
+#     "next_public_api_base_external": "http://203.0.113.10:8001"
+#   Without this, the browser will try to reach localhost:8001 on the USER'S laptop
+#   (not the server), and all API calls will fail.
+# ============================================
+
+services:
+  traittutor:
+    image: ghcr.io/<your-org>/traittutor:latest
+    pull_policy: always
+    container_name: traittutor
+    restart: unless-stopped
+    ports:
+      - "${TRAITTUTOR_DOCKER_BACKEND_PORT:-8001}:${TRAITTUTOR_DOCKER_BACKEND_PORT:-8001}"
+      - "${TRAITTUTOR_DOCKER_FRONTEND_PORT:-3782}:${TRAITTUTOR_DOCKER_FRONTEND_PORT:-3782}"
+
+    volumes:
+      # Persistent data (created automatically on first start)
+      - ./data/user:/app/data/user
+      - ./data/memory:/app/data/memory
+      - ./data/knowledge_bases:/app/data/knowledge_bases
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${TRAITTUTOR_DOCKER_BACKEND_PORT:-8001}/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    networks:
+      - traittutor-network
+
+networks:
+  traittutor-network:
+    driver: bridge
