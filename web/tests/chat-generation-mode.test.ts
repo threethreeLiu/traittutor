@@ -14,11 +14,18 @@ test("generation shortcut drives the composer mode chip before chat capability",
   assert.match(source, /selected=\{!generationShortcut && activeCap\.value === cap\.value\}/);
 });
 
-test("courseware and flashcards expose generation-specific placeholders", () => {
+test("home chat does not expose study generation shortcuts", () => {
   const source = read("app/(workspace)/home/[[...sessionId]]/page.tsx");
 
-  assert.match(source, /chatGenerationKind === "courseware"/);
-  assert.match(source, /structured courseware/);
-  assert.match(source, /chatGenerationKind === "flashcards"/);
-  assert.match(source, /active-recall flashcards/);
+  assert.doesNotMatch(source, /onSelectGenerationShortcut=/);
+  assert.doesNotMatch(source, /generationShortcut=/);
+  assert.doesNotMatch(source, /traittutor_mode/);
+});
+
+test("my learning keeps dedicated courseware flashcard and quiz surfaces", () => {
+  const source = read("components/space/SpaceDashboard.tsx");
+
+  assert.match(source, /href:\s*"\/space\/courseware"/);
+  assert.match(source, /href:\s*"\/space\/flashcards"/);
+  assert.match(source, /href:\s*"\/space\/quiz"/);
 });

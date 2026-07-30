@@ -59,11 +59,6 @@ import { useMeasuredHeight } from "@/hooks/useMeasuredHeight";
 import {
   buildResearchWSConfig,
 } from "@/lib/research-types";
-import {
-  buildGuidedSolveInstruction,
-  buildKnowledgeDiagramInstruction,
-  buildLearningExplorationInstruction,
-} from "@/lib/knowledge-diagram";
 import { listKnowledgeBases } from "@/lib/knowledge-api";
 import { getSubagentSettings } from "@/lib/subagents-api";
 import { listLLMOptions, type LLMOption } from "@/lib/llm-options";
@@ -176,16 +171,6 @@ const CAPABILITIES: CapabilityDef[] = [
   },
 ];
 
-type ChatGenerationKind =
-  | "guided_solve"
-  | "learning_exploration"
-  | "courseware"
-  | "flashcards"
-  | "quiz"
-  | "knowledge_diagram"
-  | "learning_path"
-  | "humanizer";
-
 interface KnowledgeBase {
   name: string;
   is_default?: boolean;
@@ -271,8 +256,6 @@ export default function ChatPage() {
     null,
   );
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
-  const [chatGenerationKind, setChatGenerationKind] =
-    useState<ChatGenerationKind | null>(null);
   const attachmentLimits = useAttachmentLimits();
   const [dragging, setDragging] = useState(false);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
@@ -793,7 +776,6 @@ export default function ChatPage() {
       const cap =
         CAPABILITIES.find((c) => c.value === value) ?? CAPABILITIES[0];
       setCapability(cap.value || null);
-      setChatGenerationKind(null);
       // Per-capability tool selection now derives from the user's saved
       // settings (/settings/tools) intersected with the capability's
       // allow-list. Playground-saved configs still override when the user
@@ -807,15 +789,6 @@ export default function ChatPage() {
       setCapMenuOpen(false);
     },
     [setCapability, setTools, userEnabledTools],
-  );
-
-  const handleSelectGenerationShortcut = useCallback(
-    (kind: ChatGenerationKind) => {
-      setCapMenuOpen(false);
-      setCapability(null);
-      setChatGenerationKind(kind);
-    },
-    [setCapability],
   );
 
   const fileToAttachment = useCallback(
@@ -1049,31 +1022,9 @@ export default function ChatPage() {
       config = {
         ...(config ?? {}),
         product_mode: productMode,
-        ...(chatGenerationKind ? { traittutor_mode: chatGenerationKind } : {}),
       };
 
       const memoryPayload = [...memoryReferencesPayload];
-      const modeInstruction =
-        chatGenerationKind === "humanizer"
-          ? "[TRAITTUTOR_HUMANIZER]"
-          : chatGenerationKind === "guided_solve"
-            ? buildGuidedSolveInstruction(state.language)
-            : chatGenerationKind === "learning_exploration"
-              ? buildLearningExplorationInstruction(state.language)
-              : chatGenerationKind === "knowledge_diagram"
-                ? buildKnowledgeDiagramInstruction(state.language)
-                : chatGenerationKind === "learning_path"
-                  ? t("Create a personalized learning path with practice, feedback, and review checkpoints.")
-                  : "";
-      const generationInstruction = chatGenerationKind
-        ? modeInstruction || `${t("Create a source-grounded learning artifact in this conversation.")} ${t(
-            chatGenerationKind === "courseware"
-              ? "Rewrite Courseware"
-              : chatGenerationKind === "flashcards"
-                ? "Generate Flashcards"
-                : "Generate Quiz",
-          )}`
-        : "";
       const messageContent =
         content ||
         (selectedNotebookRecords.length ||
@@ -1086,12 +1037,12 @@ export default function ChatPage() {
           : "") ||
         (attachments.some((a) => a.type === "image")
           ? t("Please analyze the attached image(s).")
-          : "") || generationInstruction;
+          : "");
       // Persona is NOT passed per-call here: it is a session-level
       // preference (state.personaSelection) that sendMessage resolves and
       // sends with every turn.
       sendMessage(
-        generationInstruction && messageContent !== generationInstruction ? `${generationInstruction}\n\n${messageContent}` : messageContent,
+        messageContent,
         extraAttachments,
         config,
         notebookReferencesPayload,
@@ -1109,7 +1060,6 @@ export default function ChatPage() {
       setSelectedAgentSessions([]);
       setSelectedQuestionEntries([]);
       setSelectedMemoryFiles([]);
-      setChatGenerationKind(null);
     },
     [
       attachments,
@@ -1129,11 +1079,9 @@ export default function ChatPage() {
       selectedQuestionEntries.length,
       sendMessage,
       shouldAutoScrollRef,
-      state.language,
       state.isStreaming,
       subagentBudget,
       t,
-      chatGenerationKind,
     ],
   );
 
@@ -1514,28 +1462,6 @@ export default function ChatPage() {
               onPaste={handlePaste}
               onAddFiles={handleAddFiles}
               onSelectCapability={handleSelectCapability}
-              onSelectGenerationShortcut={handleSelectGenerationShortcut}
-              generationShortcut={chatGenerationKind ?? null}
-              onClearGenerationShortcut={() => setChatGenerationKind(null)}
-              inputPlaceholder={
-                chatGenerationKind === "learning_exploration"
-                  ? t("Paste material or a topic to explore automatically.")
-                  : chatGenerationKind === "humanizer"
-                  ? t("Paste text to humanize. Prefix with 检测： for review only.")
-                  : chatGenerationKind === "quiz"
-                  ? t("Upload material or paste text to generate practice questions.")
-                  : chatGenerationKind === "guided_solve"
-                  ? t("Paste or describe a problem to solve step by step.")
-                  : chatGenerationKind === "knowledge_diagram"
-                  ? t("Paste material to turn into a knowledge diagram.")
-                  : chatGenerationKind === "learning_path"
-                  ? t("Paste material or a goal to build a learning path.")
-                  : chatGenerationKind === "courseware"
-                  ? t("Upload material or paste text to rewrite it as structured courseware.")
-                  : chatGenerationKind === "flashcards"
-                  ? t("Upload material or paste text to generate active-recall flashcards.")
-                  : undefined
-              }
               onCancelStreaming={cancelStreamingTurn}
               prefillInputRef={prefillInputRef}
             />
