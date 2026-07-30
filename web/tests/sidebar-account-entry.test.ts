@@ -27,5 +27,5 @@ test("chat session routes do not highlight the home nav item", () => {
   assert.match(source, /href:\s*"\/home"[\s\S]*?exact:\s*true/);
   assert.match(source, /function isNavEntryActive/);
   assert.doesNotMatch(source, /pathname\.startsWith\(item\.href\)/);
-  assert.match(source, /activeSessionId \?\? sessionIdFromPath\(pathname\)/);
+  assert.match(source, /sessionIdFromPath\(pathname\) \|\| activeSessionId/);
 });

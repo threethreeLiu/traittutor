@@ -194,7 +194,7 @@ export default function SessionList({
               tabIndex={0}
               className={`group flex items-center gap-2 rounded-lg px-2.5 py-1.5 transition-colors ${
                 active
-                  ? "bg-[var(--background)]/50 text-[var(--foreground)]"
+                  ? "bg-[var(--accent)] font-medium text-[var(--foreground)] shadow-sm"
                   : "text-[var(--muted-foreground)] hover:bg-[var(--background)]/40 hover:text-[var(--foreground)]"
               }`}
             >
