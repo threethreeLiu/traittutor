@@ -20,6 +20,7 @@ export const ROUTE_CAPABILITIES: ReadonlyArray<{
   capability: Capability;
 }> = [
   { prefix: "/home", capability: "llm" },
+  { prefix: "/space/learning", capability: "llm" }, // Mastery Path
 ];
 
 /**
