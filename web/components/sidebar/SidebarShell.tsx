@@ -113,7 +113,7 @@ export function SidebarShell({
   const navLocked = (item: NavEntry) =>
     item.requires ? !has(item.requires) : false;
   const effectiveActiveSessionId =
-    activeSessionId ?? sessionIdFromPath(pathname);
+    sessionIdFromPath(pathname) || activeSessionId || null;
   const lockedTooltip = t("Locked — contact your administrator to get access.");
   const renderedFooter =
     typeof footerSlot === "function" ? footerSlot(collapsed) : footerSlot;
