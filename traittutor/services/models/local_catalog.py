@@ -1,9 +1,14 @@
 """Code-defined LLM catalog loader.
 
-Parses ``config/models.local.yaml`` (gitignored; the committed contract lives in
-``config/models.local.example.yaml``) into the ``services.llm`` sub-shape used by
-``ModelCatalogService``. Each YAML entry is one route (its own base_url + api_key
-+ model), so it becomes one profile containing a single model.
+Parses ``config/models.local.yaml`` into the ``services.llm`` sub-shape used by
+``ModelCatalogService``. In production, the real file should live under
+``$TRAITTUTOR_HOME/config/models.local.yaml`` so release/symlink deployments do
+not lose the model list. For source/dev runs, the loader falls back to repo-root
+``config/models.local.yaml`` (gitignored; the committed contract lives in
+``config/models.local.example.yaml``).
+
+Each YAML entry is one route (its own base_url + api_key + model), so it becomes
+one profile containing a single model.
 
 Only stdlib + ``yaml`` + ``traittutor.runtime.home`` are imported here (no
 services.llm / config imports) to avoid import cycles — this module is imported
@@ -19,7 +24,7 @@ from typing import Any
 
 import yaml
 
-from traittutor.runtime.home import PACKAGE_ROOT
+from traittutor.runtime.home import PACKAGE_ROOT, get_runtime_home
 
 __all__ = ["local_models_path", "load_local_llm"]
 
@@ -28,7 +33,16 @@ _ENV_PATTERN = re.compile(r"^env\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)$")
 
 
 def local_models_path() -> Path:
-    """Repo-root ``config/models.local.yaml`` (gitignored; holds real keys)."""
+    """Return the preferred local model config path.
+
+    Runtime/persistent config wins when it exists. This keeps production model
+    settings outside git-tracked releases while still allowing local developers
+    to use the repo-root gitignored file.
+    """
+
+    runtime_path = get_runtime_home() / "config" / "models.local.yaml"
+    if runtime_path.exists():
+        return runtime_path
     return PACKAGE_ROOT / "config" / "models.local.yaml"
 
 
