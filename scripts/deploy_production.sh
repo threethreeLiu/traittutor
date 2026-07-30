@@ -42,6 +42,8 @@ RELEASE="$5"
 RELEASE_DIR="${BASE_DIR}/releases/${RELEASE}"
 ARCHIVE="/tmp/${RELEASE}.tar.gz"
 PREVIOUS="$(readlink -f "${BASE_DIR}/current" 2>/dev/null || true)"
+export TRAITTUTOR_HOME="${TRAITTUTOR_HOME:-/var/lib/traittutor}"
+export PYTHONPATH="$RELEASE_DIR"
 
 if [[ -e "$RELEASE_DIR" ]]; then
   echo "Refusing to deploy: release directory already exists: $RELEASE_DIR" >&2
