@@ -21,3 +21,11 @@ test("account and privacy remains accessible from consumer settings", () => {
   const source = read("components/settings/SettingsHub.tsx");
   assert.match(source, /href:\s*"\/settings\/account"/);
 });
+
+test("chat session routes do not highlight the home nav item", () => {
+  const source = read("components/sidebar/SidebarShell.tsx");
+  assert.match(source, /href:\s*"\/home"[\s\S]*?exact:\s*true/);
+  assert.match(source, /function isNavEntryActive/);
+  assert.doesNotMatch(source, /pathname\.startsWith\(item\.href\)/);
+  assert.match(source, /activeSessionId \?\? sessionIdFromPath\(pathname\)/);
+});
