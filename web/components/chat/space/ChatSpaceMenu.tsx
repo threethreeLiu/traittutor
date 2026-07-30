@@ -60,23 +60,23 @@ export default memo(function ChatSpaceMenu({
       if (key === "attach") {
         return {
           key,
-          label: "Attach files",
-          description: "Upload images, Office docs, code & text.",
+          label: t("Attach files"),
+          description: t("Upload images, Office docs, code & text."),
           icon: Paperclip,
         };
       }
       if (key === "question_bank") {
         return {
           key,
-          label: "Practice history",
-          description: "Reuse quiz questions and review incorrect answers.",
+          label: t("Practice history"),
+          description: t("Reuse quiz questions and review incorrect answers."),
           icon: ChevronRight,
         };
       }
       return {
         key,
-        label: "Learning memory",
-        description: "Choose evidence from your learning model.",
+        label: t("Learning memory"),
+        description: t("Choose evidence from your learning model."),
         icon: ChevronRight,
       };
     });
