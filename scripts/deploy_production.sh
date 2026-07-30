@@ -53,9 +53,30 @@ fi
 mkdir -p "$RELEASE_DIR" "${BASE_DIR}/backups"
 tar -xzf "$ARCHIVE" -C "$RELEASE_DIR" --strip-components=1
 
+# Keep private model routes/keys out of git-tracked release directories.
+# If an older manual release still has the file, migrate it once into the
+# persistent runtime home before the new release starts.
+mkdir -p "${TRAITTUTOR_HOME}/config"
+if [[ ! -f "${TRAITTUTOR_HOME}/config/models.local.yaml" && -n "$PREVIOUS" && -f "${PREVIOUS}/config/models.local.yaml" ]]; then
+  install -m 600 "${PREVIOUS}/config/models.local.yaml" "${TRAITTUTOR_HOME}/config/models.local.yaml"
+fi
+
 cd "$RELEASE_DIR"
 "${BASE_DIR}/venv/bin/python" -m pip install -e .
 "${BASE_DIR}/venv/bin/python" -c "import traittutor; import traittutor.api.main; print('python import ok')"
+"${BASE_DIR}/venv/bin/python" - <<'PY'
+from traittutor.services.config import get_model_catalog_service
+
+catalog = get_model_catalog_service().load()
+llm = (catalog.get("services") or {}).get("llm") or {}
+profiles = llm.get("profiles") or []
+if not llm.get("active_profile_id") or not llm.get("active_model_id") or not profiles:
+    raise SystemExit(
+        "Refusing to deploy: no active LLM profile loaded. "
+        "Put models.local.yaml under $TRAITTUTOR_HOME/config/."
+    )
+print("model catalog ok")
+PY
 
 cd "$RELEASE_DIR/web"
 NEXT_PUBLIC_BASE_PATH="$BASE_PATH" \

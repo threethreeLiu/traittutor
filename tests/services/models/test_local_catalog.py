@@ -10,6 +10,7 @@ import pytest
 from traittutor.services.config.model_catalog import ModelCatalogService
 from traittutor.services.models.local_catalog import (
     _resolve_secret,
+    local_models_path,
     load_local_llm,
 )
 
@@ -37,6 +38,18 @@ def test_resolve_secret_env_var_and_literal(monkeypatch: pytest.MonkeyPatch):
     # an unknown env var resolves to empty string, not the literal text
     monkeypatch.delenv("MISSING_VAR", raising=False)
     assert _resolve_secret("env(MISSING_VAR)") == ""
+
+
+def test_local_models_path_prefers_runtime_home_when_present(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    runtime_home = tmp_path / "runtime"
+    runtime_config = runtime_home / "config" / "models.local.yaml"
+    runtime_config.parent.mkdir(parents=True)
+    runtime_config.write_text("models: []\n", encoding="utf-8")
+    monkeypatch.setenv("TRAITTUTOR_HOME", str(runtime_home))
+
+    assert local_models_path() == runtime_config
 
 
 def test_load_local_llm_resolves_env_and_passes_literal_through(
