@@ -165,8 +165,8 @@ async def lifespan(app: FastAPI):
         backup = migrate_v1_if_needed()
         if backup is not None:
             logger.info("v1 memory archived to %s", backup)
-        # Rename the legacy ``tutorbot`` memory surface (footnote refs, L2
-        # doc, snapshot/trace dirs, L3 meta keys) to ``partner``.
+        # Rename an earlier companion memory surface to the current archived
+        # conversation surface so older local data remains readable.
         migrate_partner_surface_if_needed()
     except Exception as e:
         logger.warning(f"v1 memory migration failed: {e}")
@@ -263,29 +263,23 @@ app.add_middleware(
 # Some router modules load YAML settings at import time.
 from traittutor.api.routers import (
     admin,
-    agent_runs,
     attachments,
     auth,
-    book,
     capabilities_settings,
     chat,
-    co_writer,
     dashboard,
     knowledge,
     learning_packs,
-    mastery_path,
     mcp_settings,
     memory,
     notebook,
     outputs,
     personas,
-    plugins_api,
     question,
     question_notebook,
     quiz_judge,
     sessions,
     settings,
-    skills,
     system,
     traittutor_generate,
     traittutor_profile,
@@ -308,12 +302,6 @@ _auth = [Depends(require_auth)]
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
 app.include_router(chat.router, prefix="/api/v1", tags=["chat"], dependencies=_auth)
 app.include_router(
-    agent_runs.router,
-    prefix="/api/v1/agent",
-    tags=["traittutor-agent"],
-    dependencies=_auth,
-)
-app.include_router(
     question.router, prefix="/api/v1/question", tags=["question"], dependencies=_auth
 )
 app.include_router(
@@ -323,24 +311,14 @@ app.include_router(
     dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"], dependencies=_auth
 )
 app.include_router(
-    mastery_path.router,
-    prefix="/api/v1/learning",
-    tags=["mastery-path"],
-    dependencies=_auth,
-)
-app.include_router(
     learning_packs.router,
     prefix="/api/v1/learning-packs",
     tags=["learning-packs"],
     dependencies=_auth,
 )
 app.include_router(
-    co_writer.router, prefix="/api/v1/co_writer", tags=["co_writer"], dependencies=_auth
-)
-app.include_router(
     notebook.router, prefix="/api/v1/notebook", tags=["notebook"], dependencies=_auth
 )
-app.include_router(book.router, prefix="/api/v1/book", tags=["book"], dependencies=_auth)
 app.include_router(memory.router, prefix="/api/v1/memory", tags=["memory"], dependencies=_auth)
 app.include_router(personalization.router, prefix="/api/v1/memory", tags=["learner-model"], dependencies=_auth)
 app.include_router(
@@ -367,7 +345,6 @@ app.include_router(
     tags=["mcp-settings"],
     dependencies=_auth,
 )
-app.include_router(skills.router, prefix="/api/v1/skills", tags=["skills"], dependencies=_auth)
 app.include_router(
     personas.router, prefix="/api/v1/personas", tags=["personas"], dependencies=_auth
 )
@@ -386,9 +363,6 @@ app.include_router(
     dependencies=_auth,
 )
 app.include_router(voice.router, prefix="/api/v1/voice", tags=["voice"], dependencies=_auth)
-app.include_router(
-    plugins_api.router, prefix="/api/v1/plugins", tags=["plugins"], dependencies=_auth
-)
 app.include_router(
     attachments.router,
     prefix="/api/attachments",

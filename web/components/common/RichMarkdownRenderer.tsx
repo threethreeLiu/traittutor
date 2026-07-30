@@ -25,6 +25,8 @@ import {
   parseAttachmentHref,
   useInlineFileCardContext,
 } from "@/components/common/InlineFileCard";
+import KnowledgeDiagramCard from "@/components/chat/KnowledgeDiagramCard";
+import { parseKnowledgeDiagramPayload } from "@/lib/knowledge-diagram";
 import type { MarkdownRendererProps } from "./MarkdownRenderer";
 
 function MermaidLoading() {
@@ -485,6 +487,21 @@ export default function RichMarkdownRenderer({
         );
       }
 
+      if (
+        lang === "traittutor-knowledge-graph" ||
+        lang === "traittutor-learning-exploration" ||
+        lang === "traittutor-guided-solve"
+      ) {
+        const diagram = parseKnowledgeDiagramPayload(raw);
+        if (diagram) {
+          return (
+            <div {...lineProps}>
+              <KnowledgeDiagramCard diagram={diagram} className={gap} />
+            </div>
+          );
+        }
+      }
+
       // editor.md style fences. With `trackSourceLines` the preprocess
       // pipeline is bypassed (it would shift line numbers), so the raw
       // fence reaches us here and we convert at render time instead.
@@ -509,7 +526,7 @@ export default function RichMarkdownRenderer({
         // Backend emits ```ggbscript[page_id;title]. We don't render the
         // applet inline anymore — the chat answer stays text-only and we
         // surface a CTA card. Clicking it opens (or focuses) a GeoGebra
-        // tab inside the right-hand SessionViewerPanel where the user can
+        // inline GeoGebra card where the user can
         // interact with the figure without the chat scroll fighting it.
         const metaMatch = /language-ggbscript\[([^;\]]*)(?:;([^\]]*))?\]/.exec(
           blockClassName || "",

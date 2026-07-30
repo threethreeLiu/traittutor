@@ -26,7 +26,9 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
+import QuizFollowupTabBody from "@/components/quiz/QuizFollowupTabBody";
 import {
+  type QuizFollowupTabContext,
   useAllFollowupThreads,
   useQuizFollowupController,
 } from "@/context/QuizFollowupContext";
@@ -210,6 +212,8 @@ export default function QuizViewer({
     Record<string, string>
   >({});
   const [categories, setCategories] = useState<NotebookCategory[]>([]);
+  const [inlineFollowupContext, setInlineFollowupContext] =
+    useState<QuizFollowupTabContext | null>(null);
   const [categoryDropdownKey, setCategoryDropdownKey] = useState<string | null>(
     null,
   );
@@ -706,22 +710,12 @@ export default function QuizViewer({
     [idx],
   );
 
-  // ── Follow-up (right-side viewer tab) ─────────────────────────
-  //
-  // Clicking "Follow-up" no longer expands an in-place panel — it opens
-  // a dedicated tab in the SessionViewerPanel on the right, where a
-  // chat-page-style UI runs the full ``chat`` capability against a
-  // session that pins this question + answer + judgment as fixed
-  // context. State for that chat lives in ``QuizFollowupProvider`` so
-  // it survives tab toggles and is also reflected in this card's
-  // message-count badge.
-
   const handleOpenFollowup = useCallback(() => {
     if (!q) return;
     const key = getQuestionKey(q, idx);
     const answer = answers[idx] ?? EMPTY_ANSWER;
     const judgment = judgments[idx] ?? EMPTY_JUDGMENT;
-    followupController.openFollowupTab({
+    const context: QuizFollowupTabContext = {
       questionKey: key,
       question: q,
       userAnswer: getUserAnswer(q, answer),
@@ -740,7 +734,9 @@ export default function QuizViewer({
       followupSessionId: followupSessionIds[key] ?? null,
       language,
       tabLabel: `Q${idx + 1} · ${t("Follow-up")}`,
-    });
+    };
+    followupController.openFollowupTab(context);
+    setInlineFollowupContext(context);
   }, [
     answers,
     entryIds,
@@ -1425,6 +1421,11 @@ export default function QuizViewer({
               </div>
             );
           })()}
+          {inlineFollowupContext ? (
+            <div className="border-t border-[var(--border)] bg-[var(--background)]/40">
+              <QuizFollowupTabBody context={inlineFollowupContext} />
+            </div>
+          ) : null}
       </div>
     </div>
   );

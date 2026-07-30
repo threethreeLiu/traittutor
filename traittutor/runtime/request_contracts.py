@@ -1,15 +1,10 @@
-"""Public request contracts and config validators for built-in capabilities."""
+"""Public request contracts and config validators for MVP capabilities."""
 
 from __future__ import annotations
 
-from typing import Any, Callable, Literal
+from typing import Any, Callable
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
-
-from traittutor.agents.math_animator.request_config import (
-    MathAnimatorRequestConfig,
-    validate_math_animator_request_config,
-)
+from pydantic import BaseModel, ConfigDict, ValidationError
 from traittutor.agents.research.request_config import (
     DeepResearchRequestConfig,
     validate_research_request_config,
@@ -27,48 +22,6 @@ _RUNTIME_ONLY_KEYS = {
 
 class ChatRequestConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
-
-class DeepSolveRequestConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-
-class DeepQuestionRequestConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    mode: Literal["custom", "mimic"] = "custom"
-    topic: str = ""
-    num_questions: int = Field(default=1, ge=1, le=50)
-    difficulty: str = ""
-    # Allowed-types whitelist. Empty list means "any type — let the
-    # planner pick per question". Frontend sends the user's multi-select.
-    question_types: list[str] = Field(default_factory=list)
-    # Optional per-type quantity targets. When non-empty, sum must equal
-    # ``num_questions`` (frontend keeps them in sync). Empty dict means
-    # "no per-type targets — distribute freely across allowed types".
-    per_type_counts: dict[str, int] = Field(default_factory=dict)
-    paper_path: str = ""
-    max_questions: int = Field(default=10, ge=1, le=100)
-
-
-class VisualizeRequestConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    render_mode: Literal[
-        "auto",
-        "svg",
-        "chartjs",
-        "mermaid",
-        "html",
-        "manim_video",
-        "manim_image",
-    ] = "auto"
-    # Only meaningful when the routed render_type is manim_video / manim_image
-    # (either chosen explicitly or selected by AnalysisAgent in auto mode).
-    # Mirrors MathAnimatorRequestConfig defaults so the auto path stays
-    # zero-config.
-    quality: Literal["low", "medium", "high"] = "medium"
-    style_hint: str = Field(default="", max_length=500)
 
 
 def _clean_public_config(raw_config: dict[str, Any] | None) -> dict[str, Any]:
@@ -103,44 +56,18 @@ def validate_chat_request_config(raw_config: dict[str, Any] | None) -> ChatReque
     return _validate_model(ChatRequestConfig, raw_config, label="chat")
 
 
-def validate_deep_solve_request_config(
-    raw_config: dict[str, Any] | None,
-) -> DeepSolveRequestConfig:
-    return _validate_model(DeepSolveRequestConfig, raw_config, label="deep solve")
-
-
-def validate_deep_question_request_config(
-    raw_config: dict[str, Any] | None,
-) -> DeepQuestionRequestConfig:
-    return _validate_model(DeepQuestionRequestConfig, raw_config, label="deep question")
-
-
-def validate_visualize_request_config(
-    raw_config: dict[str, Any] | None,
-) -> VisualizeRequestConfig:
-    return _validate_model(VisualizeRequestConfig, raw_config, label="visualize")
-
-
 def build_request_schema(model_type: type[BaseModel]) -> dict[str, Any]:
     return model_type.model_json_schema(mode="validation")
 
 
 CAPABILITY_CONFIG_VALIDATORS: dict[str, Callable[[dict[str, Any] | None], Any]] = {
     "chat": validate_chat_request_config,
-    "deep_solve": validate_deep_solve_request_config,
-    "deep_question": validate_deep_question_request_config,
     "deep_research": validate_research_request_config,
-    "math_animator": validate_math_animator_request_config,
-    "visualize": validate_visualize_request_config,
 }
 
 CAPABILITY_REQUEST_SCHEMAS: dict[str, dict[str, Any]] = {
     "chat": build_request_schema(ChatRequestConfig),
-    "deep_solve": build_request_schema(DeepSolveRequestConfig),
-    "deep_question": build_request_schema(DeepQuestionRequestConfig),
     "deep_research": build_request_schema(DeepResearchRequestConfig),
-    "math_animator": build_request_schema(MathAnimatorRequestConfig),
-    "visualize": build_request_schema(VisualizeRequestConfig),
 }
 
 
@@ -164,14 +91,8 @@ __all__ = [
     "CAPABILITY_CONFIG_VALIDATORS",
     "CAPABILITY_REQUEST_SCHEMAS",
     "ChatRequestConfig",
-    "DeepQuestionRequestConfig",
-    "DeepSolveRequestConfig",
-    "VisualizeRequestConfig",
     "build_request_schema",
     "get_capability_request_schema",
     "validate_capability_config",
     "validate_chat_request_config",
-    "validate_deep_question_request_config",
-    "validate_deep_solve_request_config",
-    "validate_visualize_request_config",
 ]

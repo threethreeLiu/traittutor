@@ -13,7 +13,11 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any, Literal
 
+from traittutor.agents._shared.tool_composition import AUTO_MOUNTED_TOOLS
 from traittutor.core.stream import StreamEvent, StreamEventType
+from traittutor.personalization.knowledge_diagram_accumulator import (
+    accumulate_knowledge_diagram_message,
+)
 from traittutor.services.llm.utils import clean_thinking_tags
 from traittutor.services.path_service import get_path_service
 from traittutor.services.session.protocol import SessionStoreProtocol
@@ -24,6 +28,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 MemoryReference = Literal["recent", "profile", "scope", "preferences", "summary"]
+_AUTO_ARTIFACT_BUILTINS = sorted(AUTO_MOUNTED_TOOLS - {"ask_user"})
+_AUTO_ARTIFACT_MODES = frozenset(
+    {"knowledge_diagram", "learning_exploration", "guided_solve"}
+)
+_AUTO_ARTIFACT_FENCE_MARKERS = (
+    "traittutor-knowledge-graph",
+    "traittutor-learning-exploration",
+    "traittutor-guided-solve",
+)
 
 
 # Content call_kinds that make up the persisted answer. The chat agent loop
@@ -100,6 +113,32 @@ def _artifact_attachments(event: StreamEvent) -> list[dict[str, Any]]:
             }
         )
     return attachments
+
+
+async def _accumulate_knowledge_diagram_from_answer(
+    *,
+    session_id: str,
+    message_id: int | str | None,
+    content: str,
+) -> None:
+    lowered = (content or "").lower()
+    if not any(marker in lowered for marker in _AUTO_ARTIFACT_FENCE_MARKERS):
+        return
+    try:
+        merged = await asyncio.to_thread(
+            accumulate_knowledge_diagram_message,
+            content,
+            session_id=session_id,
+            message_id=message_id,
+        )
+        if merged:
+            logger.info(
+                "Accumulated %s inline knowledge diagram(s) for session %s",
+                merged,
+                session_id,
+            )
+    except Exception:
+        logger.debug("Failed to accumulate inline learning artifact", exc_info=True)
 
 
 def _clip_text(value: str, limit: int = 4000) -> str:
@@ -1229,6 +1268,7 @@ class TurnRuntimeManager:
             is_regenerate = _extract_regenerate_flag(request_config)
             request_config.pop("_regenerated_from_message_id", None)
             request_config.pop("_superseded_turn_id", None)
+            traittutor_mode = str(request_config.get("traittutor_mode", "") or "").strip()
             raw_user_content = str(payload.get("content", "") or "")
             # Edit-branching tip: when the FE includes ``parent_message_id``
             # (even as ``null``), the new user message attaches at that
@@ -1650,6 +1690,11 @@ class TurnRuntimeManager:
                 user_message=effective_user_message,
                 conversation_history=conversation_history,
                 enabled_tools=payload.get("tools"),
+                allowed_builtin_tools=(
+                    _AUTO_ARTIFACT_BUILTINS
+                    if traittutor_mode in _AUTO_ARTIFACT_MODES
+                    else None
+                ),
                 active_capability=payload.get("capability"),
                 knowledge_bases=payload.get("knowledge_bases", []),
                 attachments=attachments,
@@ -1679,6 +1724,7 @@ class TurnRuntimeManager:
                     "llm_selection": payload.get("llm_selection") or {},
                     "llm_model": str(getattr(llm_config, "model", "") or ""),
                     "llm_provider": str(getattr(llm_config, "provider_name", "") or ""),
+                    "traittutor_mode": traittutor_mode,
                     # Per-turn full-text payload for read_source. Empty when
                     # the manifest is empty (non-chat capabilities, or chat
                     # turns with no attached sources). Consumed by the chat
@@ -1767,7 +1813,7 @@ class TurnRuntimeManager:
             # parent, we use it; otherwise we let the store auto-append
             # (legacy behavior).
             if new_user_message_id is not None:
-                await self.store.add_message(
+                assistant_message_id = await self.store.add_message(
                     session_id=session_id,
                     role="assistant",
                     content=assistant_content,
@@ -1777,7 +1823,7 @@ class TurnRuntimeManager:
                     parent_message_id=new_user_message_id,
                 )
             elif branch_parent_explicit:
-                await self.store.add_message(
+                assistant_message_id = await self.store.add_message(
                     session_id=session_id,
                     role="assistant",
                     content=assistant_content,
@@ -1787,7 +1833,7 @@ class TurnRuntimeManager:
                     parent_message_id=branch_parent_id,
                 )
             else:
-                await self.store.add_message(
+                assistant_message_id = await self.store.add_message(
                     session_id=session_id,
                     role="assistant",
                     content=assistant_content,
@@ -1795,6 +1841,11 @@ class TurnRuntimeManager:
                     events=assistant_events,
                     attachments=generated_attachments or None,
                 )
+            await _accumulate_knowledge_diagram_from_answer(
+                session_id=session_id,
+                message_id=assistant_message_id,
+                content=assistant_content,
+            )
             await self._flush_buffered_events(execution)
             await self.store.update_turn_status(turn_id, "completed")
             if pending_done_event is None:
@@ -1850,7 +1901,7 @@ class TurnRuntimeManager:
             partial_content = _persisted_answer()
             if partial_content or generated_attachments or assistant_events:
                 with contextlib.suppress(Exception):
-                    await asyncio.shield(
+                    partial_message_id = await asyncio.shield(
                         self.store.add_message(
                             session_id=session_id,
                             role="assistant",
@@ -1858,6 +1909,13 @@ class TurnRuntimeManager:
                             capability=capability_name,
                             events=assistant_events,
                             attachments=generated_attachments or None,
+                        )
+                    )
+                    await asyncio.shield(
+                        _accumulate_knowledge_diagram_from_answer(
+                            session_id=session_id,
+                            message_id=partial_message_id,
+                            content=partial_content,
                         )
                     )
             with contextlib.suppress(Exception):

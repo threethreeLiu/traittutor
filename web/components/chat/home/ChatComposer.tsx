@@ -90,7 +90,15 @@ interface CapabilityDef {
   loopEngine?: boolean;
 }
 
-type GenerationShortcut = "courseware" | "flashcards" | "research" | "humanizer";
+type GenerationShortcut =
+  | "guided_solve"
+  | "quiz"
+  | "learning_exploration"
+  | "knowledge_diagram"
+  | "learning_path"
+  | "courseware"
+  | "flashcards"
+  | "humanizer";
 
 const GENERATION_SHORTCUTS: Array<{
   kind: GenerationShortcut;
@@ -98,10 +106,14 @@ const GENERATION_SHORTCUTS: Array<{
   description: string;
   icon: TraitTutorIconName;
 }> = [
-  { kind: "courseware", label: "Rewrite Courseware", description: "Turn material into a structured lesson", icon: "courseware" },
-  { kind: "flashcards", label: "Generate Flashcards", description: "Create active-recall study cards", icon: "standard" },
-  { kind: "research", label: "Deep Research", description: "Comprehensive multi-agent research", icon: "research" },
-  { kind: "humanizer", label: "Humanizer", description: "Make text natural while preserving meaning", icon: "motivation" },
+  { kind: "guided_solve", label: "解题", description: "分步推理并完成问题求解", icon: "solve" },
+  { kind: "quiz", label: "生成 Quiz", description: "生成可作答和复盘的测验", icon: "measurement" },
+  { kind: "learning_exploration", label: "学习探索", description: "自动补足来源、概念和下一步", icon: "explore" },
+  { kind: "knowledge_diagram", label: "知识图解", description: "在聊天中生成可积累的概念图", icon: "visualize" },
+  { kind: "learning_path", label: "学习路径", description: "Practice, feedback, and review at your pace", icon: "mastery" },
+  { kind: "courseware", label: "改写课件", description: "把材料改写为结构化课件", icon: "courseware" },
+  { kind: "flashcards", label: "生成闪卡", description: "创建主动回忆学习卡", icon: "standard" },
+  { kind: "humanizer", label: "Humanizer", description: "自然改写文本，保留原意", icon: "motivation" },
 ];
 
 function GenerationMenuItem({

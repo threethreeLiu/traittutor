@@ -4,16 +4,8 @@
  * QuizFollowupContext — owns the per-question follow-up chat state
  * (messages, sessionId, streaming flags) and the WS runners that drive it.
  *
- * Lifted out of QuizViewer so the same thread can be read from:
- *   • the quiz card itself (for the "follow-up has N messages" badge), and
- *   • the SessionViewerPanel's quiz-followup tab body, where the actual
- *     chat now happens.
- *
- * The provider also exposes ``openFollowupTab`` which forwards to whichever
- * SessionViewerPanel has registered itself via ``setOpenTabHandler`` — i.e.
- * the chat page wires the viewer panel's imperative ``openQuizFollowupTab``
- * method through this context so QuizViewer (a descendant of ChatMessages)
- * doesn't need to drill the ref through several layers of props.
+ * Lifted out of QuizViewer so the same thread can be read from the quiz card,
+ * an inline follow-up chat surface, and any future learning artifact surface.
  */
 
 import {
@@ -178,22 +170,20 @@ export interface QuizFollowupController {
           answers?: Array<{ questionId: string; text: string }>;
         },
   ): void;
-  /** Tab open helper — forwards to whoever registered an open handler. */
+  /** Mark a question's follow-up chat as open and notify any optional host. */
   openFollowupTab(context: QuizFollowupTabContext): void;
   /**
-   * Wire up the SessionViewerPanel's imperative ``openQuizFollowupTab``.
-   * Called once by the chat page after it acquires its viewer-panel ref.
+   * Optional host registration for surfaces that want to mirror the inline
+   * follow-up state elsewhere.
    * Returns an unregister fn so the chat page can clean up on unmount.
    */
   setOpenTabHandler(
     handler: ((ctx: QuizFollowupTabContext) => void) | null,
   ): void;
   /**
-   * Subscribe to follow-up state changes — used by descendants that aren't
-   * part of the React subtree this provider wraps (i.e. components inside
-   * SessionViewerPanel rendered via a portal would still re-render through
-   * the normal React tree, but the subscriber API also lets non-React
-   * consumers observe state).
+   * Subscribe to follow-up state changes. Components usually select via
+   * ``useFollowupThread``; the snapshot method remains for compatibility with
+   * non-React consumers.
    */
   /* getSnapshot returns the full threads record. Components prefer to
    * select via ``useFollowupThread`` rather than reading this directly. */
@@ -489,9 +479,10 @@ export function QuizFollowupProvider({ children }: ProviderProps) {
 
   const openFollowupTab = useCallback((context: QuizFollowupTabContext) => {
     entryIdsRef.current.set(context.questionKey, context.notebookEntryId);
+    updateThread(context.questionKey, (prev) => ({ ...prev, isOpen: true }));
     const handler = openTabHandlerRef.current;
     if (handler) handler(context);
-  }, []);
+  }, [updateThread]);
 
   const hydrateThread = useCallback(
     (key: string, sessionId: string, messages: HydratedFollowupMessage[]) => {

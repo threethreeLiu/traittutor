@@ -38,27 +38,16 @@ import { type TraitTutorIconName } from "@/components/brand/TraitTutorIcon";
 // clicking a chip becomes a single CSS class flip, no chunk fetch + double
 // render. The heavy renderers inside still load lazily.
 import FilePreviewDrawer from "@/components/chat/preview/FilePreviewDrawer";
-import { buildSessionActivity } from "@/components/chat/home/SessionActivityPanel";
 import Tooltip from "@/components/common/Tooltip";
-import SessionViewerPanel, {
-  type SessionViewerPanelHandle,
-} from "@/components/chat/home/SessionViewerPanel";
-import {
-  QuizFollowupProvider,
-  useQuizFollowupController,
-} from "@/context/QuizFollowupContext";
-import {
-  GeogebraTabProvider,
-  useGeogebraTabOpener,
-} from "@/context/GeogebraTabContext";
-import { Download, PanelRight } from "lucide-react";
+import { QuizFollowupProvider } from "@/context/QuizFollowupContext";
+import { Download } from "lucide-react";
 import {
   useUnifiedChat,
   type MessageAttachment,
 } from "@/context/UnifiedChatContext";
 import { useAppShell } from "@/context/AppShellContext";
 import type { FilePreviewSource } from "@/components/chat/preview/previewerFor";
-import type { LLMSelection, StreamEvent } from "@/lib/unified-ws";
+import type { LLMSelection } from "@/lib/unified-ws";
 import {
   extractBase64FromDataUrl,
   readFileAsDataUrl,
@@ -68,16 +57,13 @@ import { useAttachmentLimits } from "@/lib/attachment-limits";
 import { useChatAutoScroll } from "@/hooks/useChatAutoScroll";
 import { useMeasuredHeight } from "@/hooks/useMeasuredHeight";
 import {
-  DEFAULT_QUIZ_CONFIG,
-  buildQuizWSConfig,
-} from "@/lib/quiz-types";
-import {
-  DEFAULT_VISUALIZE_CONFIG,
-  buildVisualizeWSConfig,
-} from "@/lib/visualize-types";
-import {
   buildResearchWSConfig,
 } from "@/lib/research-types";
+import {
+  buildGuidedSolveInstruction,
+  buildKnowledgeDiagramInstruction,
+  buildLearningExplorationInstruction,
+} from "@/lib/knowledge-diagram";
 import { listKnowledgeBases } from "@/lib/knowledge-api";
 import { getSubagentSettings } from "@/lib/subagents-api";
 import { listLLMOptions, type LLMOption } from "@/lib/llm-options";
@@ -188,52 +174,17 @@ const CAPABILITIES: CapabilityDef[] = [
     ],
     defaultTools: [],
   },
-  {
-    value: "deep_solve",
-    label: "Guided Solve",
-    description: "Work through a problem with guided reasoning",
-    icon: "solve",
-    allowedTools: ["web_search", "code_execution", "reason"],
-    defaultTools: ["web_search", "code_execution", "reason"],
-    loopEngine: true,
-  },
-  {
-    value: "deep_question",
-    label: "Generate Quiz",
-    description: "Create a practice quiz with review",
-    icon: "quiz",
-    allowedTools: ["web_search"],
-    defaultTools: ["web_search"],
-  },
-  {
-    value: "deep_research",
-    label: "Deep Research",
-    description: "Comprehensive multi-agent research",
-    icon: "research",
-    allowedTools: ["web_search", "paper_search"],
-    defaultTools: ["web_search", "paper_search"],
-  },
-  {
-    value: "visualize",
-    label: "Knowledge Map",
-    description: "Turn ideas into diagrams, charts, and interactive views",
-    icon: "visualize",
-    allowedTools: [],
-    defaultTools: [],
-  },
-  {
-    value: "mastery_path",
-    label: "Learning Path",
-    description: "Practice, feedback, and review at your pace",
-    icon: "mastery",
-    // The mastery tools (status/quiz/grade/assess/build) auto-mount server-side
-    // when this capability is active; rag auto-mounts when a KB is attached.
-    // These are only the extra optional tools the tutor may also reach for.
-    allowedTools: ["web_search", "code_execution"],
-    defaultTools: [],
-    loopEngine: true,
-  },
 ];
+
+type ChatGenerationKind =
+  | "guided_solve"
+  | "learning_exploration"
+  | "courseware"
+  | "flashcards"
+  | "quiz"
+  | "knowledge_diagram"
+  | "learning_path"
+  | "humanizer";
 
 interface KnowledgeBase {
   name: string;
@@ -320,47 +271,14 @@ export default function ChatPage() {
     null,
   );
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
-  const [chatGenerationKind, setChatGenerationKind] = useState<
-    "courseware" | "flashcards" | "humanizer" | null
-  >(null);
+  const [chatGenerationKind, setChatGenerationKind] =
+    useState<ChatGenerationKind | null>(null);
   const attachmentLimits = useAttachmentLimits();
   const [dragging, setDragging] = useState(false);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [previewSource, setPreviewSource] = useState<FilePreviewSource | null>(
     null,
   );
-  // Right-side panels — Activity (floating cards) and Viewer (full sidebar
-  // with tabs for file previews + web pages). Each independently togglable
-  // and persisted across reloads.
-  //
-  // We initialise both to `false` so the SSR-rendered HTML matches the
-  // first client render exactly (no hydration mismatch). The persisted
-  // preference is then applied in a post-mount effect below.
-  // Single right-side panel: the Activity/Viewer. Its home view is the
-  // session activity; files and web pages open as tabs alongside it.
-  const [viewerPanelOpen, setViewerPanelOpen] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (window.localStorage.getItem("dt:chat:viewer-panel") === "1") {
-      setViewerPanelOpen(true);
-    }
-  }, []);
-  const setViewerOpen = useCallback((next: boolean) => {
-    setViewerPanelOpen(next);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("dt:chat:viewer-panel", next ? "1" : "0");
-    }
-  }, []);
-  const toggleViewerPanel = useCallback(() => {
-    setViewerPanelOpen((prev) => {
-      const next = !prev;
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem("dt:chat:viewer-panel", next ? "1" : "0");
-      }
-      return next;
-    });
-  }, []);
-  const viewerPanelRef = useRef<SessionViewerPanelHandle | null>(null);
   const attachmentErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -413,32 +331,15 @@ export default function ChatPage() {
   const [sessionLoading, setSessionLoading] = useState(false);
   const loadAbortRef = useRef<AbortController | null>(null);
   // Bridge ref: ``ChatComposer`` writes a prefill function into this on
-  // mount; ``ChatMessageList`` reads it via ``handlePrefillComposer`` so an
-  // ``AskUserOptions`` chip click can drop text into the composer textarea.
+  // mount; ``ChatMessageList`` uses it so an ``AskUserOptions`` chip click can
+  // drop text into the composer textarea.
   const prefillInputRef = useRef<((text: string) => void) | null>(null);
-  const handlePrefillComposer = useCallback((text: string) => {
-    prefillInputRef.current?.(text);
-  }, []);
-
-  // A clickable node inside an inlined visualization SVG (data-prompt) — and the
-  // html widget's sendPrompt bridge — dispatch this window event; mirror it into
-  // the composer as a prefilled follow-up (user confirms before sending).
-  useEffect(() => {
-    const onVizPrompt = (e: Event) => {
-      const text = (e as CustomEvent<string>).detail;
-      if (typeof text === "string" && text) handlePrefillComposer(text);
-    };
-    window.addEventListener("dt:visualize-prompt", onVizPrompt);
-    return () => window.removeEventListener("dt:visualize-prompt", onVizPrompt);
-  }, [handlePrefillComposer]);
 
   const activeCap = useMemo(
     () => getCapability(state.activeCapability),
     [state.activeCapability],
   );
-  const isQuizMode = activeCap.value === "deep_question";
-  const isVisualizeMode = activeCap.value === "visualize";
-  const isResearchMode = activeCap.value === "deep_research";
+  const isResearchMode = state.activeCapability === "deep_research";
 
   const hasMessages = state.messages.length > 0;
   // Time-of-day greeting: seeded once on mount from the user's local clock so
@@ -892,6 +793,7 @@ export default function ChatPage() {
       const cap =
         CAPABILITIES.find((c) => c.value === value) ?? CAPABILITIES[0];
       setCapability(cap.value || null);
+      setChatGenerationKind(null);
       // Per-capability tool selection now derives from the user's saved
       // settings (/settings/tools) intersected with the capability's
       // allow-list. Playground-saved configs still override when the user
@@ -908,17 +810,12 @@ export default function ChatPage() {
   );
 
   const handleSelectGenerationShortcut = useCallback(
-    (kind: "courseware" | "flashcards" | "research" | "humanizer") => {
+    (kind: ChatGenerationKind) => {
       setCapMenuOpen(false);
-      if (kind === "research") {
-        setChatGenerationKind(null);
-        handleSelectCapability("deep_research");
-        return;
-      }
       setCapability(null);
       setChatGenerationKind(kind);
     },
-    [handleSelectCapability, setCapability],
+    [setCapability],
   );
 
   const fileToAttachment = useCallback(
@@ -1034,39 +931,18 @@ export default function ChatPage() {
     [attachments],
   );
 
-  // Fold all messages once per state.messages change to power the
-  // SessionActivityPanel on the right (tools, KBs, space refs, attachments).
-  const sessionActivity = useMemo(
-    () => buildSessionActivity(state.messages),
-    [state.messages],
-  );
-
-  // Clicking an attachment (from the Activity home or from a chat message)
-  // routes into the panel as a new file tab. It auto-opens and the
-  // preference is persisted so a follow-up click feels instant.
   const handlePreviewMessageAttachment = useCallback((a: MessageAttachment) => {
-    viewerPanelRef.current?.openFileTab(a);
-  }, []);
-
-  // Event-delegated link interception inside the messages container. When
-  // the user clicks an http(s) link in an assistant message, we open it as
-  // a Viewer tab instead of letting the browser navigate / open a new tab.
-  // Cmd/ctrl/shift + click keep their standard meaning (open in browser).
-  const handleMessagesClick = useCallback((event: React.MouseEvent) => {
-    if (event.defaultPrevented) return;
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
-      return;
-    if (event.button !== 0) return;
-    const target = event.target as HTMLElement | null;
-    if (!target) return;
-    const anchor = target.closest<HTMLAnchorElement>("a[href]");
-    if (!anchor) return;
-    const href = anchor.getAttribute("href");
-    if (!href) return;
-    if (!/^https?:\/\//i.test(href)) return;
-    event.preventDefault();
-    viewerPanelRef.current?.openWebTab(href);
-  }, []);
+    setPreviewSource({
+      filename: a.filename || t("Attachment"),
+      mimeType: a.mime_type,
+      type: a.type,
+      base64: a.base64,
+      url: a.url,
+      extractedText: a.extracted_text,
+      size: a.size_bytes,
+      id: a.id,
+    });
+  }, [t]);
 
   const handleClosePreview = useCallback(() => {
     setPreviewSource(null);
@@ -1162,11 +1038,6 @@ export default function ChatPage() {
       }));
       let config: Record<string, unknown> | undefined;
 
-      if (isQuizMode) {
-        config = buildQuizWSConfig(DEFAULT_QUIZ_CONFIG);
-      }
-      if (isVisualizeMode)
-        config = buildVisualizeWSConfig(DEFAULT_VISUALIZE_CONFIG);
       if (isResearchMode) {
         config = buildResearchWSConfig({ mode: "notes", depth: "standard" });
       }
@@ -1175,19 +1046,33 @@ export default function ChatPage() {
       if (selectedAgent && subagentBudget) {
         config = { ...(config ?? {}), subagent_consult_budget: subagentBudget };
       }
-      config = { ...(config ?? {}), product_mode: productMode };
+      config = {
+        ...(config ?? {}),
+        product_mode: productMode,
+        ...(chatGenerationKind ? { traittutor_mode: chatGenerationKind } : {}),
+      };
 
       const memoryPayload = [...memoryReferencesPayload];
-      const generationInstruction = chatGenerationKind
-        ? chatGenerationKind === "humanizer"
+      const modeInstruction =
+        chatGenerationKind === "humanizer"
           ? "[TRAITTUTOR_HUMANIZER]"
-          : `${t("Create a source-grounded learning artifact in this conversation.")} ${t(
-              chatGenerationKind === "courseware"
-                ? "Rewrite Courseware"
-                : chatGenerationKind === "flashcards"
-                  ? "Generate Flashcards"
-                  : "Humanizer",
-            )}`
+          : chatGenerationKind === "guided_solve"
+            ? buildGuidedSolveInstruction(state.language)
+            : chatGenerationKind === "learning_exploration"
+              ? buildLearningExplorationInstruction(state.language)
+              : chatGenerationKind === "knowledge_diagram"
+                ? buildKnowledgeDiagramInstruction(state.language)
+                : chatGenerationKind === "learning_path"
+                  ? t("Create a personalized learning path with practice, feedback, and review checkpoints.")
+                  : "";
+      const generationInstruction = chatGenerationKind
+        ? modeInstruction || `${t("Create a source-grounded learning artifact in this conversation.")} ${t(
+            chatGenerationKind === "courseware"
+              ? "Rewrite Courseware"
+              : chatGenerationKind === "flashcards"
+                ? "Generate Flashcards"
+                : "Generate Quiz",
+          )}`
         : "";
       const messageContent =
         content ||
@@ -1230,9 +1115,7 @@ export default function ChatPage() {
       attachments,
       bookReferencesPayload,
       historyReferencesPayload,
-      isQuizMode,
       isResearchMode,
-      isVisualizeMode,
       memoryReferencesPayload,
       notebookReferencesPayload,
       productMode,
@@ -1246,6 +1129,7 @@ export default function ChatPage() {
       selectedQuestionEntries.length,
       sendMessage,
       shouldAutoScrollRef,
+      state.language,
       state.isStreaming,
       subagentBudget,
       t,
@@ -1428,13 +1312,6 @@ export default function ChatPage() {
 
   return (
     <QuizFollowupProvider>
-      <GeogebraTabProvider>
-        <QuizFollowupBridge viewerPanelRef={viewerPanelRef} />
-        <GeogebraTabBridge viewerPanelRef={viewerPanelRef} />
-        <SubagentTabWatcher
-          messages={state.messages}
-          viewerPanelRef={viewerPanelRef}
-        />
         <div
           // When the preview drawer is open AND the viewport is wide enough,
           // push the chat content to the left by the drawer's width so the two
@@ -1444,7 +1321,6 @@ export default function ChatPage() {
           // transition lives in `chat-preview-shell` (globals.css) so we can
           // hand-tune it without fighting Tailwind's arbitrary-value parser.
           data-preview-open={previewSource ? "true" : "false"}
-          data-viewer-open={viewerPanelOpen ? "true" : "false"}
           className="chat-preview-shell flex h-full flex-col overflow-hidden bg-[var(--background)]"
         >
           <div className="mx-auto flex w-full max-w-[960px] flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-6 pt-3 pb-0">
@@ -1498,13 +1374,6 @@ export default function ChatPage() {
                 label={t("Download Markdown")}
                 title={t("Download chat history as Markdown")}
               />
-              <HeaderActionButton
-                onClick={toggleViewerPanel}
-                active={viewerPanelOpen}
-                icon={PanelRight}
-                label={t("Activity")}
-                title={t("Session activity, attachments & previews")}
-              />
             </div>
           </div>
           <div className="flex w-full flex-1 min-h-0 flex-col">
@@ -1528,7 +1397,6 @@ export default function ChatPage() {
                 ref={messagesContainerRef}
                 data-chat-scroll-root="true"
                 onScroll={handleMessagesScroll}
-                onClick={handleMessagesClick}
                 // `both-edges` reserves the scrollbar gutter on both sides so
                 // the inner mx-auto column centers on the same axis as the
                 // header and composer (siblings outside this scrollport) on
@@ -1612,7 +1480,7 @@ export default function ChatPage() {
               selectedMemoryFiles={selectedMemoryFiles}
               selectedKnowledgeBases={selectedKbOnly}
               isStreaming={state.isStreaming}
-              isVisualizeMode={isVisualizeMode}
+              isVisualizeMode={false}
               capabilities={CAPABILITIES}
               onSetCapMenuOpen={setCapMenuOpen}
               onSetSpaceMenuOpen={setSpaceMenuOpen}
@@ -1647,13 +1515,21 @@ export default function ChatPage() {
               onAddFiles={handleAddFiles}
               onSelectCapability={handleSelectCapability}
               onSelectGenerationShortcut={handleSelectGenerationShortcut}
-              generationShortcut={chatGenerationKind ?? (isResearchMode ? "research" : null)}
+              generationShortcut={chatGenerationKind ?? null}
               onClearGenerationShortcut={() => setChatGenerationKind(null)}
               inputPlaceholder={
-                isResearchMode
-                  ? t("Describe the research topic...")
+                chatGenerationKind === "learning_exploration"
+                  ? t("Paste material or a topic to explore automatically.")
                   : chatGenerationKind === "humanizer"
                   ? t("Paste text to humanize. Prefix with 检测： for review only.")
+                  : chatGenerationKind === "quiz"
+                  ? t("Upload material or paste text to generate practice questions.")
+                  : chatGenerationKind === "guided_solve"
+                  ? t("Paste or describe a problem to solve step by step.")
+                  : chatGenerationKind === "knowledge_diagram"
+                  ? t("Paste material to turn into a knowledge diagram.")
+                  : chatGenerationKind === "learning_path"
+                  ? t("Paste material or a goal to build a learning path.")
                   : undefined
               }
               onCancelStreaming={cancelStreamingTurn}
@@ -1725,112 +1601,16 @@ export default function ChatPage() {
             source={previewSource}
             onClose={handleClosePreview}
           />
-          <SessionViewerPanel
-            ref={viewerPanelRef}
-            open={viewerPanelOpen && previewSource === null}
-            sessionId={state.sessionId}
-            activity={sessionActivity}
-            onClose={() => setViewerOpen(false)}
-            onAutoOpen={() => setViewerOpen(true)}
-          />
         </div>
-      </GeogebraTabProvider>
     </QuizFollowupProvider>
   );
 }
 
 /**
- * Bridges the SessionViewerPanel's imperative ``openQuizFollowupTab`` into
- * the QuizFollowupController so descendants (QuizViewer) can call
- * ``controller.openFollowupTab(...)`` without prop-drilling the panel ref
- * through several layers of components.
- */
-function QuizFollowupBridge({
-  viewerPanelRef,
-}: {
-  viewerPanelRef: React.MutableRefObject<SessionViewerPanelHandle | null>;
-}) {
-  const controller = useQuizFollowupController();
-  useEffect(() => {
-    controller.setOpenTabHandler((ctx) => {
-      viewerPanelRef.current?.openQuizFollowupTab(ctx);
-    });
-    return () => controller.setOpenTabHandler(null);
-  }, [controller, viewerPanelRef]);
-  return null;
-}
-
-/**
- * Same shape as QuizFollowupBridge, for the GeoGebra-tab opener exposed
- * to in-message CTAs (the ``ggbscript`` markdown fence becomes a card
- * that calls ``controller.openTab(...)`` here).
- */
-function GeogebraTabBridge({
-  viewerPanelRef,
-}: {
-  viewerPanelRef: React.MutableRefObject<SessionViewerPanelHandle | null>;
-}) {
-  const controller = useGeogebraTabOpener();
-  useEffect(() => {
-    if (!controller) return;
-    controller.setOpenHandler((payload) => {
-      viewerPanelRef.current?.openGeogebraTab(payload);
-    });
-    return () => controller.setOpenHandler(null);
-  }, [controller, viewerPanelRef]);
-  return null;
-}
-
-/**
- * Watches the turn's messages for connected-subagent runs and mirrors each
- * (grouped by the consult's call id) into its own side-viewer tab — opening +
- * focusing the panel when a consult starts, then live-refreshing as the
- * agent's native events stream in. Keeps the chat trace compact while the full
- * run shows in the sidebar.
- */
-function SubagentTabWatcher({
-  messages,
-  viewerPanelRef,
-}: {
-  messages: { events?: StreamEvent[] }[];
-  viewerPanelRef: React.MutableRefObject<SessionViewerPanelHandle | null>;
-}) {
-  useEffect(() => {
-    // Group by turn so all of one turn's consults (TraitTutor may ask the agent
-    // several questions in a row, each its own tool call) land in one tab as a
-    // single running dialogue; fall back to the call id when no turn is set.
-    const groups = new Map<string, { label: string; events: StreamEvent[] }>();
-    for (const msg of messages) {
-      for (const ev of msg.events ?? []) {
-        const meta = (ev.metadata ?? {}) as Record<string, unknown>;
-        if (meta.trace_kind !== "subagent_event") continue;
-        const key = String(meta.turn_id || meta.call_id || meta.trace_id || "");
-        if (!key) continue;
-        const existing = groups.get(key);
-        const label = String(
-          meta.subagent_name || existing?.label || "Subagent",
-        );
-        if (existing) {
-          existing.label = label;
-          existing.events.push(ev);
-        } else {
-          groups.set(key, { label, events: [ev] });
-        }
-      }
-    }
-    for (const [key, group] of groups) {
-      viewerPanelRef.current?.openSubagentTab(key, group.label, group.events);
-    }
-  }, [messages, viewerPanelRef]);
-  return null;
-}
-
-/**
  * Header action button that auto-collapses to icon-only when the chat
- * column gets squeezed (Viewer panel open, narrow viewport, etc.). The
+ * column gets squeezed on narrow viewports. The
  * label stays as the button's `title` so hovering an icon still reveals
- * what it does. Optional `active` flag paints the button with a primary
- * tint, used by the panel-toggle buttons to surface their on/off state.
+ * what it does. Optional `active` flag paints the button with a primary tint.
  */
 // Claude-style icon-only header action: bare 16px glyph, function revealed
 // by an instant tooltip; active state gets a primary tint.

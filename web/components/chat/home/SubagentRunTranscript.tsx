@@ -14,7 +14,7 @@ import { getTraceMeta } from "./TracePanels";
  * that grows in place, so the answer types out and renders exactly once.
  *
  * Set in a Monaco/CJK monospace face (the CLI aesthetic) and the app's theme
- * tokens, so it matches the side viewer and follows light/dark theme.
+ * tokens, so it stays readable inline and follows light/dark theme.
  */
 const MONO_FONT =
   'Monaco, Menlo, Consolas, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", monospace';

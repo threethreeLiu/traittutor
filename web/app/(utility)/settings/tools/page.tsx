@@ -40,9 +40,8 @@ type BuiltinTool = {
   // cannot invoke them. The settings UI surfaces them with a locked-off
   // toggle and a "Coming soon" badge.
   coming_soon?: boolean;
-  // The capability that owns this tool (e.g. "solve" / "mastery"), or null
-  // for a plain system built-in. Owned tools render in their own section
-  // below the built-in tools.
+  // The capability that owns this tool, or null for a plain system built-in.
+  // MVP settings intentionally hide capability-owned legacy tools.
   capability?: string | null;
 };
 
@@ -56,13 +55,6 @@ type ToolSection = {
   label: string;
   hint: string;
   tools: BuiltinTool[];
-};
-
-// Display labels for capability-owned tool sections, keyed by the backend's
-// capability id. Falls back to the raw id for any unmapped capability.
-const CAPABILITY_LABELS: Record<string, { zh: string; en: string }> = {
-  solve: { zh: "深度解题", en: "Deep Solve" },
-  mastery: { zh: "精通路径", en: "Mastery Path" },
 };
 
 export default function ToolsSettingsPage() {
@@ -141,19 +133,14 @@ export default function ToolsSettingsPage() {
   const sections = useMemo<ToolSection[] | null>(() => {
     if (!tools) return null;
     const zh = language === "zh";
-    // Buckets: toggleable (体验增强) first, then locked-on built-ins, then one
-    // section per capability for its owned tools. Backend order is preserved
-    // within each bucket (mirrors USER_TOGGLEABLE_TOOL_NAMES / the
-    // BUILTIN_TOOL_TYPES registration order). Coming-soon tools share the
-    // toggleable bucket — same concept, just temporarily unavailable.
+    // Buckets: toggleable (体验增强) first, then locked-on built-ins.
+    // Backend order is preserved within each bucket. Capability-owned legacy
+    // tools are intentionally hidden from the MVP settings surface.
     const experience: BuiltinTool[] = [];
     const builtin: BuiltinTool[] = [];
-    const capabilities = new Map<string, BuiltinTool[]>();
     for (const tool of tools) {
       if (tool.capability) {
-        const list = capabilities.get(tool.capability) ?? [];
-        list.push(tool);
-        capabilities.set(tool.capability, list);
+        continue;
       } else if (tool.coming_soon) {
         experience.push(tool);
       } else {
@@ -179,17 +166,6 @@ export default function ToolsSettingsPage() {
           ? "Chat agent 在需要时自动挂载，无需手动开关。"
           : "Mounted automatically by the chat agent when needed. Not user-toggleable.",
         tools: builtin,
-      });
-    }
-    for (const [cap, list] of capabilities) {
-      const label = CAPABILITY_LABELS[cap]?.[zh ? "zh" : "en"] ?? cap;
-      out.push({
-        key: `cap:${cap}`,
-        label: zh ? `${label} · 能力工具` : `${label} · Capability Tools`,
-        hint: zh
-          ? "该能力的专属工具，仅在此能力运行时挂载。"
-          : "Tools specific to this capability; mounted only when it runs.",
-        tools: list,
       });
     }
     return out;
