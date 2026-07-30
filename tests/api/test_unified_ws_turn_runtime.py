@@ -239,6 +239,41 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
 
 
 @pytest.mark.asyncio
+async def test_start_turn_treats_traittutor_mode_as_runtime_config(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    store = SQLiteSessionStore(tmp_path / "chat_history.db")
+    runtime = TurnRuntimeManager(store)
+
+    async def noop_run_turn(_execution):
+        return None
+
+    monkeypatch.setattr(runtime, "_run_turn", noop_run_turn)
+
+    _session, turn = await runtime.start_turn(
+        {
+            "type": "start_turn",
+            "content": "make courseware",
+            "session_id": None,
+            "capability": "chat",
+            "tools": [],
+            "knowledge_bases": [],
+            "attachments": [],
+            "language": "en",
+            "config": {"traittutor_mode": "courseware"},
+        }
+    )
+
+    execution = runtime._executions[turn["id"]]
+    try:
+        assert execution.payload["config"]["traittutor_mode"] == "courseware"
+    finally:
+        if execution.task is not None:
+            await execution.task
+
+
+@pytest.mark.asyncio
 async def test_turn_runtime_persists_llm_selection_in_turn_snapshot(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,

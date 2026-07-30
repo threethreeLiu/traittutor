@@ -17,6 +17,11 @@ _RUNTIME_ONLY_KEYS = {
     # capability's public config schema; stripped here so it never trips
     # ``extra="forbid"`` (turn_runtime carries it through to the turn config).
     "subagent_consult_budget",
+    # TraitTutor chat composer shortcut (courseware / flashcards / quiz /
+    # exploration / diagrams). The chat runtime consumes it after public
+    # capability validation, so it is routing metadata rather than public
+    # chat-config surface area.
+    "traittutor_mode",
 }
 
 

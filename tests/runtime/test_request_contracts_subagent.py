@@ -22,6 +22,14 @@ def test_chat_config_allows_subagent_consult_budget() -> None:
     validate_capability_config("chat", {"subagent_consult_budget": 5})
 
 
+def test_chat_config_allows_traittutor_generation_mode() -> None:
+    # Composer shortcuts such as courseware/flashcards/quiz are runtime routing
+    # metadata. They must survive to the turn runtime but not trip strict chat
+    # config validation.
+    validate_chat_request_config({"traittutor_mode": "courseware"})
+    validate_capability_config("chat", {"traittutor_mode": "courseware"})
+
+
 def test_chat_config_still_rejects_unknown_keys() -> None:
     with pytest.raises(ValueError, match="Extra inputs are not permitted"):
         validate_chat_request_config({"totally_unknown_key": 1})
