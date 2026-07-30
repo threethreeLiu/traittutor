@@ -20,15 +20,23 @@ const fontSerif = Lora({
   variable: "--font-serif",
 });
 
+const APP_BASE_PATH = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(
+  /\/$/,
+  "",
+);
+const FAVICON_VERSION = "traittutor-icon-v2";
+const iconUrl = (path: string) => `${APP_BASE_PATH}${path}?v=${FAVICON_VERSION}`;
+
 export const metadata: Metadata = {
   title: "TraitTutor",
   description: "Agent-native intelligent learning companion",
   icons: {
     icon: [
-      { url: "/favicon-16x16.png?v=traittutor-t", sizes: "16x16", type: "image/png" },
-      { url: "/favicon-32x32.png?v=traittutor-t", sizes: "32x32", type: "image/png" },
+      { url: iconUrl("/favicon.svg"), type: "image/svg+xml" },
+      { url: iconUrl("/favicon-32x32.png"), sizes: "32x32", type: "image/png" },
+      { url: iconUrl("/favicon-16x16.png"), sizes: "16x16", type: "image/png" },
     ],
-    apple: "/apple-touch-icon.png?v=traittutor-t",
+    apple: iconUrl("/apple-touch-icon.png"),
   },
 };
 

@@ -30,3 +30,11 @@ test("glass is the no-preference theme across the client and server defaults", (
   assert.match(settingsRouter, /"theme": "glass"/);
   assert.match(interfaceSettings, /"theme": "glass"/);
 });
+
+test("favicon links respect the production base path", () => {
+  const layout = read("app/layout.tsx");
+  assert.match(layout, /NEXT_PUBLIC_BASE_PATH/);
+  assert.match(layout, /iconUrl\("\/favicon\.svg"\)/);
+  assert.match(layout, /traittutor-icon-v2/);
+  assert.doesNotMatch(layout, /url:\s*"\/favicon-/);
+});
