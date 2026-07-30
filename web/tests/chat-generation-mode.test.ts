@@ -14,12 +14,19 @@ test("generation shortcut drives the composer mode chip before chat capability",
   assert.match(source, /selected=\{!generationShortcut && activeCap\.value === cap\.value\}/);
 });
 
-test("home chat does not expose study generation shortcuts", () => {
-  const source = read("app/(workspace)/home/[[...sessionId]]/page.tsx");
+test("home chat keeps analysis shortcuts but hides study artifact shortcuts", () => {
+  const page = read("app/(workspace)/home/[[...sessionId]]/page.tsx");
+  const composer = read("components/chat/home/ChatComposer.tsx");
 
-  assert.doesNotMatch(source, /onSelectGenerationShortcut=/);
-  assert.doesNotMatch(source, /generationShortcut=/);
-  assert.doesNotMatch(source, /traittutor_mode/);
+  assert.match(page, /onSelectGenerationShortcut=\{handleSelectGenerationShortcut\}/);
+  assert.match(page, /generationShortcut=\{chatGenerationKind \?\? null\}/);
+  assert.match(page, /traittutor_mode/);
+  assert.match(composer, /kind:\s*"guided_solve"/);
+  assert.match(composer, /kind:\s*"learning_exploration"/);
+  assert.match(composer, /kind:\s*"knowledge_diagram"/);
+  assert.doesNotMatch(composer, /kind:\s*"courseware"/);
+  assert.doesNotMatch(composer, /kind:\s*"flashcards"/);
+  assert.doesNotMatch(composer, /kind:\s*"quiz"/);
 });
 
 test("my learning keeps dedicated courseware flashcard and quiz surfaces", () => {
