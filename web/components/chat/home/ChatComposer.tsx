@@ -383,6 +383,11 @@ export default memo(function ChatComposer({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputHandleRef = useRef<ComposerInputHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const activeGenerationShortcut =
+    GENERATION_SHORTCUTS.find((shortcut) => shortcut.kind === generationShortcut) ??
+    null;
+  const activeModeIcon = activeGenerationShortcut?.icon ?? activeCap.icon;
+  const activeModeLabel = activeGenerationShortcut?.label ?? activeCap.label;
   useEffect(() => {
     if (!prefillInputRef) return;
     prefillInputRef.current = (text: string) => {
@@ -813,9 +818,9 @@ export default memo(function ChatComposer({
                   }`}
                 >
                   <span className="flex min-w-0 items-center gap-1.5">
-                    <TraitTutorIcon name={activeCap.icon} size={16} strokeWidth={1.65} className="shrink-0" />
+                    <TraitTutorIcon name={activeModeIcon} size={16} strokeWidth={1.65} className="shrink-0" />
                     {composerCompact ? null : (
-                      <span className="truncate">{t(activeCap.label)}</span>
+                      <span className="truncate">{t(activeModeLabel)}</span>
                     )}
                   </span>
                   <ChevronDown
@@ -835,7 +840,7 @@ export default memo(function ChatComposer({
                         <CapMenuItem
                           key={cap.value}
                           cap={cap}
-                          selected={activeCap.value === cap.value}
+                          selected={!generationShortcut && activeCap.value === cap.value}
                           onSelect={handleSelectCapability}
                         />
                     ))}

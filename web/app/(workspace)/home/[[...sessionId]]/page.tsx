@@ -1530,6 +1530,10 @@ export default function ChatPage() {
                   ? t("Paste material to turn into a knowledge diagram.")
                   : chatGenerationKind === "learning_path"
                   ? t("Paste material or a goal to build a learning path.")
+                  : chatGenerationKind === "courseware"
+                  ? t("Upload material or paste text to rewrite it as structured courseware.")
+                  : chatGenerationKind === "flashcards"
+                  ? t("Upload material or paste text to generate active-recall flashcards.")
                   : undefined
               }
               onCancelStreaming={cancelStreamingTurn}
