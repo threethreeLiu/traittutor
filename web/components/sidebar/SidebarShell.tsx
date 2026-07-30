@@ -30,6 +30,7 @@ interface NavEntry {
   icon: LucideIcon;
   traitTutorIcon?: TraitTutorIconName;
   tooltipKey?: string;
+  exact?: boolean;
   /** Model capability this feature needs; locked when the user lacks it. */
   requires?: Capability;
 }
@@ -41,6 +42,7 @@ const PRIMARY_NAV: NavEntry[] = [
     icon: House,
     traitTutorIcon: "home",
     tooltipKey: "Home tooltip",
+    exact: true,
     requires: "llm",
   },
   {
@@ -58,6 +60,19 @@ const SECONDARY_NAV: NavEntry[] = [
   { href: "/settings", label: "Settings", icon: Settings, traitTutorIcon: "settings" },
 ];
 const RECENTS_COLLAPSED_KEY = "traittutor.sidebar.recentsCollapsed";
+
+function isNavEntryActive(pathname: string | null, item: NavEntry): boolean {
+  const current = pathname || "/";
+  if (item.exact) {
+    return current === item.href;
+  }
+  return current === item.href || current.startsWith(`${item.href}/`);
+}
+
+function sessionIdFromPath(pathname: string | null): string | null {
+  const match = (pathname || "").match(/^\/home\/([^/?#]+)/);
+  return match?.[1] ? decodeURIComponent(match[1]) : null;
+}
 
 interface SidebarShellProps {
   sessions?: SessionSummary[];
@@ -97,6 +112,8 @@ export function SidebarShell({
 
   const navLocked = (item: NavEntry) =>
     item.requires ? !has(item.requires) : false;
+  const effectiveActiveSessionId =
+    activeSessionId ?? sessionIdFromPath(pathname);
   const lockedTooltip = t("Locked — contact your administrator to get access.");
   const renderedFooter =
     typeof footerSlot === "function" ? footerSlot(collapsed) : footerSlot;
@@ -158,7 +175,7 @@ export function SidebarShell({
         {/* Primary nav */}
         <nav className="mt-1 flex w-full flex-col items-center gap-1 px-1.5">
           {PRIMARY_NAV.map((item) => {
-            const active = pathname.startsWith(item.href);
+            const active = isNavEntryActive(pathname, item);
             const locked = navLocked(item);
             const description = locked
               ? lockedTooltip
@@ -218,7 +235,7 @@ export function SidebarShell({
         <div className="flex w-full flex-col items-center gap-1 px-1.5">
           <div className="my-1 h-px w-7 bg-[var(--border)]/40" />
           {SECONDARY_NAV.map((item) => {
-            const active = pathname.startsWith(item.href);
+            const active = isNavEntryActive(pathname, item);
             return (
               <Link
                 key={item.href}
@@ -262,7 +279,7 @@ export function SidebarShell({
       <nav className="px-2 pt-1">
         <div className="space-y-px">
           {PRIMARY_NAV.map((item) => {
-            const active = pathname.startsWith(item.href);
+            const active = isNavEntryActive(pathname, item);
             const locked = navLocked(item);
             if (locked) {
               return (
@@ -336,7 +353,7 @@ export function SidebarShell({
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2 pt-0.5">
               <SessionList
                 sessions={sessions}
-                activeSessionId={activeSessionId}
+                activeSessionId={effectiveActiveSessionId}
                 loading={loadingSessions}
                 onSelect={onSelectSession}
                 onRename={onRenameSession}
@@ -358,7 +375,7 @@ export function SidebarShell({
       {/* Secondary nav + footer */}
       <div className="border-t border-[var(--border)]/40 px-2 py-2">
         {SECONDARY_NAV.map((item) => {
-          const active = pathname.startsWith(item.href);
+          const active = isNavEntryActive(pathname, item);
           return (
             <Link
               key={item.href}
