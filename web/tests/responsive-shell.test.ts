@@ -18,11 +18,13 @@ test("app shells keep a mobile navigation and a scrollable content region", () =
   assert.match(mobileNavigation, /overflow-x-auto/);
 });
 
-test("full-bleed learning tools reflow instead of retaining a desktop split", () => {
+test("learning space no longer reserves a full-bleed mastery path layout", () => {
   const spaceMain = read("components", "space", "SpaceMain.tsx");
-  const masteryPath = read("app", "(utility)", "space", "learning", "page.tsx");
 
-  assert.match(spaceMain, /overflow-y-auto md:overflow-hidden/);
-  assert.match(masteryPath, /flex min-h-full flex-col md:h-full md:flex-row/);
-  assert.match(masteryPath, /max-h-\[46dvh\].*md:w-64/);
+  assert.doesNotMatch(spaceMain, /FULL_BLEED/);
+  assert.doesNotMatch(spaceMain, /\/space\/learning/);
+  assert.equal(
+    fs.existsSync(path.join(process.cwd(), "app", "(utility)", "space", "learning", "page.tsx")),
+    false,
+  );
 });

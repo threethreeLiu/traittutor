@@ -28,4 +28,7 @@ test("my learning keeps dedicated courseware flashcard and quiz surfaces", () =>
   assert.match(source, /href:\s*"\/space\/courseware"/);
   assert.match(source, /href:\s*"\/space\/flashcards"/);
   assert.match(source, /href:\s*"\/space\/quiz"/);
+  assert.doesNotMatch(source, /mastery_path/);
+  assert.doesNotMatch(source, /\/space\/learning/);
+  assert.doesNotMatch(source, /精通之路|Mastery Path/);
 });

@@ -10,7 +10,6 @@ import {
   FileText,
   FileSearch,
   Globe,
-  GraduationCap,
   Lightbulb,
   Loader2,
   MessageSquare,
@@ -79,7 +78,6 @@ const CAPABILITY_ICONS: Record<string, LucideIcon> = {
   deep_solve: BrainCircuit,
   deep_question: PenLine,
   deep_research: Microscope,
-  mastery_path: GraduationCap,
 };
 
 const CAPABILITY_LABELS: Record<string, string> = {
@@ -87,7 +85,6 @@ const CAPABILITY_LABELS: Record<string, string> = {
   deep_solve: "Deep Solve",
   deep_question: "Quiz Generation",
   deep_research: "Deep Research",
-  mastery_path: "Mastery Path",
 };
 
 function getToolIcon(name: string): LucideIcon {
