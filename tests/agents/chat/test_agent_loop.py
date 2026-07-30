@@ -887,6 +887,40 @@ def test_compose_enabled_tools_injects_rag_when_kb_selected(
     assert "web_search" in pipeline._compose_enabled_tools(context)
 
 
+def test_knowledge_diagram_mode_suppresses_ask_user_without_disabling_chat_tools(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "traittutor.services.memory.get_memory_store",
+        lambda: SimpleNamespace(read_raw=lambda *_args, **_kwargs: ""),
+    )
+    monkeypatch.setattr(
+        "traittutor.services.notebook.get_notebook_manager",
+        lambda: SimpleNamespace(list_notebooks=lambda: []),
+    )
+    pipeline = AgenticChatPipeline.__new__(AgenticChatPipeline)
+    pipeline._deferred_loader = None
+    pipeline._exec_enabled = False
+    pipeline.registry = SimpleNamespace(
+        get_enabled=lambda selected: [SimpleNamespace(name=n) for n in selected]
+    )
+
+    ordinary = UnifiedContext(user_message="hi", enabled_tools=["web_search"])
+    automatic_diagram = UnifiedContext(
+        user_message="把材料变成知识图解",
+        enabled_tools=["web_search"],
+        allowed_builtin_tools=["web_fetch", "github", "cron", "write_memory"],
+        metadata={"traittutor_mode": "knowledge_diagram"},
+    )
+
+    ordinary_tools = pipeline._compose_enabled_tools(ordinary)
+    diagram_tools = pipeline._compose_enabled_tools(automatic_diagram)
+    assert "ask_user" in ordinary_tools
+    assert "ask_user" not in diagram_tools
+    assert "web_search" in diagram_tools
+    assert {"web_fetch", "github", "cron"}.issubset(diagram_tools)
+
+
 def test_compose_enabled_tools_mounts_mastery_plugin_only_in_mastery_mode(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

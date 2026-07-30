@@ -1,17 +1,17 @@
 "use client";
 
 /**
- * QuizFollowupTabBody — chat-page-like surface that lives inside a
- * SessionViewerPanel tab. Dedicated to one quiz question and runs the
- * full ``chat`` capability against a session pinned to that question.
+ * QuizFollowupTabBody — chat-page-like inline surface for one quiz question.
+ * It runs the full ``chat`` capability against a session pinned to that
+ * question.
  *
  * Layout: pinned context cards (question / your answer / AI judgment) →
  * scrollable chat thread → ``FollowupChatComposer`` (same chrome as the
  * main chat composer).
  *
- * State is owned by ``QuizFollowupProvider`` so closing/reopening the
- * tab — or toggling questions inside QuizViewer — keeps the thread
- * intact and is reflected in the QuizViewer follow-up badge.
+ * State is owned by ``QuizFollowupProvider`` so collapsing/reopening the
+ * inline surface keeps the thread intact and is reflected in the QuizViewer
+ * follow-up badge.
  */
 
 import {

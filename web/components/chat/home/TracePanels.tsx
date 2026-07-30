@@ -915,8 +915,8 @@ function TraceRowBody({
     (text): text is string => Boolean(text) && text.trim().length > 0,
   );
   // A connected subagent's native run streams in as ``subagent_event`` progress
-  // lines, but those are shown in the side viewer's per-agent tab — keep the
-  // inline trace compact (the question + the agent's final reply).
+  // lines. Keep the inline trace compact here (the question + final reply);
+  // detailed native transcripts can be rendered as chat content.
   const plainSummaryEvents = summaryProgressEvents.filter(
     (event) => getTraceMeta(event).trace_kind !== "subagent_event",
   );

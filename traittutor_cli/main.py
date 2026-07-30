@@ -1,4 +1,4 @@
-"""CLI entry point for the standalone ``traittutor-cli`` package."""
+"""TraitTutor MVP CLI entry point."""
 
 from __future__ import annotations
 
@@ -9,72 +9,49 @@ import typer
 from traittutor.logging import configure_logging
 from traittutor.runtime.mode import RunMode, set_mode
 
-from .book import register as register_book
 from .chat import register as register_chat
 from .common import build_turn_request, console, maybe_run
 from .config_cmd import register as register_config
-from .generation_benchmark import register as register_generation_benchmark
 from .init_cmd import register as register_init
 from .kb import register as register_kb
 from .memory import register as register_memory
 from .models_cmd import register as register_models
 from .notebook import register as register_notebook
-from .partner import register as register_partner
-from .plugin import register as register_plugin
-from .provider_cmd import register as register_provider
 from .session_cmd import register as register_session
-from .skill import register as register_skill
 
 set_mode(RunMode.CLI)
 configure_logging()
 
 app = typer.Typer(
     name="traittutor",
-    help="TraitTutor CLI – agent-first interface for capabilities, tools, and knowledge.",
+    help="TraitTutor CLI – local interface for chat, research, knowledge, memory, and model setup.",
     no_args_is_help=True,
     add_completion=False,
 )
 
-partner_app = typer.Typer(help="Manage partners (IM-connected companions).")
 chat_app = typer.Typer(help="Interactive chat REPL.")
 kb_app = typer.Typer(help="Manage knowledge bases.")
-skill_app = typer.Typer(help="Manage skills and install from hubs (ClawHub, …).")
-memory_app = typer.Typer(help="View and manage lightweight memory.")
+memory_app = typer.Typer(help="View and manage learning memory.")
 models_app = typer.Typer(help="Manage code-defined LLM models (sync from CC Switch, list).")
-plugin_app = typer.Typer(help="List plugins.")
 config_app = typer.Typer(help="Inspect configuration.")
 session_app = typer.Typer(help="Manage shared sessions.")
 notebook_app = typer.Typer(help="Manage notebooks and imported markdown records.")
-provider_app = typer.Typer(help="Manage provider OAuth login.")
-book_app = typer.Typer(help="Manage interactive Books (BookEngine).")
 
-app.add_typer(partner_app, name="partner")
 app.add_typer(chat_app, name="chat")
 app.add_typer(kb_app, name="kb")
-app.add_typer(skill_app, name="skill")
-app.add_typer(skill_app, name="skills")  # alias: `traittutor skills …`
 app.add_typer(memory_app, name="memory")
 app.add_typer(models_app, name="models")
-app.add_typer(plugin_app, name="plugin")
 app.add_typer(config_app, name="config")
 app.add_typer(session_app, name="session")
 app.add_typer(notebook_app, name="notebook")
-app.add_typer(provider_app, name="provider")
-app.add_typer(book_app, name="book")
 
-register_partner(partner_app)
 register_chat(chat_app)
 register_kb(kb_app)
-register_skill(skill_app)
 register_memory(memory_app)
 register_models(models_app)
-register_plugin(plugin_app)
 register_config(config_app)
 register_session(session_app)
 register_notebook(notebook_app)
-register_provider(provider_app)
-register_book(book_app)
-register_generation_benchmark(app)
 register_init(app)
 
 
@@ -83,8 +60,8 @@ def run_capability(
     capability: str = typer.Argument(
         ...,
         help=(
-            "Capability name (e.g. chat, deep_solve, deep_question, "
-            "deep_research, visualize, math_animator, mastery_path)."
+            "Capability name. MVP supports chat and deep_research (alias: research). "
+            "Courseware, flashcards, and quiz use the TraitTutor generation flow."
         ),
     ),
     message: str = typer.Argument(..., help="Message to send."),
@@ -100,7 +77,7 @@ def run_capability(
     ),
     fmt: str = typer.Option("rich", "--format", "-f", help="Output format: rich | json."),
 ) -> None:
-    """Run any capability in a single turn (agent-first entry point)."""
+    """Run a supported MVP capability in a single turn."""
     from traittutor.app import TraitTutorApp
 
     from .common import run_turn_and_render
@@ -148,7 +125,7 @@ def serve(
 
     # Windows: uvicorn defaults to SelectorEventLoop which does not support
     # asyncio.create_subprocess_exec.  Switch to ProactorEventLoop so that
-    # child-process APIs (used by Math Animator renderer, etc.) work correctly.
+    # child-process APIs used by optional local renderers work correctly.
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 

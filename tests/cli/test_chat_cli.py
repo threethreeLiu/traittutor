@@ -77,12 +77,10 @@ def test_run_command_json_mode(monkeypatch) -> None:
 def test_builtin_capability_aliases_resolve_to_canonical_names() -> None:
     runtime = TraitTutorApp()
 
-    assert runtime.resolve_capability("solve") == "deep_solve"
-    assert runtime.resolve_capability("quiz") == "deep_question"
     assert runtime.resolve_capability("research") == "deep_research"
-    assert runtime.resolve_capability("viz") == "visualize"
-    assert runtime.resolve_capability("animate") == "math_animator"
-    assert runtime.resolve_capability("mastery") == "mastery_path"
+    for removed in ("solve", "quiz", "viz", "animate", "mastery"):
+        with pytest.raises(ValueError, match=f"Unknown capability `{removed}`"):
+            runtime.resolve_capability(removed)
     with pytest.raises(ValueError, match="Unknown capability `auto`"):
         runtime.resolve_capability("auto")
 
@@ -192,14 +190,11 @@ def test_chat_repl_survives_invalid_utf8_input(monkeypatch) -> None:
     assert "Unable to decode terminal input" in result.output
 
 
-def test_plugin_info_includes_capability_aliases_and_availability() -> None:
-    result = runner.invoke(app, ["plugin", "info", "deep_solve"])
+def test_removed_plugin_command_is_not_exposed() -> None:
+    result = runner.invoke(app, ["plugin", "info", "removed-capability"])
 
-    assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
-    assert payload["name"] == "deep_solve"
-    assert payload["cli_aliases"] == ["solve"]
-    assert payload["availability"]["available"] is True
+    assert result.exit_code != 0
+    assert "No such command" in result.output
 
 
 def test_session_list_command_uses_shared_store(monkeypatch) -> None:

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-import importlib.util
 import json
 from typing import Any, AsyncIterator
 
@@ -97,18 +96,6 @@ class TraitTutorApp:
 
     def get_capability_availability(self, capability: str) -> CapabilityAvailability:
         resolved = self.resolve_capability(capability)
-        if resolved == "math_animator":
-            available = importlib.util.find_spec("manim") is not None
-            return CapabilityAvailability(
-                name=resolved,
-                available=available,
-                install_hint=(
-                    ""
-                    if available
-                    else "Install with `pip install -e '.[math-animator]'` "
-                    "or `pip install -r requirements/math-animator.txt`."
-                ),
-            )
         return CapabilityAvailability(name=resolved, available=True)
 
     async def start_turn(

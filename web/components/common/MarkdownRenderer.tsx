@@ -54,7 +54,7 @@ function detectMermaidContent(content: string): boolean {
   // editor.md style ```flow / ```seq / ```sequence fences are converted to
   // mermaid by processMarkdownContent, so they need to enable the mermaid path
   // as well. Otherwise the converted blocks fall through to the code renderer.
-  return /```(?:mermaid|flow|seq|sequence)\b/i.test(content);
+  return /```(?:mermaid|flow|seq|sequence|traittutor-knowledge-graph|traittutor-learning-exploration|traittutor-guided-solve)\b/i.test(content);
 }
 
 function detectHtmlContent(content: string): boolean {

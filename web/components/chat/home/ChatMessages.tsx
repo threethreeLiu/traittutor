@@ -46,7 +46,6 @@ import {
   extractQuizQuestions,
   extractStreamingQuizQuestions,
 } from "@/lib/quiz-types";
-import { extractVisualizeResult } from "@/lib/visualize-types";
 import type { StreamEvent } from "@/lib/unified-ws";
 import { hasVisibleMarkdownContent } from "@/lib/markdown-display";
 import type { SelectedBookReference } from "@/lib/book-references";
@@ -77,10 +76,6 @@ const ResearchOutlineEditor = dynamic(
   () => import("@/components/research/ResearchOutlineEditor"),
   { ssr: false },
 );
-const VisualizationViewer = dynamic(
-  () => import("@/components/visualize/VisualizationViewer"),
-  { ssr: false },
-);
 
 interface ChatMessageItem {
   id?: number;
@@ -107,7 +102,7 @@ function getModeBadgeLabel(capability?: string | null): string {
   if (capability === "deep_question") return "Quiz Generation";
   if (capability === "deep_research") return "Deep Research";
   if (capability === "math_animator") return "Math Animator";
-  if (capability === "visualize") return "Visualize";
+  if (capability === "visualize") return "Knowledge Diagram";
   if (capability === "mastery_path") return "Mastery Path";
   return capability;
 }
@@ -351,11 +346,6 @@ const AssistantMessage = memo(function AssistantMessage({
     return extractMathAnimatorResult(resultEvent.metadata);
   }, [msg.capability, resultEvent]);
 
-  const visualizeResult = useMemo(() => {
-    if (msg.capability !== "visualize" || !resultEvent) return null;
-    return extractVisualizeResult(resultEvent.metadata);
-  }, [msg.capability, resultEvent]);
-
   // Detect the ``ask_user`` terminator payload: when the assistant turn
   // ended via the ``ask_user`` tool, this is the question the user is
   // expected to answer next. Render option chips below the message.
@@ -368,12 +358,12 @@ const AssistantMessage = memo(function AssistantMessage({
   // before the ask_user call renders above the card; text emitted by
   // the resumed iteration renders below it. Only walked when this
   // message will actually render through the default branch (the
-  // research / quiz / animator / visualize branches have their own
-  // layout and pin the card elsewhere).
+  // research / quiz / animator branches have their own layout and pin the
+  // card elsewhere). Knowledge diagrams now render inline as Markdown
+  // (Mermaid + TraitTutor KG candidate card), so they stay on this branch.
   const useInlineAskUserSegments =
     !outlinePreview &&
     !mathAnimatorResult &&
-    !visualizeResult &&
     !(quizQuestions && quizQuestions.length > 0);
   const messageSegments = useMemo(
     () => (useInlineAskUserSegments ? extractMessageSegments(msg.events) : []),
@@ -443,8 +433,6 @@ const AssistantMessage = memo(function AssistantMessage({
         </>
       ) : mathAnimatorResult ? (
         <MathAnimatorViewer result={mathAnimatorResult} />
-      ) : visualizeResult ? (
-        <VisualizationViewer result={visualizeResult} />
       ) : quizQuestions && quizQuestions.length > 0 ? (
         <>
           {/* The quiz preface (the "I researched X, now let me quiz you on Y"

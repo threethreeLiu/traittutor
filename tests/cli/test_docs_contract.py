@@ -74,23 +74,18 @@ def test_internal_docs_links_point_to_existing_pages() -> None:
 
 def test_documented_traittutor_subcommands_exist() -> None:
     top_level = {
-        "book",
         "chat",
         "config",
         "init",
         "kb",
         "memory",
+        "models",
         "notebook",
-        "partner",
-        "plugin",
-        "provider",
         "run",
         "serve",
         "session",
-        "skill",
         "start",
     }
-    provider_subcommands = {"login"}
 
     for command in _traittutor_commands():
         first_segment = command.split("|", 1)[0].split("#", 1)[0].strip()
@@ -100,8 +95,6 @@ def test_documented_traittutor_subcommands_exist() -> None:
         if len(tokens) < 2:
             continue
         assert tokens[1] in top_level, command
-        if tokens[1] == "provider" and len(tokens) >= 3:
-            assert tokens[2] in provider_subcommands, command
 
 
 def test_deep_research_examples_include_required_config() -> None:
@@ -120,5 +113,10 @@ def test_docs_do_not_advertise_removed_cli_forms() -> None:
     text = _docs_text()
 
     assert "traittutor provider logout" not in text
+    assert "traittutor provider login" not in text
+    assert "traittutor plugin" not in text
+    assert "traittutor skill" not in text
+    assert "traittutor partner" not in text
+    assert "traittutor book" not in text
     assert "traittutor memory show summary" not in text
     assert "WS /api/v1/turns" not in text
