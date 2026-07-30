@@ -39,7 +39,7 @@ export function proxy(req: NextRequest): NextResponse {
   // Retired workbench surfaces are deliberately unavailable in the consumer
   // product. Redirect rather than rendering a partially functional legacy UI.
   if (
-    ["/agents", "/partners", "/book", "/knowledge", "/memory", "/co-writer", "/playground", "/notebook"].some(
+    ["/agents", "/partners", "/book", "/knowledge", "/co-writer", "/playground", "/notebook"].some(
       (path) => pathname === path || pathname.startsWith(`${path}/`),
     )
   ) {

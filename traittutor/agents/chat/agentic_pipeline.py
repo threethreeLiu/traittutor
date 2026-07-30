@@ -51,7 +51,7 @@ from traittutor.services.llm import (
     supports_tools,  # noqa: F401  (re-exported for tests)
 )
 from traittutor.services.llm.context_window import resolve_effective_context_window
-from traittutor.services.prompt import get_prompt_manager
+from traittutor.services.prompt import PromptLoadError, get_prompt_manager
 from traittutor.tools.builtin import PARTNER_BUILTIN_TOOL_NAMES
 
 logger = logging.getLogger(__name__)
@@ -230,18 +230,12 @@ class AgenticChatPipeline:
         if max_tokens is not None:
             self._respond_max_tokens = max(256, int(max_tokens))
 
-        try:
-            self._prompts: dict[str, Any] = (
-                get_prompt_manager().load_prompts(
-                    module_name="chat",
-                    agent_name="agentic_chat",
-                    language=self.language,
-                )
-                or {}
-            )
-        except Exception as exc:
-            logger.warning("Failed to load agentic_chat prompts: %s", exc)
-            self._prompts = {}
+        self._prompts: dict[str, Any] = get_prompt_manager().load_prompts(
+            module_name="chat",
+            agent_name="agentic_chat",
+            language=self.language,
+            required_sections=("general", "runtime_policy", "loop.system"),
+        )
         self._prompt_assembler = ChatPromptAssembler(
             prompts=self._prompts,
             language=self.language,
@@ -647,9 +641,10 @@ class AgenticChatPipeline:
 
         The hook is optional (read via ``getattr`` so plain capabilities are
         unaffected) and runs once before the answer loop's first LLM call —
-        see the ``pre_loop`` note on :class:`LoopCapability`. Failures are
-        swallowed: a pre-pass is best-effort grounding and must never sink the
-        turn.
+        see the ``pre_loop`` note on :class:`LoopCapability`. Operational
+        failures are best-effort, but prompt configuration failures propagate:
+        a turn must not continue to the answer LLM with a missing capability
+        prompt.
         """
         blocks: list[str] = []
         for cap in self._active_loop_capabilities(context):
@@ -658,6 +653,12 @@ class AgenticChatPipeline:
                 continue
             try:
                 block = await hook(context, stream, usage=self._usage)
+            except PromptLoadError:
+                logger.exception(
+                    "pre_loop prompt configuration failed for capability %s",
+                    getattr(cap, "name", "?"),
+                )
+                raise
             except Exception:
                 logger.warning(
                     "pre_loop hook failed for capability %s",

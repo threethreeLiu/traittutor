@@ -1,6 +1,6 @@
 """Mastery Path LLM prompt templates.
 
-The prompt text lives in ``traittutor/learning/prompts/{en,zh}.yaml`` so the
+The prompt text lives in ``traittutor/learning/prompts/{en,zh}.md`` so the
 capability and API can follow the active UI language. The module-level constants
 remain as the Chinese defaults for older tests/imports.
 """
@@ -11,9 +11,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from traittutor.services.config import parse_language
+from traittutor.services.prompt.markdown import load_markdown_prompt
 
 _PROMPT_DIR = Path(__file__).with_name("prompts")
 
@@ -33,9 +32,9 @@ def get_learning_prompts(language: str = "zh") -> dict[str, Any]:
     lang = parse_language(language)
     candidates = [lang, "zh" if lang != "zh" else "en"]
     for candidate in candidates:
-        path = _PROMPT_DIR / f"{candidate}.yaml"
+        path = _PROMPT_DIR / f"{candidate}.md"
         if path.exists():
-            return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            return load_markdown_prompt(path)
     return {}
 
 

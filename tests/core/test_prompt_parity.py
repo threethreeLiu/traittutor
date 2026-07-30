@@ -4,7 +4,7 @@ from pathlib import Path
 import re
 from typing import Any, Iterable
 
-import yaml
+from traittutor.services.prompt.markdown import load_markdown_prompt
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 AGENTS_DIR = PROJECT_ROOT / "traittutor" / "agents"
@@ -19,15 +19,14 @@ EXTRA_PROMPT_MODULE_DIRS = (
 PLACEHOLDER_RE = re.compile(r"(?<!\{)\{[A-Za-z_][A-Za-z0-9_]*\}(?!\})")
 
 
-def _load_yaml(path: Path) -> Any:
-    with open(path, encoding="utf-8") as f:
-        return yaml.safe_load(f) or {}
+def _load_prompt_asset(path: Path) -> Any:
+    return load_markdown_prompt(path)
 
 
-def _iter_yaml_files(root: Path) -> Iterable[Path]:
+def _iter_prompt_files(root: Path) -> Iterable[Path]:
     if not root.exists():
         return []
-    return sorted([p for p in root.rglob("*.yaml") if p.is_file()])
+    return sorted([p for p in root.rglob("*.md") if p.is_file()])
 
 
 def _get_placeholders(value: Any) -> set[str]:
@@ -78,9 +77,9 @@ def test_prompts_key_and_placeholder_parity():
         zh_dir = prompts_dir / "zh"
         cn_dir = prompts_dir / "cn"
 
-        for en_file in _iter_yaml_files(en_dir):
+        for en_file in _iter_prompt_files(en_dir):
             rel = en_file.relative_to(en_dir)
-            en_obj = _load_yaml(en_file)
+            en_obj = _load_prompt_asset(en_file)
 
             candidates: list[tuple[str, Path]] = []
             if zh_dir.exists():
@@ -96,7 +95,7 @@ def test_prompts_key_and_placeholder_parity():
                     failures.append(f"[MISSING {lang_name}] {module_dir.name}: {rel.as_posix()}")
                     continue
 
-                target_obj = _load_yaml(target_file)
+                target_obj = _load_prompt_asset(target_file)
                 en_keys = _collect_keys(en_obj)
                 target_keys = _collect_keys(target_obj)
 

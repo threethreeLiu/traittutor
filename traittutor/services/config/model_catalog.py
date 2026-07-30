@@ -60,14 +60,15 @@ class ModelCatalogService:
             cls._instances[key] = cls(resolved)
         return cls._instances[key]
 
-    def load(self) -> dict[str, Any]:
+    def load(self, *, include_local_overlay: bool = True) -> dict[str, Any]:
         loaded = self._read_existing_catalog()
         if loaded:
             catalog = _default_catalog()
             catalog.update({k: v for k, v in loaded.items() if k != "services"})
             catalog["services"].update(loaded.get("services", {}))
             merged_defaults = catalog != loaded
-            self._overlay_local_llm(catalog)
+            if include_local_overlay:
+                self._overlay_local_llm(catalog)
             before = deepcopy(catalog)
             self._normalize(catalog)
             if merged_defaults or catalog != before:
@@ -75,7 +76,8 @@ class ModelCatalogService:
             return catalog
 
         catalog = _default_catalog()
-        self._overlay_local_llm(catalog)
+        if include_local_overlay:
+            self._overlay_local_llm(catalog)
         self._normalize(catalog)
         self.save(catalog)
         return catalog
@@ -179,6 +181,7 @@ class ModelCatalogService:
                             model.setdefault("quality", "")
                             model.setdefault("style", "")
                             model.setdefault("response_format", "")
+                            model.setdefault("ratio", "")
                         elif service_name == "videogen":
                             model.setdefault("aspect_ratio", "")
                             model.setdefault("duration", "")

@@ -1,16 +1,16 @@
 """
 Shared prompt loader for non-BaseAgent call sites in ``traittutor/book``.
 
-All LLM-facing prompts inside this module live as YAML under
-``traittutor/book/prompts/{en,zh}/<name>.yaml`` and are loaded through the
+All LLM-facing prompts inside this module live as Markdown prompt assets under
+``traittutor/book/prompts/{en,zh}/<name>.md`` and are loaded through the
 unified :class:`~traittutor.services.prompt.PromptManager`. This helper is the
 thin wrapper that block generators and the SectionArchitect use, since they
 call ``llm_text`` directly instead of inheriting :class:`BaseAgent`.
 
 Conventions
 -----------
-* One YAML file per logical writer (block generator, planner stage…), named
-  after the python module (``text.py`` → ``text.yaml``).
+* One prompt file per logical writer (block generator, planner stage…), named
+  after the python module (``text.py`` → ``text.md``).
 * Top-level keys are short identifiers (``system``, ``user_template``,
   ``bridge_system``, ``outline_system``…) and contain plain strings.
 * Variable interpolation uses ``str.format`` placeholders (``{chapter_title}``).
@@ -27,7 +27,7 @@ from traittutor.services.prompt import get_prompt_manager
 
 
 def load_book_prompts(name: str, language: str) -> dict[str, Any]:
-    """Load a YAML prompt bundle for the ``book`` module.
+    """Load a Markdown prompt bundle for the ``book`` module.
 
     Args:
         name: File stem under ``traittutor/book/prompts/{lang}/``
@@ -35,7 +35,7 @@ def load_book_prompts(name: str, language: str) -> dict[str, Any]:
         language: ``"en"`` or ``"zh"``.
 
     Returns:
-        Parsed YAML as a dictionary.
+        Parsed prompt asset as a dictionary.
 
     Raises:
         RuntimeError: When the bundle is missing or empty.
@@ -48,7 +48,7 @@ def load_book_prompts(name: str, language: str) -> dict[str, Any]:
     if not prompts:
         raise RuntimeError(
             f"Missing prompt bundle for book/{name} (language={language}). "
-            f"Expected traittutor/book/prompts/{{en,zh}}/{name}.yaml."
+            f"Expected traittutor/book/prompts/{{en,zh}}/{name}.md."
         )
     return prompts
 

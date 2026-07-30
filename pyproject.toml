@@ -170,9 +170,6 @@ parse = [
     "traittutor[parse-pymupdf4llm]",
 ]
 
-# Legacy alias kept for one release: `pip install traittutor[tutorbot]`.
-tutorbot = ["traittutor[partners]"]
-
 # Matrix (Element) channel for partners. Mirrors requirements/matrix.txt.
 # Default Matrix install is non-E2EE so it works without libolm/python-olm.
 matrix = [
@@ -247,11 +244,11 @@ where = ["."]
 include = ["traittutor*", "traittutor_cli*"]
 
 [tool.setuptools.package-data]
-# Runtime data shipped inside the traittutor package: prompt YAMLs (loaded by
-# PromptManager from PACKAGE_ROOT/traittutor/.../prompts/*.yaml), markdown
-# templates (builtin SKILL.md files, vision_solver prompts), and helper shell
-# scripts. Without these, ``pip install traittutor`` ships a wheel missing
-# every agent prompt and capability fails at first use.
+# Runtime data shipped inside the traittutor package: prompt Markdown assets
+# (loaded by PromptManager from PACKAGE_ROOT/traittutor/.../prompts/*.md),
+# markdown templates (builtin SKILL.md files, vision_solver prompts), and
+# helper shell scripts. Without these, ``pip install traittutor`` ships a
+# wheel missing every agent prompt and capability fails at first use.
 traittutor = [
     "**/*.yaml",
     "**/*.yml",

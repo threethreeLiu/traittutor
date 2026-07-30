@@ -2,66 +2,32 @@
 
 import { Fragment, memo, useEffect, useRef, useState } from "react";
 import {
-  BookOpen,
-  Bot,
   ChevronRight,
-  Database,
   Paperclip,
-  UserRound,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { SPACE_ITEMS } from "@/lib/space-items";
 import { setPickerOrigin } from "@/lib/picker-origin";
 
 type SelectableSpaceKey =
   | "attach"
-  | "knowledge"
-  | "chat_history"
-  | "my_agents"
-  | "books"
-  | "notebooks"
   | "question_bank"
-  | "persona"
   | "memory";
 
 export interface ChatSpaceSelectionCounts {
   attachments: number;
-  knowledge: number;
-  chatHistory: number;
-  myAgents: number;
-  books: number;
-  notebooks: number;
   questionBank: number;
-  persona: number;
   memory: number;
 }
 
 interface ChatSpaceMenuProps {
   variant: "toolbar" | "mention";
   selectedCounts: ChatSpaceSelectionCounts;
-  /** Hide the Knowledge entry when no knowledge bases are configured. */
-  knowledgeAvailable?: boolean;
-  /**
-   * Hide the Persona entry. The main chat sets this to false — its
-   * persona lives in the standalone toolbar selector (and `/persona`),
-   * not in this menu. The quiz follow-up keeps the entry: this menu is
-   * its only persona entry point.
-   */
-  personaAvailable?: boolean;
-  /** Hide the My Agents entry (e.g. the quiz follow-up surface). */
-  agentsAvailable?: boolean;
   onSelectItem: (key: SelectableSpaceKey) => void;
 }
 
 const ITEM_ORDER: SelectableSpaceKey[] = [
   "attach",
-  "knowledge",
-  "chat_history",
-  "my_agents",
-  "books",
-  "notebooks",
   "question_bank",
-  "persona",
   "memory",
 ];
 
@@ -72,20 +38,8 @@ function countFor(
   switch (key) {
     case "attach":
       return counts.attachments;
-    case "knowledge":
-      return counts.knowledge;
-    case "chat_history":
-      return counts.chatHistory;
-    case "my_agents":
-      return counts.myAgents;
-    case "books":
-      return counts.books;
-    case "notebooks":
-      return counts.notebooks;
     case "question_bank":
       return counts.questionBank;
-    case "persona":
-      return counts.persona;
     case "memory":
       return counts.memory;
     default:
@@ -96,26 +50,13 @@ function countFor(
 export default memo(function ChatSpaceMenu({
   variant,
   selectedCounts,
-  knowledgeAvailable = true,
-  personaAvailable = true,
-  agentsAvailable = true,
   onSelectItem,
 }: ChatSpaceMenuProps) {
   const { t } = useTranslation();
   const compact = variant === "toolbar";
   const isMention = variant === "mention";
 
-  // Render the items in a fixed, hand-tuned order so the menu always reads
-  // the same regardless of how SPACE_ITEMS may be reordered for navigation.
-  const items = ITEM_ORDER.filter((key) => {
-    if (key === "knowledge") return knowledgeAvailable;
-    if (key === "persona") return personaAvailable;
-    if (key === "my_agents") return agentsAvailable;
-    return true;
-  })
-    .map((key) => {
-      // The first two entries are composer-only concepts (not Space pages),
-      // so they are defined here rather than in SPACE_ITEMS.
+  const items = ITEM_ORDER.map((key) => {
       if (key === "attach") {
         return {
           key,
@@ -124,41 +65,21 @@ export default memo(function ChatSpaceMenu({
           icon: Paperclip,
         };
       }
-      if (key === "knowledge") {
+      if (key === "question_bank") {
         return {
           key,
-          label: "Knowledge",
-          description: "Search the selected knowledge bases.",
-          icon: Database,
+          label: "Practice history",
+          description: "Reuse quiz questions and review incorrect answers.",
+          icon: ChevronRight,
         };
       }
-      if (key === "my_agents") {
-        return {
-          key,
-          label: "My Agents",
-          description: "Reference imported Claude Code / Codex conversations.",
-          icon: Bot,
-        };
-      }
-      if (key === "books") {
-        return {
-          key,
-          label: "Books",
-          description: "Reference generated book chapters in chat.",
-          icon: BookOpen,
-        };
-      }
-      if (key === "persona") {
-        return {
-          key,
-          label: "Persona",
-          description: "Apply a behavior persona for this turn.",
-          icon: UserRound,
-        };
-      }
-      return SPACE_ITEMS.find((it) => it.key === key)!;
-    })
-    .filter(Boolean);
+      return {
+        key,
+        label: "Learning memory",
+        description: "Choose evidence from your learning model.",
+        icon: ChevronRight,
+      };
+    });
 
   // Active row index for keyboard navigation. Only meaningful in the
   // mention variant — the toolbar variant is mouse/click driven.

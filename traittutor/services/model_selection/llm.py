@@ -6,7 +6,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
 
-from traittutor.services.provider_registry import find_by_name
+from traittutor.services.provider_registry import find_by_model, find_by_name
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +56,22 @@ def _llm_service(catalog: dict[str, Any]) -> dict[str, Any]:
     return services.get("llm", {}) if isinstance(services, dict) else {}
 
 
+def _display_provider(binding: str, model: str) -> tuple[str, str]:
+    """Return vendor identity for UI without changing the runtime protocol.
+
+    ``custom`` and ``custom_anthropic`` describe an endpoint's wire protocol,
+    not its brand.  Use the configured model name when it identifies a known
+    vendor so a MiniMax route, for example, receives the MiniMax logo instead
+    of an Anthropic logo.
+    """
+    binding_spec = find_by_name(binding)
+    if binding in {"custom", "custom_anthropic"}:
+        vendor_spec = find_by_model(model)
+        if vendor_spec is not None:
+            return vendor_spec.name, vendor_spec.label
+    return binding, binding_spec.label if binding_spec else binding
+
+
 def list_llm_options(catalog: dict[str, Any]) -> dict[str, Any]:
     """Return a redacted list of configured chat-selectable LLM models."""
     service = _llm_service(catalog)
@@ -69,12 +85,8 @@ def list_llm_options(catalog: dict[str, Any]) -> dict[str, Any]:
         profile_id = str(profile.get("id") or "").strip()
         if not profile_id:
             continue
-        provider = str(profile.get("binding") or "").strip()
-        profile_name = str(profile.get("name") or provider or "LLM").strip()
-        # Human-readable provider name from the registry ("OpenRouter",
-        # "VolcEngine Coding Plan", ...) so the UI never shows binding keys.
-        provider_spec = find_by_name(provider)
-        provider_label = provider_spec.label if provider_spec else provider
+        binding = str(profile.get("binding") or "").strip()
+        profile_name = str(profile.get("name") or binding or "LLM").strip()
 
         for model in profile.get("models", []) or []:
             if not isinstance(model, dict):
@@ -83,6 +95,7 @@ def list_llm_options(catalog: dict[str, Any]) -> dict[str, Any]:
             model_value = str(model.get("model") or "").strip()
             if not model_id or not model_value:
                 continue
+            provider, provider_label = _display_provider(binding, model_value)
 
             option: dict[str, Any] = {
                 "profile_id": profile_id,

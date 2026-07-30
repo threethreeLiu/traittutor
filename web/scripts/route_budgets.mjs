@@ -7,11 +7,9 @@ const APP_OUTPUT_DIR = path.resolve(".next");
 
 const ROUTE_BUDGETS_KB = {
   "/": 700,
-  "/playground": 700,
-  "/co-writer": 200,
-  "/co-writer/[docId]": 700,
-  "/knowledge": 450,
-  "/memory": 450,
+  "/home": 700,
+  "/profile/learning-model": 450,
+  "/space/traittutor": 450,
   "/settings": 180,
 };
 

@@ -4,14 +4,14 @@ import json
 from pathlib import Path
 
 import pytest
-import yaml
 
 from traittutor.generate.grounding import GroundingChunk, StructuredBatchValidationError
 from traittutor.generate.quiz import plan_quiz_batches, validate_quiz_batch
+from traittutor.services.prompt.markdown import load_markdown_prompt
 
 PROMPT = (
     Path(__file__).resolve().parents[2]
-    / "traittutor/generate/prompts/quiz/km-question-note.yml"
+    / "traittutor/generate/prompts/quiz/km-question-note.md"
 )
 
 
@@ -36,11 +36,11 @@ def _chunks() -> tuple[GroundingChunk, ...]:
 
 
 def test_quiz_prompt_is_strict_source_grounded_and_high_reasoning():
-    prompt = yaml.safe_load(PROMPT.read_text(encoding="utf-8"))
+    prompt = load_markdown_prompt(PROMPT)
     schema = json.loads(prompt["json_schema"])
     item_schema = schema["properties"]["items"]["items"]
     reference_schema = item_schema["properties"]["references"]["items"]
-    instructions = "\n".join(part["prompt"] for part in prompt["prompt_structure"])
+    instructions = prompt["system"] + "\n" + prompt["user"]
 
     assert prompt["reasoning_effort"] == "high"
     assert schema["additionalProperties"] is False

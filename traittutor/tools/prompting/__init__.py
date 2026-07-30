@@ -5,9 +5,8 @@ from __future__ import annotations
 from collections import OrderedDict
 from pathlib import Path
 
-import yaml
-
 from traittutor.core.tool_protocol import ToolAlias, ToolPromptHints
+from traittutor.services.prompt.markdown import load_markdown_prompt
 
 ToolHintEntry = tuple[str, ToolPromptHints]
 
@@ -49,18 +48,17 @@ def _normalize_language(language: str) -> str:
 
 
 def load_prompt_hints(tool_name: str, language: str = "en") -> ToolPromptHints:
-    """Load per-tool prompt hints from YAML with zh/en fallback."""
+    """Load per-tool prompt hints from Markdown with zh/en fallback."""
     normalized_language = _normalize_language(language)
     base_dir = Path(__file__).parent / "hints"
-    candidates = [base_dir / normalized_language / f"{tool_name}.yaml"]
+    candidates = [base_dir / normalized_language / f"{tool_name}.md"]
     if normalized_language != "en":
-        candidates.append(base_dir / "en" / f"{tool_name}.yaml")
+        candidates.append(base_dir / "en" / f"{tool_name}.md")
 
     for path in candidates:
         if not path.is_file():
             continue
-        with open(path, encoding="utf-8") as file:
-            data = yaml.safe_load(file) or {}
+        data = load_markdown_prompt(path)
         aliases = [
             ToolAlias(
                 name=str(item.get("name", "")).strip(),

@@ -25,3 +25,15 @@ test("learning profile page no longer contains the assessment form", () => {
   assert.doesNotMatch(profile, /createTraitProfile/);
   assert.match(profile, /openAssessment/);
 });
+
+test("learning profile includes the inspectable learner-model snapshot", () => {
+  assert.match(profile, /LearnerModelSnapshot/);
+  const snapshot = fs.readFileSync(
+    path.join(root, "components", "personalization", "LearnerModelSnapshot.tsx"),
+    "utf8",
+  );
+  assert.match(snapshot, /BKT knowledge tracking/);
+  assert.match(snapshot, /Learning-memory evidence/);
+  assert.match(snapshot, /getLearnerOverview/);
+  assert.match(snapshot, /getLearnerEvidence/);
+});

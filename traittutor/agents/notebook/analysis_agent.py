@@ -35,7 +35,7 @@ class NotebookAnalysisAgent:
         self.base_url = getattr(self.llm_config, "base_url", None)
         self.api_version = getattr(self.llm_config, "api_version", None)
         self.binding = getattr(self.llm_config, "binding", None) or "openai"
-        # Prompts come from traittutor/agents/notebook/prompts/{en,zh}/analysis_agent.yaml
+        # Prompts come from traittutor/agents/notebook/prompts/{en,zh}/analysis_agent.md
         # so the three-stage notebook reasoning loop stays bilingual without
         # carrying language-specific text in this file.
         self._prompts = get_prompt_manager().load_prompts(

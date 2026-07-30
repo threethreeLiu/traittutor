@@ -383,18 +383,21 @@ class ResearchPipeline:
         # the research loop can take initiative on APPEND decisions.
         self._temperature = 0.3
 
-        try:
-            self._prompts: dict[str, Any] = (
-                get_prompt_manager().load_prompts(
-                    module_name="research",
-                    agent_name="pipeline",
-                    language=self.language,
-                )
-                or {}
-            )
-        except Exception as exc:
-            logger.warning("Failed to load research pipeline prompts: %s", exc)
-            self._prompts = {}
+        self._prompts: dict[str, Any] = get_prompt_manager().load_prompts(
+            module_name="research",
+            agent_name="pipeline",
+            language=self.language,
+            required_sections=(
+                "rephrase.system",
+                "decompose.system",
+                "research_step.system",
+                "note.system",
+                "report.outline.system",
+                "report.intro.system",
+                "report.section.system",
+                "report.conclusion.system",
+            ),
+        )
 
     # ------------------------------------------------------------------
     # Public entry points

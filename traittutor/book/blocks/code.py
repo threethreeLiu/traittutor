@@ -5,7 +5,7 @@ response. The frontend ``CodeBlock`` component renders the code and the
 explanation side-by-side; the playground "code_execution" tool can be
 hooked in later for live runs.
 
-Prompts live in ``traittutor/book/prompts/{en,zh}/code.yaml``.
+Prompts live in ``traittutor/book/prompts/{en,zh}/code.md``.
 """
 
 from __future__ import annotations

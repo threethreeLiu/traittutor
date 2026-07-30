@@ -5,11 +5,11 @@ Capability ``run()`` methods stream short status messages to the chat UI
 must respect the user's locale. This helper wires them into the existing
 ``PromptManager`` so each capability keeps its UI copy alongside its LLM
 prompts under that capability's own prompt module, e.g.
-``traittutor/agents/<module>/prompts/{en,zh}/<name>.yaml``.
+``traittutor/agents/<module>/prompts/{en,zh}/<name>.md``.
 
 Conventions:
 
-* YAML files contain a single top-level ``status:`` mapping, key → string.
+* Prompt files contain a single top-level ``status:`` mapping, key → string.
 * Strings may use ``{name}`` placeholders rendered via ``str.format``.
 * Missing keys / files fall back to the ``default`` argument so a new
   hardcoded string still works while its translation is being added.

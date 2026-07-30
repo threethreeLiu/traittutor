@@ -15,7 +15,7 @@ test("model selector uses the configured model options and groups profiles", () 
   assert.match(source, /model_id: option\.model_id/);
 });
 
-test("model selector directs an empty catalog to model settings", () => {
-  assert.match(source, /href="\/settings\/llm"/);
-  assert.match(source, /t\("Configure model"\)/);
+test("model selector does not expose deployment model configuration", () => {
+  assert.doesNotMatch(source, /href="\/settings\/llm"/);
+  assert.match(source, /t\("Models unavailable"\)/);
 });

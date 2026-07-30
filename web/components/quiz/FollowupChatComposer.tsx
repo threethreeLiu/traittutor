@@ -14,7 +14,6 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { MessageSquare } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ChatComposer from "@/components/chat/home/ChatComposer";
 import {
@@ -78,12 +77,18 @@ interface PendingAttachment {
 
 // Single-capability list — the follow-up tab is locked to "chat".
 // label/description are i18n keys; resolved via t() inside the component.
-const FOLLOWUP_CAPABILITIES_RAW = [
+const FOLLOWUP_CAPABILITIES_RAW: Array<{
+  value: string;
+  label: string;
+  description: string;
+  icon: "chat";
+  allowedTools: string[];
+}> = [
   {
     value: "",
     label: "Chat",
     description: "Flexible conversation with any tool",
-    icon: MessageSquare,
+    icon: "chat",
     allowedTools: [],
   },
 ];
@@ -638,9 +643,6 @@ function FollowupChatComposerImpl({ context }: FollowupChatComposerProps) {
         selectedKnowledgeBases={selectedKnowledgeBases}
         isStreaming={thread.isStreaming}
         isVisualizeMode={false}
-        capabilityNeedsConfig={false}
-        capabilityConfigConfirmed={true}
-        onRequestConfigConfirm={() => {}}
         capabilities={FOLLOWUP_CAPABILITIES}
         onSetCapMenuOpen={setCapMenuOpen}
         onSetSpaceMenuOpen={setSpaceMenuOpen}

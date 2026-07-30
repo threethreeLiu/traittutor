@@ -3,7 +3,7 @@
 Returns ``cards: [{front, back, hint}]`` ready for the frontend
 ``FlashCardsBlock`` component.
 
-Prompts live in ``traittutor/book/prompts/{en,zh}/flash_cards.yaml``.
+Prompts live in ``traittutor/book/prompts/{en,zh}/flash_cards.md``.
 """
 
 from __future__ import annotations

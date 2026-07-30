@@ -88,7 +88,11 @@ async def delete_profile(profile_id: str):
 
 
 def _ensure_slr_support(profile: dict[str, Any]) -> dict[str, Any]:
-    """Keep profiles created before SLR support backward compatible."""
+    """Upgrade legacy profile support to the product-owned action catalog."""
+    from traittutor.assessment.support_profile import build_slr_action_support
+
     metadata = dict(profile.get("metadata") or {})
-    metadata.setdefault("slr_support", build_initial_slr_support(profile.get("scores") or {}))
+    current = metadata.get("slr_support")
+    if not isinstance(current, dict) or current.get("source") == "big_five_initial":
+        metadata["slr_support"] = build_slr_action_support(profile.get("scores") or {})
     return {**profile, "metadata": metadata}

@@ -5,7 +5,7 @@ demand by the BookEngine (``create_deep_dive_subpage``) when the user clicks
 the card; we only emit suggested topics here so the page reader can render
 the affordance.
 
-Prompts live in ``traittutor/book/prompts/{en,zh}/deep_dive.yaml``.
+Prompts live in ``traittutor/book/prompts/{en,zh}/deep_dive.md``.
 """
 
 from __future__ import annotations

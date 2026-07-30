@@ -31,16 +31,12 @@ loop, not on the answer loop's surface.
 from __future__ import annotations
 
 from importlib import resources
-import logging
 from typing import Any
-
-import yaml
 
 from traittutor.capabilities.protocol import PromptBlock
 from traittutor.core.context import UnifiedContext
 from traittutor.core.stream_bus import StreamBus
-
-logger = logging.getLogger(__name__)
+from traittutor.services.prompt.markdown import PromptLoadError, load_markdown_prompt
 
 _PROMPT_CACHE: dict[str, dict[str, Any]] = {}
 
@@ -50,19 +46,26 @@ def _load_prompts(language: str) -> dict[str, Any]:
     cached = _PROMPT_CACHE.get(lang)
     if cached is not None:
         return cached
-    try:
-        text = (
-            resources.files(__package__)
-            .joinpath("prompts", lang, "explore_context.yaml")
-            .read_text(encoding="utf-8")
+    prompt = resources.files(__package__).joinpath("prompts", lang, "explore_context.md")
+    data = load_markdown_prompt(str(prompt))
+    required_sections = ("loop.system", "loop.user_template", "system", "user_template")
+    missing: list[str] = []
+    for section in required_sections:
+        value: Any = data
+        for part in section.split("."):
+            if not isinstance(value, dict) or part not in value:
+                value = None
+                break
+            value = value[part]
+        if not isinstance(value, str) or not value.strip():
+            missing.append(section)
+    if missing:
+        raise PromptLoadError(
+            f"{prompt}: required explore_context prompt sections are missing or empty: "
+            + ", ".join(missing)
         )
-        data = yaml.safe_load(text)
-    except Exception:
-        logger.warning("failed to load explore_context prompts (%s)", lang, exc_info=True)
-        data = None
-    result = data if isinstance(data, dict) else {}
-    _PROMPT_CACHE[lang] = result
-    return result
+    _PROMPT_CACHE[lang] = data
+    return data
 
 
 def _has_readable_sources(context: UnifiedContext) -> bool:

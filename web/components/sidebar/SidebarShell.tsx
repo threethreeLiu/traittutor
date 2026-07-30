@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { TraitTutorMark } from "@/components/brand/TraitTutorMark";
+import { TraitTutorIcon, type TraitTutorIconName } from "@/components/brand/TraitTutorIcon";
+import { LanguageSwitcher } from "@/components/common/LanguageSwitcher";
 import { useAppShell } from "@/context/AppShellContext";
 import {
   ChevronDown,
@@ -26,6 +28,7 @@ interface NavEntry {
   href: string;
   label: string;
   icon: LucideIcon;
+  traitTutorIcon?: TraitTutorIconName;
   tooltipKey?: string;
   /** Model capability this feature needs; locked when the user lacks it. */
   requires?: Capability;
@@ -36,6 +39,7 @@ const PRIMARY_NAV: NavEntry[] = [
     href: "/home",
     label: "Home",
     icon: House,
+    traitTutorIcon: "home",
     tooltipKey: "Home tooltip",
     requires: "llm",
   },
@@ -43,13 +47,15 @@ const PRIMARY_NAV: NavEntry[] = [
     href: "/space",
     label: "My Learning",
     icon: UserRound,
+    traitTutorIcon: "learning",
     tooltipKey: "Space tooltip",
   },
 ];
 
 const SECONDARY_NAV: NavEntry[] = [
-  { href: "/space/traittutor", label: "Learning Profile", icon: UserRound },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/space/traittutor", label: "Learning Profile", icon: UserRound, traitTutorIcon: "personality" },
+  { href: "/space/personas", label: "Personas", icon: UserRound, traitTutorIcon: "profile" },
+  { href: "/settings", label: "Settings", icon: Settings, traitTutorIcon: "settings" },
 ];
 const RECENTS_COLLAPSED_KEY = "traittutor.sidebar.recentsCollapsed";
 
@@ -65,7 +71,7 @@ interface SidebarShellProps {
   onDeleteSession?: (sessionId: string) => void | Promise<void>;
   /**
    * Footer content rendered below the nav. Pass a render function to receive
-   * the current ``collapsed`` state so footer items (e.g. Admin / Sign out) can
+   * the current ``collapsed`` state so footer controls (e.g. Sign out) can
    * switch to their icon-only variant when the rail is collapsed.
    */
   footerSlot?: ReactNode | ((collapsed: boolean) => ReactNode);
@@ -129,7 +135,7 @@ export function SidebarShell({
   /* ---- Collapsed state ---- */
   if (collapsed) {
     return (
-      <aside className="group/sb relative flex h-screen w-[60px] shrink-0 flex-col items-center bg-[var(--secondary)] py-3 transition-all duration-200">
+      <aside className="group/sb relative hidden h-[100dvh] w-[60px] shrink-0 flex-col items-center bg-[var(--secondary)] py-3 transition-all duration-200 md:flex">
         {/* Header: logo + collapse toggle (toggle replaces logo on hover) */}
         <div className="relative mb-2 flex h-9 w-9 items-center justify-center">
           <Link
@@ -147,6 +153,7 @@ export function SidebarShell({
             <PanelLeftOpen size={16} />
           </button>
         </div>
+        <LanguageSwitcher className="mb-2" />
 
         {/* Primary nav */}
         <nav className="mt-1 flex w-full flex-col items-center gap-1 px-1.5">
@@ -171,7 +178,7 @@ export function SidebarShell({
                     aria-disabled
                     className="relative flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-xl text-[var(--muted-foreground)]/40"
                   >
-                    <item.icon size={18} strokeWidth={1.6} />
+                    {item.traitTutorIcon ? <TraitTutorIcon name={item.traitTutorIcon} size={18} strokeWidth={1.6} /> : <item.icon size={18} strokeWidth={1.6} />}
                     <Lock
                       size={10}
                       strokeWidth={2}
@@ -198,7 +205,7 @@ export function SidebarShell({
                       : "text-[var(--foreground)]/85 hover:bg-[var(--background)]/60 hover:text-[var(--foreground)]"
                   }`}
                 >
-                  <item.icon size={18} strokeWidth={active ? 2 : 1.6} />
+                  {item.traitTutorIcon ? <TraitTutorIcon name={item.traitTutorIcon} size={18} strokeWidth={active ? 2 : 1.6} /> : <item.icon size={18} strokeWidth={active ? 2 : 1.6} />}
                 </Link>
               </Tooltip>
             );
@@ -223,7 +230,7 @@ export function SidebarShell({
                     : "text-[var(--foreground)]/85 hover:bg-[var(--background)]/60 hover:text-[var(--foreground)]"
                 }`}
               >
-                <item.icon size={18} strokeWidth={active ? 2 : 1.6} />
+                {item.traitTutorIcon ? <TraitTutorIcon name={item.traitTutorIcon} size={18} strokeWidth={active ? 2 : 1.6} /> : <item.icon size={18} strokeWidth={active ? 2 : 1.6} />}
               </Link>
             );
           })}
@@ -235,15 +242,16 @@ export function SidebarShell({
 
   /* ---- Expanded state ---- */
   return (
-    <aside className="flex w-[220px] h-screen shrink-0 flex-col bg-[var(--secondary)] transition-all duration-200">
+    <aside className="hidden h-[100dvh] w-[220px] shrink-0 flex-col bg-[var(--secondary)] transition-all duration-200 md:flex">
       {/* Header: logo + collapse toggle */}
-      <div className="flex h-14 items-center justify-between px-4">
-        <Link href="/" aria-label="TraitTutor" className="group flex items-center">
+      <div className="flex h-14 items-center gap-2 px-4">
+        <Link href="/" aria-label="TraitTutor" className="group flex shrink-0 items-center">
           <TraitTutorMark className="h-[22px] w-[22px] transition-transform duration-200 group-hover:scale-105" />
         </Link>
+        <LanguageSwitcher className="shrink-0" />
         <button
           onClick={() => setCollapsed(true)}
-          className="rounded-md p-1 text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+          className="ml-auto rounded-md p-1 text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
           aria-label={t("Collapse sidebar")}
         >
           <PanelLeftClose size={15} />
@@ -269,7 +277,7 @@ export function SidebarShell({
                     aria-disabled
                     className="flex cursor-not-allowed items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] text-[var(--muted-foreground)]/40"
                   >
-                    <item.icon size={16} strokeWidth={1.5} />
+                    {item.traitTutorIcon ? <TraitTutorIcon name={item.traitTutorIcon} size={16} strokeWidth={1.5} /> : <item.icon size={16} strokeWidth={1.5} />}
                     <span>{t(item.label)}</span>
                     <Lock size={13} strokeWidth={1.8} className="ml-auto" />
                   </div>
@@ -287,7 +295,7 @@ export function SidebarShell({
                     : "text-[var(--foreground)]/85 hover:bg-[var(--background)]/60 hover:text-[var(--foreground)]"
                 }`}
               >
-                <item.icon size={16} strokeWidth={active ? 1.9 : 1.5} />
+                {item.traitTutorIcon ? <TraitTutorIcon name={item.traitTutorIcon} size={16} strokeWidth={active ? 1.9 : 1.5} /> : <item.icon size={16} strokeWidth={active ? 1.9 : 1.5} />}
                 <span>{t(item.label)}</span>
               </Link>
             );
@@ -361,7 +369,7 @@ export function SidebarShell({
                   : "text-[var(--foreground)]/85 hover:bg-[var(--background)]/60 hover:text-[var(--foreground)]"
               }`}
             >
-              <item.icon size={16} strokeWidth={active ? 1.9 : 1.5} />
+              {item.traitTutorIcon ? <TraitTutorIcon name={item.traitTutorIcon} size={16} strokeWidth={active ? 1.9 : 1.5} /> : <item.icon size={16} strokeWidth={active ? 1.9 : 1.5} />}
               <span>{t(item.label)}</span>
             </Link>
           );

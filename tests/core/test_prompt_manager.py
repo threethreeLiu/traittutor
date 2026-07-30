@@ -3,9 +3,12 @@
 Unit tests for the unified PromptManager.
 """
 
+from pathlib import Path
+
 import pytest
 
-from traittutor.services.prompt import PromptManager, get_prompt_manager
+from traittutor.services.prompt import PromptLoadError, PromptManager, get_prompt_manager
+from traittutor.services.prompt.markdown import load_markdown_prompt
 
 
 class TestPromptManager:
@@ -37,7 +40,7 @@ class TestPromptManager:
             language="en",
         )
         assert isinstance(prompts, dict)
-        # pipeline.yaml carries one section per phase, each of which has
+        # pipeline.md carries one section per phase, each of which has
         # its own ``system`` body.
         assert (
             any(
@@ -47,24 +50,24 @@ class TestPromptManager:
             or prompts == {}
         )
 
-    def test_load_prompts_solve_module(self):
-        """Test loading prompts for solve module."""
+    def test_load_prompts_question_module(self):
+        """Test loading prompts for an available agent module."""
         pm = get_prompt_manager()
         prompts = pm.load_prompts(
-            module_name="solve",
-            agent_name="solve_agent",
+            module_name="question",
+            agent_name="idea_agent",
             language="en",
         )
         assert isinstance(prompts, dict)
 
     def test_load_prompts_with_subdirectory(self):
-        """Test loading prompts with subdirectory (e.g., solve_loop)."""
+        """Test recursive prompt resolution when a subdirectory is supplied."""
         pm = get_prompt_manager()
         prompts = pm.load_prompts(
-            module_name="solve",
-            agent_name="solve_agent",
+            module_name="question",
+            agent_name="idea_agent",
             language="en",
-            subdirectory="solve_loop",
+            subdirectory="unused",
         )
         assert isinstance(prompts, dict)
 
@@ -86,7 +89,7 @@ class TestPromptManager:
 
         # Load some prompts
         pm.load_prompts("research", "pipeline", "en")
-        pm.load_prompts("solve", "solve_agent", "en")
+        pm.load_prompts("question", "idea_agent", "en")
 
         assert len(pm._cache) >= 2
 
@@ -99,13 +102,13 @@ class TestPromptManager:
 
         # Load prompts for multiple modules
         pm.load_prompts("research", "pipeline", "en")
-        pm.load_prompts("solve", "solve_agent", "en")
+        pm.load_prompts("question", "idea_agent", "en")
 
         # Clear only research cache
         pm.clear_cache("research")
 
-        # Solve prompts should still be cached
-        assert any("solve" in k for k in pm._cache)
+        # Question prompts should still be cached
+        assert any("question" in k for k in pm._cache)
         assert not any("research" in k for k in pm._cache)
 
     def test_get_prompt_helper(self):
@@ -167,13 +170,13 @@ class TestPromptManagerLanguages:
     def test_english_prompts(self):
         """Test loading English prompts."""
         pm = get_prompt_manager()
-        prompts = pm.load_prompts("solve", "solve_agent", "en")
+        prompts = pm.load_prompts("question", "idea_agent", "en")
         assert isinstance(prompts, dict)
 
     def test_chinese_prompts(self):
         """Test loading Chinese prompts."""
         pm = get_prompt_manager()
-        prompts = pm.load_prompts("solve", "solve_agent", "zh")
+        prompts = pm.load_prompts("question", "idea_agent", "zh")
         assert isinstance(prompts, dict)
 
     def test_invalid_language_falls_back(self):
@@ -182,6 +185,80 @@ class TestPromptManagerLanguages:
         # Should not raise, should fallback
         prompts = pm.load_prompts("research", "pipeline", "invalid")
         assert isinstance(prompts, dict)
+
+
+class TestPromptLoadFailures:
+    """Malformed assets must be observable and may only fall back deliberately."""
+
+    def setup_method(self):
+        PromptManager._instance = None
+        PromptManager._cache = {}
+
+    def test_malformed_markdown_reports_source(self, tmp_path: Path):
+        prompt_path = tmp_path / "broken.md"
+        prompt_path.write_text("---\nname: [unterminated\n---\n", encoding="utf-8")
+
+        with pytest.raises(PromptLoadError, match=r"broken\.md: invalid YAML frontmatter"):
+            load_markdown_prompt(prompt_path)
+
+    def test_malformed_preferred_language_falls_back_to_valid_language(self, tmp_path: Path, monkeypatch):
+        (tmp_path / "zh").mkdir()
+        (tmp_path / "en").mkdir()
+        (tmp_path / "zh" / "agent.md").write_text("---\nname: [broken\n---\n", encoding="utf-8")
+        (tmp_path / "en" / "agent.md").write_text("## system\n\nEnglish fallback", encoding="utf-8")
+        manager = PromptManager()
+        monkeypatch.setattr(manager, "_candidate_prompt_dirs", lambda _: [tmp_path])
+
+        assert manager.load_prompts("custom", "agent", "zh") == {"system": "English fallback"}
+
+    def test_all_invalid_candidates_raise_a_single_observable_error(self, tmp_path: Path, monkeypatch):
+        for language in ("zh", "cn", "en"):
+            path = tmp_path / language
+            path.mkdir()
+            (path / "agent.md").write_text("---\nname: [broken\n---\n", encoding="utf-8")
+        manager = PromptManager()
+        monkeypatch.setattr(manager, "_candidate_prompt_dirs", lambda _: [tmp_path])
+
+        with pytest.raises(PromptLoadError, match="all candidate assets failed") as exc_info:
+            manager.load_prompts("custom", "agent", "zh")
+
+        assert "zh/agent.md" in str(exc_info.value)
+        assert "cn/agent.md" in str(exc_info.value)
+        assert "en/agent.md" in str(exc_info.value)
+        assert not manager._cache
+
+    def test_missing_required_prompt_section_raises(self, tmp_path: Path, monkeypatch):
+        (tmp_path / "en").mkdir()
+        (tmp_path / "en" / "agent.md").write_text("## system\n\nSystem text", encoding="utf-8")
+        manager = PromptManager()
+        monkeypatch.setattr(manager, "_candidate_prompt_dirs", lambda _: [tmp_path])
+
+        with pytest.raises(PromptLoadError, match="missing required prompt sections: user"):
+            manager.load_prompts(
+                "custom",
+                "agent",
+                "en",
+                required_sections=("system", "user"),
+            )
+
+    def test_base_agent_propagates_prompt_configuration_failures(self, monkeypatch):
+        from traittutor.agents.base_agent import BaseAgent
+
+        class BrokenManager:
+            def load_prompts(self, **_kwargs):
+                raise PromptLoadError("invalid prompt asset")
+
+        class TestAgent(BaseAgent):
+            async def process(self, *args, **kwargs):
+                return None
+
+        monkeypatch.setattr(
+            "traittutor.agents.base_agent.get_prompt_manager",
+            lambda: BrokenManager(),
+        )
+
+        with pytest.raises(PromptLoadError, match="invalid prompt asset"):
+            TestAgent(module_name="custom", agent_name="agent", config={})
 
 
 if __name__ == "__main__":

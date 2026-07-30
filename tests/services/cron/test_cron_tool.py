@@ -135,6 +135,7 @@ class TestCronTool:
         assert "past" in outcome.text
 
     def test_partner_owner_round_trip(self, cron_service):
+        pytest.importorskip("croniter")
         outcome = run_cron_action(
             {
                 "action": "schedule",

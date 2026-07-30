@@ -1,0 +1,5 @@
+---
+generate_ideas:
+  system: Generate diverse question ideas aligned with the user's topic and constraints.
+  user: 'Topic: {topic}'
+---

@@ -153,6 +153,51 @@
     transform: translateY(-1px);
   }
 
+  /* Brand mark variants — the geometry remains stable while each product
+     theme gives it a distinct, high-contrast treatment. */
+  .traittutor-mark {
+    --traittutor-mark-line: var(--primary);
+    --traittutor-mark-node: var(--primary);
+    --traittutor-mark-glow: transparent;
+  }
+
+  .traittutor-mark__line {
+    fill: none;
+    stroke: var(--traittutor-mark-line);
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 5;
+  }
+
+  .traittutor-mark__node {
+    fill: var(--traittutor-mark-node);
+  }
+
+  .traittutor-mark__glow {
+    fill: none;
+    stroke: var(--traittutor-mark-glow);
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 8;
+  }
+
+  .theme-glass .traittutor-mark {
+    --traittutor-mark-line: #6f9cff;
+    --traittutor-mark-node: #b779ff;
+    --traittutor-mark-glow: rgba(126, 102, 255, 0.35);
+    filter: drop-shadow(0 0 3px rgba(122, 137, 255, 0.45));
+  }
+
+  .dark:not(.theme-glass) .traittutor-mark {
+    --traittutor-mark-line: #e3a079;
+    --traittutor-mark-node: #f0c06f;
+  }
+
+  .theme-snow .traittutor-mark {
+    --traittutor-mark-line: #2563eb;
+    --traittutor-mark-node: #4f46e5;
+  }
+
   * {
     @apply border-[color:var(--border)];
     scrollbar-width: thin;

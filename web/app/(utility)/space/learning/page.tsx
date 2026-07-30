@@ -122,9 +122,9 @@ export default function MasteryPathPage() {
   );
 
   return (
-    <div className="flex h-full">
+    <div className="flex min-h-full flex-col md:h-full md:flex-row">
       {/* Path list */}
-      <aside className="w-64 shrink-0 border-r border-[var(--border)] flex flex-col">
+      <aside className="flex max-h-[46dvh] w-full shrink-0 flex-col border-b border-[var(--border)] md:max-h-none md:w-64 md:border-b-0 md:border-r">
         <header className="px-4 py-3 border-b border-[var(--border)]">
           <div className="flex items-center gap-2 text-[var(--foreground)]">
             <GraduationCap className="w-4 h-4" />
@@ -185,7 +185,7 @@ export default function MasteryPathPage() {
       </aside>
 
       {/* Selected path map */}
-      <section className="flex-1 overflow-y-auto">
+      <section className="min-h-[24rem] min-w-0 flex-1 overflow-y-auto md:min-h-0">
         {loadingDetail ? (
           <div className="flex items-center justify-center h-full text-[var(--muted-foreground)]">
             <Loader2 className="w-5 h-5 animate-spin" />
@@ -274,7 +274,7 @@ function MapView({
   };
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-5">
+    <div className="mx-auto max-w-2xl px-4 py-5 sm:px-6">
       {/* Header: progress + next + actions */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">

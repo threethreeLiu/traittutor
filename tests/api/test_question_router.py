@@ -101,6 +101,20 @@ def test_mimic_websocket_accepts_config_and_returns_messages(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     question_router_module = _load_question_router_module(monkeypatch)
+    from traittutor.multi_user.context import set_current_user
+    from traittutor.multi_user.models import CurrentUser
+    from traittutor.multi_user.paths import scope_for_user
+
+    async def _allow_websocket(_websocket):
+        return set_current_user(CurrentUser(
+            id="test-user", username="test-user", role="user",
+            scope=scope_for_user("test-user", is_admin=False),
+        ))
+
+    fake_auth = types.ModuleType("traittutor.api.routers.auth")
+    fake_auth.ws_require_auth = _allow_websocket
+    fake_auth.ws_auth_failed = object()
+    monkeypatch.setitem(sys.modules, "traittutor.api.routers.auth", fake_auth)
 
     async def _fake_mimic_exam_questions(*_args, **_kwargs):
         return {"success": False, "error": "stub mimic failure"}

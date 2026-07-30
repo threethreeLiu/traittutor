@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 import uuid
 
@@ -146,6 +147,28 @@ class LearningService:
 
         progress.quiz_attempts.append(attempt)
         progress.updated_at = time.time()
+        # The legacy mastery store stays authoritative for its path.  Mirror a
+        # minimal, referenced observation into the cross-surface learner model
+        # so its next courseware/card/quiz can adapt without importing raw
+        # answers or changing legacy score semantics.
+        try:
+            from traittutor.personalization import get_personalization_service
+            from traittutor.personalization.models import LearnerEvent
+
+            module_name = next((module.name for module in progress.modules if module.id == attempt.module_id), "")
+            learner = get_personalization_service()
+            subject = learner.classify_subject(title=module_name, text="")
+            learner.record_event_background(LearnerEvent(
+                event_id=f"mastery-{progress.book_id}-{attempt.question_id}-{attempt.timestamp:.6f}",
+                event_type="mastery_attempt", subject=subject,
+                concept_id=attempt.knowledge_point_id, concept_label=attempt.knowledge_point_id,
+                module_id=attempt.module_id or None, observation="correct" if attempt.is_correct else "incorrect",
+                confidence=.95, evidence_refs=[f"learning:{progress.book_id}", f"question:{attempt.question_id}"],
+                payload={"error_type": attempt.error_type.value if attempt.error_type else None},
+                occurred_at=datetime.fromtimestamp(attempt.timestamp, tz=UTC).isoformat(),
+            ))
+        except Exception:
+            logger.debug("learner-model mirror unavailable", exc_info=True)
 
     def calculate_mastery(self, progress: LearningProgress, kp_id: str) -> float:
         """Mastery 0..1 for *kp_id* from its attempt history (policy in mastery.py)."""

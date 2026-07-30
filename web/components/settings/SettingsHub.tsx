@@ -1,270 +1,63 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
-import { ChevronRight, Rocket, type LucideIcon } from "lucide-react";
+import { ArrowUpRight, Brain, Palette, ShieldCheck, type LucideIcon } from "lucide-react";
 
-import { apiFetch, apiUrl } from "@/lib/api";
-import {
-  serviceReadiness,
-  useSettings,
-  type ServiceReadiness,
-} from "@/components/settings/SettingsContext";
-import SettingsStatusPanel from "@/components/settings/SettingsStatusPanel";
-import {
-  SETTINGS_CATEGORIES,
-  type Lang,
-  type SettingsCategory,
-} from "@/lib/settings-nav";
-
-/**
- * Settings hub — the landing page of `/settings`.
- *
- * Six category blocks and a resident Status module, nothing else. The blocks
- * are intentionally calmer than the Learning Space tiles (monochrome inline
- * icons, a chevron, a quiet preview line instead of a focal count) so Settings
- * reads as a control surface rather than a dashboard. Categories with several
- * settings (Models, Chat) open a sub-hub; the rest link straight to their leaf.
- */
-
-type NetworkPreview = {
-  apiBase: string;
+type Item = {
+  href: string;
+  icon: LucideIcon;
+  label: { zh: string; en: string };
+  description: { zh: string; en: string };
 };
 
+const ITEMS: Item[] = [
+  {
+    href: "/settings/appearance",
+    icon: Palette,
+    label: { zh: "界面外观", en: "Appearance" },
+    description: { zh: "选择阅读主题与代码显示方式，修改会立即生效。", en: "Choose your reading theme and code display preferences." },
+  },
+  {
+    href: "/profile/learning-model",
+    icon: Brain,
+    label: { zh: "我的学习模型", en: "My learning model" },
+    description: { zh: "查看、纠正或清除用于个性化学习支持的证据与偏好。", en: "Review and manage the evidence and preferences used for learning support." },
+  },
+  {
+    href: "/settings/account",
+    icon: ShieldCheck,
+    label: { zh: "账户与数据", en: "Account & data" },
+    description: { zh: "管理账户安全，以及你在 TraitTutor 中保留的数据。", en: "Manage account security and your retained TraitTutor data." },
+  },
+];
+
+/** Consumer settings: personal controls only; runtime configuration stays out of the learner UI. */
 export default function SettingsHub() {
   const { i18n } = useTranslation();
   const zh = i18n.language?.toLowerCase().startsWith("zh");
-  const tr = useCallback((l: Lang) => (zh ? l.zh : l.en), [zh]);
-
-  const { catalog, catalogEditable, diagnosticsResults, startTour } =
-    useSettings();
-
-  // Model preview: how many of the model-service leaves are configured.
-  const modelStats = useMemo(() => {
-    const cat = SETTINGS_CATEGORIES.find((c) => c.key === "models");
-    const services = (cat?.children ?? []).filter((l) => l.service);
-    if (catalogEditable !== true) {
-      return {
-        total: services.length,
-        configured: -1,
-        passed: 0,
-        failed: 0,
-        states: [] as ServiceReadiness[],
-      };
-    }
-    const states = services.map((leaf) =>
-      serviceReadiness(catalog, leaf.service!, diagnosticsResults),
-    );
-    return {
-      total: services.length,
-      configured: states.filter((state) => state !== "not_configured").length,
-      passed: states.filter((state) => state === "passed").length,
-      failed: states.filter((state) => state === "failed").length,
-      states,
-    };
-  }, [catalog, catalogEditable, diagnosticsResults]);
-
-  // Network preview: a guarded peek at the effective browser API base. Fails
-  // quietly (non-admins get 403) → the block falls back to its blurb.
-  const [network, setNetwork] = useState<NetworkPreview | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await apiFetch(apiUrl("/api/v1/settings/network"));
-        if (!res.ok) return;
-        const data = (await res.json()) as {
-          effective?: { browser_api_base?: string };
-        };
-        if (cancelled) return;
-        setNetwork({ apiBase: data.effective?.browser_api_base || "" });
-      } catch {
-        /* leave null → block shows its blurb */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const tr = (value: { zh: string; en: string }) => (zh ? value.zh : value.en);
 
   return (
-    <div>
-      <header className="mb-7 flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="font-serif text-[24px] font-semibold leading-tight tracking-tight text-[var(--foreground)]">
-            {tr({ zh: "设置", en: "Settings" })}
-          </h1>
-          <p className="mt-1.5 max-w-xl text-[13px] leading-relaxed text-[var(--muted-foreground)]">
-            {tr({
-              zh: "管理外观、模型与服务、知识库、聊天与记忆。",
-              en: "Manage appearance, models and services, knowledge base, chat, and memory.",
-            })}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={startTour}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--border)]/60 px-3 py-1.5 text-[12.5px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)]"
-        >
-          <Rocket size={13} />
-          {tr({ zh: "引导", en: "Tour" })}
-        </button>
+    <div className="max-w-3xl">
+      <header className="border-b border-[var(--border)] pb-6">
+        <h1 className="font-serif text-2xl font-semibold tracking-tight text-[var(--foreground)]">
+          {tr({ zh: "设置", en: "Settings" })}
+        </h1>
+        <p className="mt-2 max-w-xl text-sm leading-relaxed text-[var(--muted-foreground)]">
+          {tr({ zh: "管理你看到的界面、学习个性化和账户数据。模型与服务由 TraitTutor 自动维护。", en: "Manage your interface, learning personalization, and account data. TraitTutor manages models and services automatically." })}
+        </p>
       </header>
 
-      <SettingsStatusPanel />
-
-      <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {SETTINGS_CATEGORIES.map((category) => (
-          <CategoryBlock
-            key={category.key}
-            category={category}
-            tr={tr}
-            modelStats={category.key === "models" ? modelStats : undefined}
-            network={category.key === "network" ? network : undefined}
-          />
+      <section className="mt-5 divide-y divide-[var(--border)] border-y border-[var(--border)]" aria-label={tr({ zh: "个人设置", en: "Personal settings" })}>
+        {ITEMS.map(({ href, icon: Icon, label, description }) => (
+          <Link key={href} href={href} className="group flex min-w-0 items-start gap-3 px-1 py-4 transition-colors hover:bg-[var(--muted)]/35 sm:px-3">
+            <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[var(--muted)] text-[var(--primary)]"><Icon className="h-4.5 w-4.5" aria-hidden="true" /></span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-medium text-[var(--foreground)]">{tr(label)}</span><span className="mt-1 block max-w-xl text-sm leading-relaxed text-[var(--muted-foreground)]">{tr(description)}</span></span>
+            <ArrowUpRight className="mt-2 h-4 w-4 shrink-0 text-[var(--muted-foreground)]/50 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-[var(--foreground)]" aria-hidden="true" />
+          </Link>
         ))}
-      </div>
-    </div>
-  );
-}
-
-function CategoryBlock({
-  category,
-  tr,
-  modelStats,
-  network,
-}: {
-  category: SettingsCategory;
-  tr: (l: Lang) => string;
-  modelStats?: {
-    total: number;
-    configured: number;
-    passed: number;
-    failed: number;
-    states: ServiceReadiness[];
-  };
-  network?: NetworkPreview | null;
-}) {
-  const Icon: LucideIcon = category.icon;
-
-  return (
-    <Link
-      href={category.href}
-      data-tour={`tour-cat-${category.key}`}
-      className="group relative flex min-h-[120px] flex-col justify-between rounded-2xl border border-[var(--border)]/70 bg-[var(--card)] p-5 transition-all duration-150 hover:border-[var(--foreground)]/20 hover:shadow-[0_4px_24px_-16px_rgba(0,0,0,0.3)]"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <Icon
-            size={19}
-            strokeWidth={1.6}
-            className="text-[var(--muted-foreground)] transition-colors group-hover:text-[var(--foreground)]"
-          />
-          <h3 className="text-[15.5px] font-medium tracking-tight text-[var(--foreground)]">
-            {tr(category.label)}
-          </h3>
-        </div>
-        <ChevronRight
-          size={16}
-          className="mt-0.5 shrink-0 text-[var(--muted-foreground)]/30 transition-all group-hover:translate-x-0.5 group-hover:text-[var(--muted-foreground)]"
-        />
-      </div>
-
-      <div className="mt-4">
-        {modelStats ? (
-          <ModelPreview stats={modelStats} blurb={tr(category.blurb)} tr={tr} />
-        ) : network !== undefined && network !== null ? (
-          <NetworkPreviewRow network={network} tr={tr} />
-        ) : (
-          <p className="text-[12.5px] leading-relaxed text-[var(--muted-foreground)]">
-            {tr(category.blurb)}
-          </p>
-        )}
-      </div>
-    </Link>
-  );
-}
-
-function ModelPreview({
-  stats,
-  blurb,
-  tr,
-}: {
-  stats: {
-    total: number;
-    configured: number;
-    passed: number;
-    failed: number;
-    states: ServiceReadiness[];
-  };
-  blurb: string;
-  tr: (l: Lang) => string;
-}) {
-  // Restricted deployments (no editable catalog) can't know — show the blurb.
-  if (stats.configured < 0) {
-    return (
-      <p className="text-[12.5px] leading-relaxed text-[var(--muted-foreground)]">
-        {blurb}
-      </p>
-    );
-  }
-  return (
-    <div className="flex items-center gap-2.5">
-      <div className="flex items-center gap-1">
-        {stats.states.map((state, i) => (
-          <span
-            key={i}
-            className={`h-1.5 w-1.5 rounded-full ${
-              state === "passed"
-                ? "bg-emerald-500"
-                : state === "failed"
-                  ? "bg-red-500"
-                  : state === "untested"
-                    ? "bg-zinc-400 dark:bg-zinc-500"
-                    : "bg-zinc-300/60 dark:bg-zinc-700"
-            }`}
-          />
-        ))}
-      </div>
-      <span className="text-[12px] tabular-nums text-[var(--muted-foreground)]">
-        {stats.failed > 0
-          ? tr({
-              zh: `${stats.configured}/${stats.total} 已配置 · ${stats.failed} 个失败`,
-              en: `${stats.configured}/${stats.total} configured · ${stats.failed} failed`,
-            })
-          : stats.passed > 0
-            ? tr({
-                zh: `${stats.configured}/${stats.total} 已配置 · ${stats.passed} 个通过`,
-                en: `${stats.configured}/${stats.total} configured · ${stats.passed} passed`,
-              })
-            : tr({
-                zh: `${stats.configured}/${stats.total} 已配置`,
-                en: `${stats.configured}/${stats.total} configured`,
-              })}
-      </span>
-    </div>
-  );
-}
-
-function NetworkPreviewRow({
-  network,
-  tr,
-}: {
-  network: NetworkPreview;
-  tr: (l: Lang) => string;
-}) {
-  return (
-    <div className="flex items-center gap-2 text-[12px] text-[var(--muted-foreground)]">
-      <span className="shrink-0 text-[var(--muted-foreground)]/70">
-        {tr({ zh: "API", en: "API" })}
-      </span>
-      <span
-        className="truncate font-mono text-[11.5px] text-[var(--foreground)]"
-        title={network.apiBase}
-      >
-        {network.apiBase || tr({ zh: "本地", en: "local" })}
-      </span>
+      </section>
     </div>
   );
 }

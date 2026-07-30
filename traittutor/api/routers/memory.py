@@ -153,6 +153,13 @@ async def put_doc(layer: str, key: str, payload: DocWriteRequest):
     lyr = _validate_layer(layer)
     _validate_doc_key(lyr, key)
     await get_memory_store().overwrite_doc(lyr, key, payload.content)
+    if lyr == "L3" and key == "preferences":
+        try:
+            from traittutor.personalization import get_personalization_service
+
+            get_personalization_service().enqueue_memory_reconcile()
+        except Exception:
+            logger.debug("learner-memory reconcile enqueue failed", exc_info=True)
     return {"layer": lyr, "key": key, "saved": True}
 
 
@@ -163,6 +170,13 @@ async def delete_entry(layer: str, key: str, entry_id: str):
     ok = await get_memory_store().delete_entry(lyr, key, entry_id)
     if not ok:
         raise HTTPException(status_code=404, detail="entry not found")
+    if lyr == "L3" and key == "preferences":
+        try:
+            from traittutor.personalization import get_personalization_service
+
+            get_personalization_service().enqueue_memory_reconcile()
+        except Exception:
+            logger.debug("learner-memory reconcile enqueue failed", exc_info=True)
     return {"layer": lyr, "key": key, "deleted": entry_id}
 
 

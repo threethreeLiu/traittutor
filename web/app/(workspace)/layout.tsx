@@ -3,6 +3,7 @@ import { CapabilityAccessProvider } from "@/components/access/CapabilityAccessCo
 import CapabilityGate from "@/components/access/CapabilityGate";
 import OnboardingProvider from "@/components/onboarding/OnboardingProvider";
 import { UnifiedChatProvider } from "@/context/UnifiedChatContext";
+import { MobileNavigation } from "@/components/sidebar/MobileNavigation";
 
 export default function WorkspaceLayout({
   children,
@@ -12,13 +13,16 @@ export default function WorkspaceLayout({
   return (
     <CapabilityAccessProvider>
       <UnifiedChatProvider>
-        <div className="flex h-screen overflow-hidden">
+        <div className="flex h-[100dvh] min-h-0 overflow-hidden">
           <WorkspaceSidebar />
-          <main className="flex-1 overflow-hidden bg-[var(--background)]">
-            <OnboardingProvider>
-              <CapabilityGate>{children}</CapabilityGate>
-            </OnboardingProvider>
-          </main>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <MobileNavigation />
+            <main className="min-h-0 min-w-0 flex-1 overflow-hidden bg-[var(--background)]">
+              <OnboardingProvider>
+                <CapabilityGate>{children}</CapabilityGate>
+              </OnboardingProvider>
+            </main>
+          </div>
         </div>
       </UnifiedChatProvider>
     </CapabilityAccessProvider>

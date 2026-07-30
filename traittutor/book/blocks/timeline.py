@@ -3,7 +3,7 @@
 Phase 2 implementation. Returns a structured list of events the frontend
 renders as a vertical timeline.
 
-Prompts live in ``traittutor/book/prompts/{en,zh}/timeline.yaml``.
+Prompts live in ``traittutor/book/prompts/{en,zh}/timeline.md``.
 """
 
 from __future__ import annotations

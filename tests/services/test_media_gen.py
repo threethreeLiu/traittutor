@@ -25,6 +25,7 @@ from traittutor.services.generation_http import (
 )
 from traittutor.services.imagegen import generate_image
 from traittutor.services.imagegen.adapters.chat_completions import ChatCompletionsImagegenAdapter
+from traittutor.services.imagegen.adapters.agnes import AgnesImagegenAdapter
 from traittutor.services.imagegen.adapters.openai_compat import OpenAICompatImagegenAdapter
 from traittutor.services.imagegen.config import ImagegenConfig
 from traittutor.services.videogen import generate_video, probe_video
@@ -111,6 +112,20 @@ async def test_imagegen_adapter_url_is_downloaded(monkeypatch: pytest.MonkeyPatc
     images = await OpenAICompatImagegenAdapter().generate("dog", config)
     assert images == [(b"DOWNLOADED", "image/png")]
     assert captured["gets"][0]["url"] == "https://cdn/x.png"
+
+
+@pytest.mark.asyncio
+async def test_agnes_image_adapter_uses_documented_extra_body_and_ratio(monkeypatch: pytest.MonkeyPatch) -> None:
+    post_resp = httpx.Response(200, json={"data": [{"url": "https://cdn/agnes.png"}]})
+    get_resp = httpx.Response(200, content=b"AGNES", headers={"content-type": "image/png"})
+    captured = _patch_http(monkeypatch, post=post_resp, get=get_resp)
+    config = ImagegenConfig(model="agnes-image-2.0-flash", base_url="https://apihub.agnes-ai.com/v1", api_key="k", size="2K", ratio="16:9")
+    images = await AgnesImagegenAdapter().generate("lesson diagram", config)
+    assert images == [(b"AGNES", "image/png")]
+    assert captured["posts"][0]["json"] == {
+        "model": "agnes-image-2.0-flash", "prompt": "lesson diagram", "size": "2K",
+        "ratio": "16:9", "extra_body": {"response_format": "url"},
+    }
 
 
 @pytest.mark.asyncio

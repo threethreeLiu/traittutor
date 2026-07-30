@@ -46,14 +46,14 @@ export default function SpaceMain({
         <div className="shrink-0 border-b border-[var(--border)] px-5 py-2.5">
           <BackToHub />
         </div>
-        <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto md:overflow-hidden">{children}</div>
       </div>
     );
   }
 
   return (
     <div className="h-full overflow-y-auto bg-[var(--background)] [scrollbar-gutter:stable]">
-      <div className="mx-auto max-w-5xl px-8 py-8 pb-12">
+      <div className="mx-auto max-w-5xl px-4 py-6 pb-12 sm:px-8 sm:py-8">
         {!isDashboard && (
           <div className="mb-5">
             <BackToHub />

@@ -72,29 +72,3 @@ test.describe("Compliance :: Accessibility & Semantics", () => {
     expect(!!hasViewport, "Missing viewport meta tag").toBe(true);
   });
 });
-
-test.describe("Compliance :: Error Handling & UX Signals", () => {
-  test("api error surfaces user-friendly feedback (alert or message)", async ({
-    page,
-  }) => {
-    await page.route("**/api/v1/notebook/list", (route) =>
-      route.fulfill({
-        status: 500,
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ detail: "Simulated Backend Failure" }),
-      }),
-    );
-
-    await page.goto(`${BASE_URL}/notebook`);
-
-    await expectAnyVisible(
-      [
-        page.locator('[role="alert"]'),
-        page.locator('[data-test="notebooks-empty"]'),
-        page.locator('[data-testid="notebooks-empty"]'),
-        page.locator("text=No notebooks"),
-      ],
-      "Expected error banner or empty state after simulated failure",
-    );
-  });
-});

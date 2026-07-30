@@ -136,6 +136,16 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to start cron service: {e}")
 
+    # Recover durable generation coordination before accepting requests. Any
+    # lease left by a prior process is marked interrupted/retryable, while
+    # queued work is atomically claimed by whichever API instance has capacity.
+    try:
+        from traittutor.generate.tasks import get_generation_task_manager
+
+        await get_generation_task_manager().start()
+    except Exception as e:
+        logger.warning(f"Failed to recover generation task queue: {e}")
+
     # Ping PocketBase if configured — logs a warning (not an error) if unreachable
     try:
         from traittutor.services.pocketbase_client import ping_pocketbase
@@ -279,6 +289,7 @@ from traittutor.api.routers import (
     system,
     traittutor_generate,
     traittutor_profile,
+    personalization,
     unified_ws,
     voice,
 )
@@ -331,6 +342,7 @@ app.include_router(
 )
 app.include_router(book.router, prefix="/api/v1/book", tags=["book"], dependencies=_auth)
 app.include_router(memory.router, prefix="/api/v1/memory", tags=["memory"], dependencies=_auth)
+app.include_router(personalization.router, prefix="/api/v1/memory", tags=["learner-model"], dependencies=_auth)
 app.include_router(
     capabilities_settings.router,
     prefix="/api/v1/capabilities",

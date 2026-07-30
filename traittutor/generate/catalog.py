@@ -9,7 +9,7 @@ from pathlib import Path
 import re
 from typing import Any, Mapping
 
-import yaml
+from traittutor.services.prompt.markdown import PromptLoadError, parse_markdown_prompt
 
 
 PROMPT_ROOT = Path(__file__).with_name("prompts")
@@ -17,7 +17,7 @@ PROMPT_ROOT = Path(__file__).with_name("prompts")
 
 @dataclass(frozen=True)
 class PromptDefinition:
-    """A versioned YAML prompt asset prepared for a generation request."""
+    """A versioned Markdown prompt asset prepared for a generation request."""
 
     name: str
     path: Path
@@ -42,25 +42,29 @@ def _render(template: str, variables: Mapping[str, Any]) -> str:
 
 
 def _prompt_blocks(payload: Mapping[str, Any]) -> tuple[str, str]:
-    blocks = payload.get("prompt_structure") or []
-    system_blocks = [str(block.get("prompt", "")) for block in blocks if block.get("role") == "system"]
-    user_blocks = [str(block.get("prompt", "")) for block in blocks if block.get("role") == "user"]
-    if not system_blocks or not user_blocks:
-        raise ValueError("prompt asset requires both system and user prompt blocks")
-    return "\n\n".join(system_blocks), "\n\n".join(user_blocks)
+    system = payload.get("system")
+    user = payload.get("user")
+    if not isinstance(system, str) or not system.strip():
+        raise PromptLoadError("prompt asset requires a system prompt block")
+    if not isinstance(user, str) or not user.strip():
+        raise PromptLoadError("prompt asset requires a user prompt block")
+    return system, user
 
 
 def load_prompt(relative_path: str, variables: Mapping[str, Any]) -> PromptDefinition:
-    """Load, render, and fingerprint a checked-in YAML prompt asset."""
+    """Load, render, and fingerprint a checked-in Markdown prompt asset."""
     path = PROMPT_ROOT / relative_path
     if not path.is_file():
-        raise FileNotFoundError(relative_path)
-    payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    if not isinstance(payload, dict):
-        raise ValueError(f"prompt asset {relative_path} must be a YAML mapping")
-    system_prompt, user_prompt = _prompt_blocks(payload)
-    schema_raw = payload.get("json_schema")
-    schema = json.loads(schema_raw) if isinstance(schema_raw, str) and schema_raw.strip() else None
+        raise PromptLoadError(f"prompt asset not found: {relative_path}")
+    try:
+        payload = parse_markdown_prompt(path.read_text(encoding="utf-8"), source=relative_path)
+        system_prompt, user_prompt = _prompt_blocks(payload)
+        schema_raw = payload.get("json_schema")
+        schema = json.loads(schema_raw) if isinstance(schema_raw, str) and schema_raw.strip() else None
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        if isinstance(exc, PromptLoadError):
+            raise
+        raise PromptLoadError(f"invalid prompt asset {relative_path}: {exc}") from exc
     source = path.read_bytes()
     return PromptDefinition(
         name=str(payload.get("name") or path.stem),

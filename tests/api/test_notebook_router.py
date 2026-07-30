@@ -69,6 +69,30 @@ def test_list_entries_empty(store: SQLiteSessionStore) -> None:
         assert resp.json() == {"items": [], "total": 0}
 
 
+def test_generated_quiz_upsert_creates_its_reserved_question_bank_session(store: SQLiteSessionStore) -> None:
+    generation_id = "generated-quiz-1"
+    with TestClient(_build_app(store)) as client:
+        response = client.post(
+            "/api/v1/question-notebook/entries/upsert",
+            json={
+                "session_id": f"traittutor-{generation_id}",
+                "turn_id": generation_id,
+                "question_id": "q1",
+                "question": "What is force?",
+                "question_type": "short",
+                "correct_answer": "A push or pull",
+            },
+        )
+        assert response.status_code == 200
+        assert response.json()["session_id"] == f"traittutor-{generation_id}"
+
+        rejected = client.post(
+            "/api/v1/question-notebook/entries/upsert",
+            json={"session_id": "unknown", "turn_id": "wrong", "question_id": "q2", "question": "No"},
+        )
+        assert rejected.status_code == 404
+
+
 def test_quiz_results_populates_notebook(store: SQLiteSessionStore) -> None:
     session = asyncio.run(store.create_session(title="Quiz Session"))
     sid = session["id"]

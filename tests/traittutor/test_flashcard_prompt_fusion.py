@@ -4,17 +4,17 @@ import json
 from pathlib import Path
 
 import pytest
-import yaml
 
 from traittutor.generate.flashcards import (
     plan_flashcard_batches,
     validate_flashcard_batch,
 )
 from traittutor.generate.grounding import GroundingChunk, StructuredBatchValidationError
+from traittutor.services.prompt.markdown import load_markdown_prompt
 
 PROMPT = (
     Path(__file__).resolve().parents[2]
-    / "traittutor/generate/prompts/flashcards/km-card-note.yml"
+    / "traittutor/generate/prompts/flashcards/km-card-note.md"
 )
 
 
@@ -39,11 +39,11 @@ def _chunks() -> tuple[GroundingChunk, ...]:
 
 
 def test_flashcard_prompt_is_strict_source_grounded_and_high_reasoning():
-    prompt = yaml.safe_load(PROMPT.read_text(encoding="utf-8"))
+    prompt = load_markdown_prompt(PROMPT)
     schema = json.loads(prompt["json_schema"])
     item_schema = schema["properties"]["items"]["items"]
     reference_schema = item_schema["properties"]["references"]["items"]
-    instructions = "\n".join(part["prompt"] for part in prompt["prompt_structure"])
+    instructions = prompt["system"] + "\n" + prompt["user"]
 
     assert prompt["reasoning_effort"] == "high"
     assert schema["additionalProperties"] is False

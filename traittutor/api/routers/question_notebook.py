@@ -182,6 +182,14 @@ async def _persist_answer_images(
 @router.post("/entries/upsert")
 async def upsert_single_entry(payload: UpsertEntryRequest):
     store = get_sqlite_session_store()
+    # Generated Quiz artifacts are not necessarily attached to a chat session.
+    # Reserve a narrow, server-readable namespace for those durable question
+    # bank records instead of failing after a successful generation.
+    if await store.get_session(payload.session_id) is None:
+        generated_id = payload.session_id.removeprefix("traittutor-")
+        if not generated_id or payload.turn_id != generated_id:
+            raise HTTPException(status_code=404, detail="Session not found")
+        await store.create_session(title="TraitTutor Quiz", session_id=payload.session_id)
     images_records = await _persist_answer_images(payload.session_id, payload.user_answer_images)
     item = payload.model_dump()
     # The store expects ``user_answer_images`` as a plain list of dicts

@@ -1,0 +1,17 @@
+{
+  "version": "traittutor-slr-actions-v1",
+  "purpose": "Product-facing action catalog derived from the generation support profile; not a learner assessment.",
+  "boundaries": ["这是学习支持建议，不是 SLR 测评结果。", "也不用于判断学习能力、心理状态或固定学习风格。"],
+  "dimensions": {
+    "goal_planning": {"label": "目标与计划", "detail": "把学习任务拆成可完成的小步，并明确完成标准。", "actions": ["开始前列出本次目标", "用清单标记完成进度"]},
+    "monitoring_regulation": {"label": "监控与调节", "detail": "在关键节点用低压力方式检查理解，必要时回到上一小步。", "actions": ["每节后进行一分钟自检", "遇到卡点时使用恢复提示"]},
+    "reflection_transfer": {"label": "反思与迁移", "detail": "把关键概念用自己的话复述，并连接到另一个情境。", "actions": ["结束后写一句自己的总结", "尝试把概念应用到新例子"]},
+    "motivation_emotion": {"label": "动机与情绪支持", "detail": "以可见进度、选择空间和非评判性反馈维持学习节奏。", "actions": ["展示下一步而非只显示总任务", "提供可选练习节奏"]}
+  },
+  "actions": {
+    "planning": ["明确本次目标", "展示可见进度"],
+    "monitoring": ["在关键节点自检", "提供不确定时的恢复步骤"],
+    "reflection": ["用自己的话总结", "连接到一个新情境"],
+    "motivation": ["提供可选节奏", "使用非评判性反馈"]
+  }
+}

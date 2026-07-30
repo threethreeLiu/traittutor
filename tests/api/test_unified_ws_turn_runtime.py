@@ -283,6 +283,7 @@ async def test_turn_runtime_persists_llm_selection_in_turn_snapshot(
         "traittutor.services.config.get_model_catalog_service",
         lambda: SimpleNamespace(load=_model_catalog),
     )
+    monkeypatch.setattr("traittutor.multi_user.model_access.admin_catalog", _model_catalog)
     monkeypatch.setattr(
         "traittutor.services.model_selection.runtime.activate_llm_selection",
         fake_activate,
@@ -433,6 +434,7 @@ async def test_turn_runtime_rejects_invalid_llm_selection(
         "traittutor.services.config.get_model_catalog_service",
         lambda: SimpleNamespace(load=_model_catalog),
     )
+    monkeypatch.setattr("traittutor.multi_user.model_access.admin_catalog", _model_catalog)
 
     with pytest.raises(RuntimeError, match="Invalid LLM selection"):
         await runtime.start_turn(
@@ -501,6 +503,7 @@ async def test_turn_runtime_allows_model_switching_within_same_session(
         "traittutor.services.config.get_model_catalog_service",
         lambda: SimpleNamespace(load=_model_catalog),
     )
+    monkeypatch.setattr("traittutor.multi_user.model_access.admin_catalog", _model_catalog)
     monkeypatch.setattr(
         "traittutor.services.model_selection.runtime.activate_llm_selection",
         fake_activate,
@@ -683,6 +686,7 @@ async def test_turn_runtime_bootstraps_question_followup_context_once(
             "attachments": [],
             "language": "en",
             "config": {
+                "product_mode": "legacy",
                 "followup_question_context": {
                     "parent_quiz_session_id": "quiz_session_1",
                     "question_id": "q_2",
@@ -724,6 +728,7 @@ async def test_turn_runtime_bootstraps_question_followup_context_once(
     assert "User answer: B" in detail["messages"][0]["content"]
     assert captured["conversation_history"][0]["role"] == "system"
     assert "followup_question_context" not in captured["config_overrides"]
+    assert "product_mode" not in captured["config_overrides"]
     assert captured["metadata"]["question_followup_context"]["question_id"] == "q_2"
 
 
@@ -908,6 +913,7 @@ async def test_turn_runtime_injects_memory_and_refreshes_after_completion(
     async for _event in runtime.subscribe_turn(turn["id"], after_seq=0):
         pass
 
-    assert captured["memory_context"] == "## Memory\n## Preferences\n- Prefer concise answers."
+    assert "<personalization_context>" in captured["memory_context"]
+    assert "Prefer concise answers" not in captured["memory_context"]
     assert captured["conversation_history"] == []
     assert captured["conversation_context_text"] == "Recent chat summary"

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from traittutor.services.generation_http import GenerationProviderError
 from traittutor.services.imagegen.adapters.chat_completions import ChatCompletionsImagegenAdapter
+from traittutor.services.imagegen.adapters.agnes import AgnesImagegenAdapter
 from traittutor.services.imagegen.adapters.openai_compat import OpenAICompatImagegenAdapter
 from traittutor.services.imagegen.base import BaseImagegenAdapter
 
@@ -17,6 +18,8 @@ IMAGEGEN_ADAPTERS: dict[str, BaseImagegenAdapter] = {
     "openai_compat": OpenAICompatImagegenAdapter(),
     # Chat-completions image output (OpenRouter Flux / Gemini image, …).
     "chat_completions": ChatCompletionsImagegenAdapter(),
+    # Agnes uses the OpenAI Images endpoint but nests response_format in extra_body.
+    "agnes": AgnesImagegenAdapter(),
 }
 
 

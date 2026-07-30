@@ -64,6 +64,26 @@ def test_list_llm_options_is_redacted_and_marks_active_default():
     assert "extra_headers" not in payload["options"][0]
 
 
+def test_list_llm_options_uses_model_vendor_for_custom_protocol_icons():
+    catalog = {
+        "services": {
+            "llm": {
+                "active_profile_id": "minimax",
+                "active_model_id": "minimax",
+                "profiles": [{
+                    "id": "minimax",
+                    "name": "MiniMax M3",
+                    "binding": "custom_anthropic",
+                    "models": [{"id": "minimax", "model": "MiniMax-M3"}],
+                }],
+            }
+        }
+    }
+    option = list_llm_options(catalog)["options"][0]
+    assert option["provider"] == "minimax"
+    assert option["provider_label"] == "MiniMax"
+
+
 def test_apply_llm_selection_to_catalog_returns_copy_with_selected_active_ids():
     selected = apply_llm_selection_to_catalog(
         _catalog(), LLMSelection(profile_id="p2", model_id="m3")

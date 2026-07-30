@@ -57,8 +57,16 @@ const NEXT_PUBLIC_AUTH_ENABLED = normalizeBoolean(
   ),
 );
 
+// Production mounts TraitTutor below the main site at a subpath. This must be
+// resolved while building so pages, chunks and middleware all retain it.
+const APP_BASE_PATH = firstNonEmpty(process.env.NEXT_PUBLIC_BASE_PATH).replace(
+  /\/$/,
+  "",
+);
+
 process.env.NEXT_PUBLIC_API_BASE = NEXT_PUBLIC_API_BASE;
 process.env.NEXT_PUBLIC_AUTH_ENABLED = NEXT_PUBLIC_AUTH_ENABLED;
+process.env.NEXT_PUBLIC_BASE_PATH = APP_BASE_PATH;
 
 // Resolve the build-time application version from the single source of
 // truth at ``traittutor/__version__.py``. The Python file is parsed with a
@@ -76,6 +84,7 @@ const APP_VERSION = (() => {
 })();
 
 const nextConfig = {
+  ...(APP_BASE_PATH ? { basePath: APP_BASE_PATH } : {}),
   // Expose the build-time version to the browser so the sidebar badge
   // can compare it against GitHub's latest release.
   env: {

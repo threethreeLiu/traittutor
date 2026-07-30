@@ -257,6 +257,26 @@ class MaterialResolver:
         session_id = str(metadata.get("session_id") or "").strip()
         text = _normalized_text(str(metadata.get("extracted_text") or reference.text or ""))
 
+        page_slices = metadata.get("page_slices")
+        if isinstance(page_slices, Sequence) and not isinstance(page_slices, (str, bytes, bytearray)):
+            page_chunks: list[MaterialChunk] = []
+            for page in page_slices:
+                if not isinstance(page, Mapping):
+                    continue
+                page_number = int(page.get("page") or 0)
+                page_text = _normalized_text(str(page.get("text") or ""))
+                if page_number < 1 or not page_text:
+                    continue
+                page_chunks.extend(self._chunks_for_text(
+                    source_type="upload", source_id=attachment_id, title=filename,
+                    text=page_text,
+                    locator={"session_id": session_id, "attachment_id": attachment_id,
+                             "filename": filename, "page": page_number,
+                             "converted_to_pdf": bool(metadata.get("converted_to_pdf"))},
+                ))
+            if page_chunks:
+                return ResolvedMaterial("upload", attachment_id, _title_or_default(reference.title, filename), tuple(page_chunks))
+
         if not text:
             if not session_id:
                 raise MaterialResolutionError("Upload material requires metadata.session_id")

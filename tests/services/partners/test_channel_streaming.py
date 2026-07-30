@@ -13,6 +13,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+pytest.importorskip("telegram")
+
 from traittutor.partners.bus.queue import MessageBus
 from traittutor.partners.channels.discord import DiscordChannel
 from traittutor.partners.channels.feishu import FeishuChannel

@@ -26,6 +26,9 @@ class GatewayRequest:
     temperature: float | None = None
     max_tokens: int | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    # Generation can select a configured alternate route without changing the
+    # user's global Settings selection.  The config never leaves the server.
+    llm_config: LLMConfig | None = None
 
 
 @dataclass(frozen=True)
@@ -43,7 +46,7 @@ class TraitTutorGateway:
     async def complete(self, request: GatewayRequest) -> GatewayResponse:
         request_id = str(uuid.uuid4())
         started = time.monotonic()
-        config = get_llm_config()
+        config = request.llm_config or get_llm_config()
         if request.reasoning_effort:
             config = config.model_copy({"reasoning_effort": request.reasoning_effort})
         kwargs: dict[str, Any] = {}

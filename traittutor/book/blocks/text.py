@@ -3,7 +3,7 @@
 Also exposes :func:`generate_bridge_text` so the compiler can attach a short
 1-2 sentence transition to *any* block's payload (not as a separate block).
 
-Prompts live in ``traittutor/book/prompts/{en,zh}/text.yaml``.
+Prompts live in ``traittutor/book/prompts/{en,zh}/text.md``.
 """
 
 from __future__ import annotations
