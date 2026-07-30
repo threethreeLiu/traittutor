@@ -48,20 +48,21 @@ async def generate_courseware(
     *,
     chunks: list[Mapping[str, Any]],
     learner_strategy: Mapping[str, Any],
+    slr_support: Mapping[str, Any] | None = None,
     language: str = "zh-CN",
     run: StructuredRunner = run_structured_prompt,
 ) -> CoursewareArtifact:
     """Generate a lesson through analysis, bounded adaptation, then rendering."""
     material_chunks = json.dumps(chunks, ensure_ascii=False)
-    analysis_prompt = load_prompt("courseware/content-analysis.yml", {"language": language, "material_chunks": material_chunks})
+    analysis_prompt = load_prompt("courseware/content-analysis.md", {"language": language, "material_chunks": material_chunks})
     analysis, analysis_meta = await run(analysis_prompt, validate=_require_keys({"topic", "core_concepts", "difficulty_points"}))
     plan_prompt = load_prompt(
-        "courseware/adaptation-plan.yml",
-        {"language": language, "content_analysis": analysis, "learner_strategy": learner_strategy},
+        "courseware/adaptation-plan.md",
+        {"language": language, "content_analysis": analysis, "learner_strategy": learner_strategy, "slr_support": dict(slr_support or {})},
     )
     plan, plan_meta = await run(plan_prompt, validate=_require_keys({"lesson_structure", "scaffolding", "checkpoints", "visible_teaching_moves"}))
     lesson_prompt = load_prompt(
-        "courseware/traittutor-courseware.yml",
+        "courseware/traittutor-courseware.md",
         {"language": language, "material_chunks": material_chunks, "content_analysis": analysis, "adaptation_plan": plan},
     )
     lesson, lesson_meta = await run(lesson_prompt, validate=_lesson_schema)

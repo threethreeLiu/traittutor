@@ -24,11 +24,9 @@ import {
   Mic,
   Paperclip,
   Plus,
-  Sparkles,
   Square,
   UserRound,
   X,
-  type LucideIcon,
 } from "lucide-react";
 import {
   ATTACHMENT_ACCEPT,
@@ -49,6 +47,7 @@ import AgentSelector from "./AgentSelector";
 import KnowledgeSelector from "./KnowledgeSelector";
 import ModelSelector from "./ModelSelector";
 import PersonaSelector from "./PersonaSelector";
+import { TraitTutorIcon, type TraitTutorIconName } from "@/components/brand/TraitTutorIcon";
 
 type SpaceSelectionCounts = {
   attachments: number;
@@ -84,11 +83,65 @@ interface CapabilityDef {
   value: string;
   label: string;
   description: string;
-  icon: LucideIcon;
+  icon: TraitTutorIconName;
   allowedTools: string[];
   // Loop-engine capabilities (solve / mastery) run on the chat agent loop and
   // are collapsed into the "More" flyout instead of listed directly.
   loopEngine?: boolean;
+}
+
+type GenerationShortcut = "courseware" | "flashcards" | "research" | "humanizer";
+
+const GENERATION_SHORTCUTS: Array<{
+  kind: GenerationShortcut;
+  label: string;
+  description: string;
+  icon: TraitTutorIconName;
+}> = [
+  { kind: "courseware", label: "Rewrite Courseware", description: "Turn material into a structured lesson", icon: "courseware" },
+  { kind: "flashcards", label: "Generate Flashcards", description: "Create active-recall study cards", icon: "standard" },
+  { kind: "research", label: "Deep Research", description: "Comprehensive multi-agent research", icon: "research" },
+  { kind: "humanizer", label: "Humanizer", description: "Make text natural while preserving meaning", icon: "motivation" },
+];
+
+function GenerationMenuItem({
+  shortcut,
+  selected,
+  onSelect,
+}: {
+  shortcut: (typeof GENERATION_SHORTCUTS)[number];
+  selected: boolean;
+  onSelect: (kind: GenerationShortcut) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <button
+      type="button"
+      onPointerDown={(event) => {
+        // Select before the document-level outside-click listener can close
+        // the menu, including on touch devices.
+        event.preventDefault();
+        onSelect(shortcut.kind);
+      }}
+      className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left transition-colors active:bg-[var(--muted)]/70 ${
+        selected ? "bg-[var(--primary)]/[0.06]" : "hover:bg-[var(--muted)]/45"
+      }`}
+    >
+      <TraitTutorIcon
+        name={shortcut.icon}
+        size={16}
+        strokeWidth={1.7}
+        className={`shrink-0 ${selected ? "text-[var(--primary)]" : "text-[var(--muted-foreground)]"}`}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[12.5px] font-medium leading-snug text-[var(--foreground)]">{t(shortcut.label)}</div>
+        <div className="truncate text-[11px] leading-snug text-[var(--muted-foreground)]">{t(shortcut.description)}</div>
+      </div>
+      {selected ? (
+        <Check size={14} strokeWidth={2} className="shrink-0 text-[var(--primary)]" />
+      ) : null}
+    </button>
+  );
 }
 
 /** One row in the capability picker — shared by the built-in list and the
@@ -103,7 +156,6 @@ function CapMenuItem({
   onSelect: (value: string) => void;
 }) {
   const { t } = useTranslation();
-  const Icon = cap.icon;
   return (
     <button
       type="button"
@@ -112,9 +164,10 @@ function CapMenuItem({
         selected ? "bg-[var(--primary)]/[0.06]" : "hover:bg-[var(--muted)]/45"
       }`}
     >
-      <Icon
-        size={15}
-        strokeWidth={1.7}
+      <TraitTutorIcon
+        name={cap.icon}
+        size={16}
+        strokeWidth={1.65}
         className={`shrink-0 ${selected ? "text-[var(--primary)]" : "text-[var(--muted-foreground)]"}`}
       />
       <div className="min-w-0 flex-1">
@@ -172,9 +225,6 @@ export default memo(function ChatComposer({
   selectedKnowledgeBases,
   isStreaming,
   isVisualizeMode,
-  capabilityNeedsConfig,
-  capabilityConfigConfirmed,
-  onRequestConfigConfirm,
   capabilities,
   onSetCapMenuOpen,
   onSetSpaceMenuOpen,
@@ -209,6 +259,9 @@ export default memo(function ChatComposer({
   onPaste,
   onAddFiles,
   onSelectCapability,
+  onSelectGenerationShortcut,
+  generationShortcut,
+  onClearGenerationShortcut,
   onCancelStreaming,
   prefillInputRef,
   inputPlaceholder,
@@ -255,19 +308,6 @@ export default memo(function ChatComposer({
   selectedKnowledgeBases: string[];
   isStreaming: boolean;
   isVisualizeMode: boolean;
-  /**
-   * True when the active capability (e.g. Quiz / Visualize / Research)
-   * requires explicit configuration before sending. When true, `canSend`
-   * is gated on `capabilityConfigConfirmed`.
-   */
-  capabilityNeedsConfig: boolean;
-  capabilityConfigConfirmed: boolean;
-  /**
-   * Called when the user clicks the send button while config is required
-   * but not yet confirmed. The page uses this to surface the config card
-   * (open the Activity panel, scroll to it, etc.).
-   */
-  onRequestConfigConfirm: () => void;
   capabilities: CapabilityDef[];
   onSetCapMenuOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
   onSetSpaceMenuOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
@@ -309,6 +349,11 @@ export default memo(function ChatComposer({
   onPaste: (event: React.ClipboardEvent) => void;
   onAddFiles: (files: File[]) => void;
   onSelectCapability: (value: string) => void;
+  /** Activates a compact TraitTutor action within this same composer. */
+  onSelectGenerationShortcut?: (kind: GenerationShortcut) => void;
+  /** Generation is a mode of this composer, never a second input surface. */
+  generationShortcut?: GenerationShortcut | null;
+  onClearGenerationShortcut?: () => void;
   onCancelStreaming: () => void;
   /**
    * Optional ref the composer writes its ``prefillInput`` function into
@@ -321,19 +366,11 @@ export default memo(function ChatComposer({
   inputPlaceholder?: string;
 }) {
   const { t } = useTranslation();
-  const CapIcon = activeCap.icon;
-
   const [hasContent, setHasContent] = useState(false);
-  const [moreCapsOpen, setMoreCapsOpen] = useState(false);
-  const [lastCapMenuOpen, setLastCapMenuOpen] = useState(capMenuOpen);
+  const [capMenuMaxHeight, setCapMenuMaxHeight] = useState(360);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputHandleRef = useRef<ComposerInputHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  if (lastCapMenuOpen !== capMenuOpen) {
-    setLastCapMenuOpen(capMenuOpen);
-    if (!capMenuOpen) setMoreCapsOpen(false);
-  }
-
   useEffect(() => {
     if (!prefillInputRef) return;
     prefillInputRef.current = (text: string) => {
@@ -393,12 +430,35 @@ export default memo(function ChatComposer({
     if (!hasMessages) textareaRef.current?.focus();
   }, [hasMessages]);
 
+  // The capability menu opens upwards. Its safe height is therefore the
+  // actual space above the trigger, not the viewport height: a centered
+  // composer can otherwise let the first options disappear above the page.
+  useLayoutEffect(() => {
+    if (!capMenuOpen) return;
+
+    const updateMaxHeight = () => {
+      const top = capBtnRef.current?.getBoundingClientRect().top;
+      if (top === undefined) return;
+      setCapMenuMaxHeight(Math.max(160, Math.floor(top - 24)));
+    };
+
+    updateMaxHeight();
+    window.addEventListener("resize", updateMaxHeight);
+    window.addEventListener("scroll", updateMaxHeight, true);
+    window.visualViewport?.addEventListener("resize", updateMaxHeight);
+    return () => {
+      window.removeEventListener("resize", updateMaxHeight);
+      window.removeEventListener("scroll", updateMaxHeight, true);
+      window.visualViewport?.removeEventListener("resize", updateMaxHeight);
+    };
+  }, [capBtnRef, capMenuOpen]);
+
   const handleSelectCapability = useCallback(
     (value: string) => {
-      setMoreCapsOpen(false);
+      onClearGenerationShortcut?.();
       onSelectCapability(value);
     },
-    [onSelectCapability],
+    [onClearGenerationShortcut, onSelectCapability],
   );
 
   // Functional-update form keeps `handleInputChange` identity stable across
@@ -428,13 +488,7 @@ export default memo(function ChatComposer({
     !!selectedPersona ||
     !!selectedMemoryFiles.length;
 
-  // `capabilityNeedsConfig && !capabilityConfigConfirmed` blocks send so the
-  // user has to click *Confirm* in the right-side Activity panel first.
-  // Clicking the send button while in this state surfaces the config card
-  // (via `onRequestConfigConfirm`) instead of silently doing nothing.
-  const isConfigBlocked = capabilityNeedsConfig && !capabilityConfigConfirmed;
-  const canSend =
-    (hasContent || hasReferences) && !isStreaming && !isConfigBlocked;
+  const canSend = (hasContent || hasReferences) && !isStreaming;
 
   const spaceSelectionCounts: SpaceSelectionCounts = {
     attachments: attachments.length,
@@ -537,16 +591,10 @@ export default memo(function ChatComposer({
   ];
 
   const handleManualSend = useCallback(() => {
-    if (isConfigBlocked) {
-      // Don't silently fail — surface the config card so the user knows
-      // they need to confirm settings first.
-      onRequestConfigConfirm();
-      return;
-    }
     if (!canSend) return;
     const content = inputHandleRef.current?.getValue() || "";
     doSend(content);
-  }, [canSend, doSend, isConfigBlocked, onRequestConfigConfirm]);
+  }, [canSend, doSend]);
 
   return (
     <div
@@ -623,20 +671,9 @@ export default memo(function ChatComposer({
             onSend={doSend}
             onInputChange={handleInputChange}
             onPaste={onPaste}
-            connectedAgents={connectedAgents}
-            selectedAgent={selectedAgent}
-            onSelectAgent={onSelectAgent}
             selectedCounts={spaceSelectionCounts}
-            knowledgeAvailable={false}
-            personaAvailable={!onPersonaSelectionChange}
             onSelectAttach={handlePickFiles}
-            agentsAvailable={agentsAvailable}
-            onSelectNotebookPicker={onSelectNotebookPicker}
-            onSelectBookPicker={onSelectBookPicker}
-            onSelectHistoryPicker={onSelectHistoryPicker}
-            onSelectAgentsPicker={onSelectAgentsPicker}
             onSelectQuestionBankPicker={onSelectQuestionBankPicker}
-            onSelectPersonaPicker={onSelectPersonaPicker}
             onSelectMemoryPicker={onSelectMemoryPicker}
             onOpenPersonaSelector={
               onPersonaSelectionChange && onPersonaSelectorOpenChange
@@ -764,7 +801,7 @@ export default memo(function ChatComposer({
                   }`}
                 >
                   <span className="flex min-w-0 items-center gap-1.5">
-                    <CapIcon size={16} strokeWidth={1.7} className="shrink-0" />
+                    <TraitTutorIcon name={activeCap.icon} size={16} strokeWidth={1.65} className="shrink-0" />
                     {composerCompact ? null : (
                       <span className="truncate">{t(activeCap.label)}</span>
                     )}
@@ -779,100 +816,27 @@ export default memo(function ChatComposer({
                 {capMenuOpen && (
                   <div
                     ref={capMenuRef}
-                    className="dt-popup-up absolute bottom-full left-0 z-50 mb-1.5 w-[260px] overflow-visible rounded-xl border border-[var(--border)] bg-[var(--popover)] py-1 shadow-lg backdrop-blur-md"
+                    style={{ maxHeight: Math.min(560, capMenuMaxHeight) }}
+                    className="dt-popup-up absolute bottom-full left-0 z-50 mb-1.5 w-[min(260px,calc(100vw-24px))] overflow-y-auto overscroll-contain rounded-xl border border-[var(--border)] bg-[var(--popover)] py-1 shadow-lg backdrop-blur-md"
                   >
-                    {capabilities
-                      .filter((cap) => !cap.loopEngine)
-                      .map((cap) => (
+                    {capabilities.map((cap) => (
                         <CapMenuItem
                           key={cap.value}
                           cap={cap}
                           selected={activeCap.value === cap.value}
                           onSelect={handleSelectCapability}
                         />
-                      ))}
-                    {(() => {
-                      const loopCaps = capabilities.filter(
-                        (cap) => cap.loopEngine,
-                      );
-                      if (loopCaps.length === 0) return null;
-                      const loopSelected = loopCaps.some(
-                        (cap) => cap.value === activeCap.value,
-                      );
-                      return (
-                        <div
-                          className="group/more relative"
-                          onMouseEnter={() => setMoreCapsOpen(true)}
-                          onMouseLeave={() => setMoreCapsOpen(false)}
-                          onFocus={() => setMoreCapsOpen(true)}
-                          onBlur={(event) => {
-                            const next = event.relatedTarget;
-                            if (
-                              !next ||
-                              !event.currentTarget.contains(next as Node)
-                            ) {
-                              setMoreCapsOpen(false);
-                            }
-                          }}
-                        >
-                          <button
-                            type="button"
-                            aria-haspopup="menu"
-                            aria-expanded={moreCapsOpen}
-                            onClick={() => setMoreCapsOpen((open) => !open)}
-                            className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left transition-colors ${
-                              moreCapsOpen
-                                ? "bg-[var(--muted)]/45"
-                                : "group-hover/more:bg-[var(--muted)]/45"
-                            } ${
-                              loopSelected && !moreCapsOpen
-                                ? "bg-[var(--primary)]/[0.06]"
-                                : ""
-                            }`}
-                          >
-                            <Sparkles
-                              size={15}
-                              strokeWidth={1.7}
-                              className={`shrink-0 ${loopSelected ? "text-[var(--primary)]" : "text-[var(--muted-foreground)]"}`}
-                            />
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate text-[12.5px] font-medium leading-snug text-[var(--foreground)]">
-                                {t("More Capabilities")}
-                              </div>
-                              <div className="truncate text-[11px] leading-snug text-[var(--muted-foreground)]">
-                                {t("Agent-loop driven modes")}
-                              </div>
-                            </div>
-                            <ChevronRight
-                              size={14}
-                              strokeWidth={2}
-                              className="shrink-0 text-[var(--muted-foreground)]"
-                            />
-                          </button>
-                          {/* Right flyout. ``pl-1.5`` is a pointer bridge so the
-                              cursor can cross the gap without dropping hover;
-                              click/focus also open it for touch and keyboard. */}
-                          <div
-                            className={`absolute bottom-0 left-full z-50 pl-1.5 transition-opacity duration-150 ${
-                              moreCapsOpen
-                                ? "visible opacity-100"
-                                : "invisible opacity-0"
-                            }`}
-                          >
-                            <div className="w-[240px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--popover)] py-1 shadow-lg backdrop-blur-md">
-                              {loopCaps.map((cap) => (
-                                <CapMenuItem
-                                  key={cap.value}
-                                  cap={cap}
-                                  selected={activeCap.value === cap.value}
-                                  onSelect={handleSelectCapability}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
+                    ))}
+                    {onSelectGenerationShortcut ? (
+                      GENERATION_SHORTCUTS.map((shortcut) => (
+                        <GenerationMenuItem
+                          key={shortcut.kind}
+                          shortcut={shortcut}
+                          selected={generationShortcut === shortcut.kind}
+                          onSelect={onSelectGenerationShortcut}
+                        />
+                      ))
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -911,21 +875,11 @@ export default memo(function ChatComposer({
                       <ChatSpaceMenu
                         variant="toolbar"
                         selectedCounts={spaceSelectionCounts}
-                        knowledgeAvailable={false}
-                        personaAvailable={!onPersonaSelectionChange}
-                        agentsAvailable={agentsAvailable}
                         onSelectItem={(key) => {
                           onSetSpaceMenuOpen(false);
                           if (key === "attach") handlePickFiles();
-                          else if (key === "chat_history")
-                            onSelectHistoryPicker();
-                          else if (key === "my_agents") onSelectAgentsPicker();
-                          else if (key === "books") onSelectBookPicker();
-                          else if (key === "notebooks")
-                            onSelectNotebookPicker();
                           else if (key === "question_bank")
                             onSelectQuestionBankPicker();
-                          else if (key === "persona") onSelectPersonaPicker();
                           else if (key === "memory") onSelectMemoryPicker();
                         }}
                       />
@@ -935,22 +889,6 @@ export default memo(function ChatComposer({
               </div>
 
               <div className="ml-auto flex shrink-0 items-center gap-1.5">
-                {connectedAgents.length > 0 && onSelectAgent ? (
-                  <AgentSelector
-                    agents={connectedAgents}
-                    selected={selectedAgent}
-                    onSelect={onSelectAgent}
-                    budget={subagentBudget}
-                    onBudgetChange={onSubagentBudgetChange}
-                  />
-                ) : null}
-                {knowledgeBases.length > 0 ? (
-                  <KnowledgeSelector
-                    knowledgeBases={knowledgeBases}
-                    selected={selectedKnowledgeBases}
-                    onToggle={onToggleKB}
-                  />
-                ) : null}
                 {onPersonaSelectionChange ? (
                   <PersonaSelector
                     value={personaSelection ?? ""}
@@ -1023,28 +961,12 @@ export default memo(function ChatComposer({
                     />
                   </button>
                 ) : (
-                  // When the active capability needs an unconfirmed config,
-                  // we keep the button clickable (so a click can surface
-                  // the Activity-panel config card via
-                  // `onRequestConfigConfirm`) but only once the user has
-                  // *intent* (typed text or queued references). Without
-                  // intent, the button stays disabled so an empty-state
-                  // composer doesn't have a "live" send button.
                   <button
                     type="button"
                     onClick={handleManualSend}
                     disabled={!(hasContent || hasReferences) || isStreaming}
-                    title={
-                      isConfigBlocked
-                        ? t("Confirm settings on the right to send.")
-                        : undefined
-                    }
                     aria-disabled={!canSend}
-                    className={`ml-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] transition-[background-color,transform,opacity] duration-150 active:scale-95 disabled:opacity-25 ${
-                      isConfigBlocked
-                        ? "bg-[var(--muted-foreground)]/30 text-[var(--primary-foreground)] hover:bg-[var(--muted-foreground)]/45"
-                        : "bg-[var(--primary)] text-[var(--primary-foreground)] hover:bg-[var(--primary)]/90"
-                    }`}
+                    className="ml-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--primary)] text-[var(--primary-foreground)] transition-[background-color,transform,opacity] duration-150 hover:bg-[var(--primary)]/90 active:scale-95 disabled:opacity-25"
                     aria-label={t("Send")}
                   >
                     <ArrowUp size={16} strokeWidth={2.5} />

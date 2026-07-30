@@ -8,6 +8,8 @@
 // stay as one-liner pass-throughs so the dozens of existing call sites continue
 // to compile and work without modification.
 
+import { appPath } from "@/lib/base-path";
+
 /**
  * Construct a full API URL from a path.
  *
@@ -17,10 +19,10 @@
  * `data/user/settings/system.json`).
  *
  * @param path - API path (e.g., '/api/v1/knowledge/list')
- * @returns The same path, unchanged
+ * @returns A browser-visible path, including the production mount prefix.
  */
 export function apiUrl(path: string): string {
-  return path;
+  return appPath(path);
 }
 
 /**
@@ -34,7 +36,7 @@ export function apiUrl(path: string): string {
  * @returns The same path, unchanged
  */
 export function wsUrl(path: string): string {
-  return path;
+  return appPath(path);
 }
 
 /**

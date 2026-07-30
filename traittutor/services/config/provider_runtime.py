@@ -361,6 +361,12 @@ IMAGEGEN_PROVIDERS: dict[str, GenerationProviderSpec] = {
         default_api_base="https://api.siliconflow.cn/v1",
         default_model="Kwai-Kolors/Kolors",
     ),
+    "agnes": GenerationProviderSpec(
+        label="Agnes AI (2.0 Flash)",
+        default_api_base="https://apihub.agnes-ai.com/v1",
+        adapter="agnes",
+        default_model="agnes-image-2.0-flash",
+    ),
     # OpenRouter generates images through /chat/completions (modalities), not the
     # OpenAI Images API — so it uses the chat_completions adapter, not openai_compat.
     "openrouter": GenerationProviderSpec(
@@ -987,6 +993,7 @@ def resolve_imagegen_runtime_config(
         quality=_as_str((model or {}).get("quality")),
         style=_as_str((model or {}).get("style")),
         response_format=_as_str((model or {}).get("response_format")),
+        ratio=_as_str((model or {}).get("ratio")),
     )
 
 

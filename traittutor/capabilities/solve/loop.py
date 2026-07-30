@@ -85,7 +85,12 @@ def _prompt_text(prompts: dict[str, Any], path: tuple[str, ...]) -> str:
 def _load_system_prompt(language: str) -> str:
     lang = "zh" if language.lower().startswith("zh") else "en"
     prompt = resources.files(__package__).joinpath("prompts", lang, "system.md")
-    return prompt.read_text(encoding="utf-8").strip()
+    from traittutor.services.prompt.markdown import PromptLoadError, load_markdown_prompt
+
+    value = load_markdown_prompt(str(prompt)).get("system")
+    if not isinstance(value, str) or not value.strip():
+        raise PromptLoadError(f"{prompt}: required 'system' prompt section is missing or empty")
+    return value
 
 
 __all__ = ["SolveLoopCapability"]

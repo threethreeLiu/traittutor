@@ -67,16 +67,11 @@ export function saveThemeToStorage(theme: Theme): boolean {
 
 /**
  * Get system preference for theme.
- * Light systems get "light" (Cream — the TraitTutor brand theme); dark
- * systems get "dark". Must stay in sync with the inline ThemeScript
- * fallback.
+ * TraitTutor uses Glass as the product default. This must stay in sync with
+ * the inline ThemeScript fallback.
  */
 export function getSystemTheme(): Theme {
-  if (typeof window === "undefined") return "light";
-
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
+  return "glass";
 }
 
 /**
@@ -100,7 +95,7 @@ export function applyThemeToDocument(theme: Theme): void {
 
 /**
  * Initialize theme on app startup
- * Priority: localStorage > system preference (snow on light systems, dark on dark)
+ * Priority: localStorage > product default (Glass)
  */
 export function initializeTheme(): Theme {
   // Check localStorage first

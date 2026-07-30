@@ -24,14 +24,9 @@ export default function ThemeScript() {
         } else if (stored === 'light') {
           // already clean
         } else {
-          // No stored preference: Cream (brand theme) for light systems,
-          // Dark for prefers-color-scheme: dark.
-          if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            document.documentElement.classList.add('dark');
-            localStorage.setItem('traittutor-theme', 'dark');
-          } else {
-            localStorage.setItem('traittutor-theme', 'light');
-          }
+          // No stored preference: Glass is the product default.
+          document.documentElement.classList.add('dark', 'theme-glass');
+          localStorage.setItem('traittutor-theme', 'glass');
         }
       } catch (e) {
         /* localStorage may be disabled */

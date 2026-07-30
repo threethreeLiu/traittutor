@@ -61,8 +61,8 @@ DEFAULT_SIDEBAR_NAV_ORDER = {
 }
 
 DEFAULT_UI_SETTINGS = {
-    # "light" is the Cream brand theme, the default for new installs.
-    "theme": "light",
+    # Glass is the product default for new installs.
+    "theme": "glass",
     "language": "zh",
     "sidebar_description": "✨ TraitTutor",
     "sidebar_nav_order": DEFAULT_SIDEBAR_NAV_ORDER,
@@ -93,7 +93,7 @@ class SidebarNavOrder(BaseModel):
 
 
 class UISettings(BaseModel):
-    theme: Literal["light", "dark", "glass", "snow"] = "snow"
+    theme: Literal["light", "dark", "glass", "snow"] = "glass"
     language: Literal["zh", "en"] = "zh"
     sidebar_description: Optional[str] = None
     sidebar_nav_order: Optional[SidebarNavOrder] = None
@@ -107,7 +107,7 @@ class UISettingsUpdate(BaseModel):
 
     All fields have None defaults so `model_dump(exclude_unset=True)` naturally
     excludes fields not provided in the frontend payload, while explicitly provided
-    defaults (e.g., `theme: "snow"`) still update the backend. This separates
+    defaults (e.g., `theme: "glass"`) still update the backend. This separates
     the semantic contract: `/ui` endpoint only merges whatever explicitly arrives
     from the frontend.
     """

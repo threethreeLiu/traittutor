@@ -236,7 +236,12 @@ def build_trait_profile(
     scores = calculate_tipi_scores(normalized)
     levels = {trait: classify_trait_level(score) for trait, score in scores.items()}
     profile_metadata = dict(metadata or {})
-    profile_metadata.setdefault("slr_support", build_initial_slr_support(scores))
+    # The action catalog is product-owned JSON; older saved profiles retain
+    # their historic payload on read, while every newly created profile starts
+    # from the current visible action set.
+    from traittutor.assessment.support_profile import build_slr_action_support
+
+    profile_metadata.setdefault("slr_support", build_slr_action_support(scores))
     return TraitProfile(
         profile_id=profile_id or uuid4().hex,
         scores=scores,

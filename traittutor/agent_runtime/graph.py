@@ -8,6 +8,7 @@ import uuid
 from langgraph.graph import END, START, StateGraph
 
 from traittutor.gateway import GatewayRequest, get_gateway
+from traittutor.services.prompt.language import append_language_directive
 
 from .policy import preflight
 from .schemas import AgentMode, AgentRunRequest, AgentRunResult, Intent
@@ -44,15 +45,19 @@ async def _route(state: AgentState) -> AgentState:
 async def _respond(state: AgentState) -> AgentState:
     request = state["request"]
     policy_text = "; ".join(f"{item.action}:{item.decision}" for item in state["policy"])
+    system_prompt = append_language_directive(
+        (
+            "You are TraitTutor, a helpful consumer learning assistant. "
+            f"You are acting as {state['agent']} for intent {state['intent'].value}. "
+            "Do not claim to have used tools unless their result is supplied. "
+            f"Policy preflight: {policy_text}."
+        ),
+        request.language,
+    )
     response = await get_gateway().complete(
         GatewayRequest(
             prompt=request.message,
-            system_prompt=(
-                "You are TraitTutor, a helpful consumer learning assistant. "
-                f"You are acting as {state['agent']} for intent {state['intent'].value}. "
-                "Do not claim to have used tools unless their result is supplied. "
-                f"Policy preflight: {policy_text}."
-            ),
+            system_prompt=system_prompt,
             purpose=f"agent:{state['agent']}",
             user_id=request.user_id,
             reasoning_effort="high" if state["intent"] is Intent.LEARNING else None,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
@@ -8,7 +8,7 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { register, login, fetchAuthStatus, safeAuthRedirect } from "@/lib/auth";
 import { TraitTutorMark } from "@/components/brand/TraitTutorMark";
 
-export default function RegisterPage() {
+function RegisterPageContent() {
   const { t } = useTranslation();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -179,5 +179,13 @@ export default function RegisterPage() {
         {t("Your learning, in your own rhythm.")}
       </p>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="w-full max-w-sm text-center text-sm text-[var(--muted-foreground)]">Loading registration…</div>}>
+      <RegisterPageContent />
+    </Suspense>
   );
 }

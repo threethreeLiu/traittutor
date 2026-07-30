@@ -32,6 +32,8 @@ class ImagegenConfig:
     quality: str = ""  # e.g. "standard" | "hd"
     style: str = ""  # e.g. "natural" | "vivid"
     response_format: str = ""  # "" | "url" | "b64_json"
+    # Provider-specific image shape (for example Agnes' ``16:9`` ratio).
+    ratio: str = ""
     # Image generation is slow; allow generous wall-clock per request.
     request_timeout: int = 120
 

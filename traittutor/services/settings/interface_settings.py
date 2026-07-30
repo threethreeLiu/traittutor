@@ -13,8 +13,8 @@ from typing import Any
 from traittutor.services.path_service import get_path_service
 
 DEFAULT_UI_SETTINGS: dict[str, Any] = {
-    # "snow" is the pure-white neutral theme, shown as "Default" in the UI.
-    "theme": "snow",
+    # Glass is the product default; users can still choose any supported theme.
+    "theme": "glass",
     "language": "zh",
 }
 
@@ -81,5 +81,11 @@ def get_ui_language(default: str = "en") -> str:
     2) provided default
     3) 'en'
     """
+    # ``get_ui_settings`` intentionally fills its UI-facing Chinese default.
+    # Generation callers, however, pass their own fallback and must receive it
+    # until this user has actually stored an interface preference.
+    if not _interface_settings_file().exists():
+        return _normalize_language(default, "en")
+
     settings = get_ui_settings()
     return _normalize_language(settings.get("language"), default)

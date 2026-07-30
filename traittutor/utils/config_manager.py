@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
-from ..services.config.loader import get_runtime_settings_dir
 
 
 class ConfigManager:
@@ -34,7 +33,10 @@ class ConfigManager:
             return
 
         self.project_root = project_root or Path(__file__).parent.parent.parent
-        self.config_path = get_runtime_settings_dir(self.project_root) / "main.yaml"
+        # ConfigManager is also used by offline tooling and tests.  It must be
+        # rooted in the project supplied by its caller, rather than borrowing
+        # the process-wide request runtime directory.
+        self.config_path = self.project_root / "data" / "user" / "settings" / "main.yaml"
         self._config_cache: Dict[str, Any] = {}
         self._last_mtime: float = 0.0
         self._initialized = True
@@ -108,9 +110,13 @@ class ConfigManager:
         from traittutor.services.config.model_catalog import ModelCatalogService
         from traittutor.services.config.runtime_settings import RuntimeSettingsService
 
-        settings_dir = get_runtime_settings_dir(self.project_root)
+        # A ConfigManager instantiated for a project must inspect that
+        # project's catalog, not the request-local runtime directory of the
+        # process hosting it.  The latter made diagnostics report whichever
+        # model happened to be active globally.
+        settings_dir = self.config_path.parent
         catalog_service = ModelCatalogService(settings_dir / "model_catalog.json")
-        catalog = catalog_service.load()
+        catalog = catalog_service.load(include_local_overlay=False)
         llm_profile = catalog_service.get_active_profile(catalog, "llm") or {}
         llm_model = catalog_service.get_active_model(catalog, "llm") or {}
         system = RuntimeSettingsService.get_instance(settings_dir).load_system()

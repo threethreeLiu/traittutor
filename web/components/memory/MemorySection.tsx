@@ -222,15 +222,9 @@ function entityDeepLinkUrl(surface: Surface, ent: Entity): string | null {
     case "chat":
       return `/home/${encodeURIComponent(ent.id)}`;
     case "cowriter":
-      return `/co-writer/${encodeURIComponent(ent.id)}`;
-    case "notebook": {
-      const nbId = asString(m.notebook_id);
-      return nbId
-        ? `/space/notebooks?notebook=${encodeURIComponent(nbId)}`
-        : "/space/notebooks";
-    }
+    case "notebook":
     case "book":
-      return `/book?book=${encodeURIComponent(ent.id)}`;
+      return null;
     case "partner": {
       // Partner entity.id is `partnerId:sessionKey`. Deep-link to the partner.
       const partnerId = asString(m.partner_id) || ent.id.split(":")[0];
@@ -246,7 +240,7 @@ function entityDeepLinkUrl(surface: Surface, ent: Entity): string | null {
         : "/space/questions";
     }
     case "kb":
-      return `/knowledge?kb=${encodeURIComponent(ent.id)}`;
+      return null;
   }
   return null;
 }

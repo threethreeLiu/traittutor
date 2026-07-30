@@ -80,20 +80,40 @@ class DeepResearchCapability(BaseCapability):
             stream=stream,
         )
 
-        # Outline-preview payloads carry the sub-topics + the original
-        # request config so the second call has everything it needs to
-        # confirm and resume. Fields live at top level so
-        # ``event.metadata.outline_preview`` resolves on the FE.
+        # Chat is the product surface for research.  The planning result is
+        # therefore an internal, visible-to-the-user demand-analysis stage,
+        # not a separate outline editor that blocks execution.  Reuse the
+        # generated outline immediately and let the normal research/reporting
+        # path stream its work and final answer into this same conversation.
         if result.get("outline_preview"):
-            research_config: dict[str, Any] = {
-                "mode": request_config.mode,
-                "depth": request_config.depth,
-            }
-            if request_config.manual_subtopics is not None:
-                research_config["manual_subtopics"] = request_config.manual_subtopics
-            if request_config.manual_max_iterations is not None:
-                research_config["manual_max_iterations"] = request_config.manual_max_iterations
-            await stream.result(
-                {**result, "research_config": research_config},
-                source=self.name,
+            planned_outline = [
+                SubTopicItem(
+                    title=str(item.get("title") or "").strip(),
+                    overview=str(item.get("overview") or "").strip(),
+                )
+                for item in result.get("sub_topics", [])
+                if isinstance(item, dict) and str(item.get("title") or "").strip()
+            ]
+            planning_message = (
+                "需求已分析，正在按学习目标组织资料与来源。"
+                if context.language.lower().startswith("zh")
+                else "Requirements analyzed. Organizing sources around your learning goal."
             )
+            await stream.progress(
+                planning_message,
+                source=self.name,
+                stage="decomposing",
+                metadata={
+                    "trace_kind": "planning",
+                    "topic": result.get("topic") or context.user_message,
+                    "subtopic_count": len(planned_outline),
+                },
+            )
+            if planned_outline:
+                await pipeline.run(
+                    context=context,
+                    topic=str(result.get("topic") or context.user_message),
+                    confirmed_outline=planned_outline,
+                    attachments=context.attachments,
+                    stream=stream,
+                )

@@ -1,6 +1,6 @@
 """Callout block – key idea / common pitfall / summary highlight.
 
-Prompts live in ``traittutor/book/prompts/{en,zh}/callout.yaml``.
+Prompts live in ``traittutor/book/prompts/{en,zh}/callout.md``.
 """
 
 from __future__ import annotations

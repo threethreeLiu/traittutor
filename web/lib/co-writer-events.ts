@@ -1,7 +1,7 @@
 // Lightweight client-side event bus for Co-Writer document mutations.
 //
-// `CoWriterRecent` (sidebar) and the home page list need to refresh whenever a
-// document is created, updated (autosave), or deleted from anywhere in the
+// The home page list needs to refresh whenever a document is created, updated
+// (autosave), or deleted from anywhere in the
 // app. We avoid a full Context provider here because the sidebar lives at the
 // workspace shell level and mutations happen in disparate routes.
 

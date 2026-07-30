@@ -19,16 +19,13 @@ const ZH_PRESETS: Record<string, PersonaPresentation> = {
   },
 };
 
-/** Localize only built-in read-only presets; user-authored names stay intact. */
+/** Localize known built-in preset slugs. Older deployments did not mark these
+ * records as admin/read-only, so source metadata must not gate their display. */
 export function presentPersona(
   persona: PersonaSource,
   language?: string,
 ): PersonaPresentation {
-  if (
-    language?.toLowerCase().startsWith("zh") &&
-    persona.source === "admin" &&
-    persona.read_only
-  ) {
+  if (language?.toLowerCase().startsWith("zh")) {
     return ZH_PRESETS[persona.name] ?? persona;
   }
   return persona;

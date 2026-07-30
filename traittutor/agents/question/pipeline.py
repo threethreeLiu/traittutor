@@ -419,18 +419,17 @@ class QuestionPipeline:
         self._optional_tools = default_optional_tools()
         self._temperature = 0.4
 
-        try:
-            self._prompts: dict[str, Any] = (
-                get_prompt_manager().load_prompts(
-                    module_name="question",
-                    agent_name="pipeline",
-                    language=self.language,
-                )
-                or {}
-            )
-        except Exception as exc:
-            logger.warning("Failed to load question pipeline prompts: %s", exc)
-            self._prompts = {}
+        self._prompts: dict[str, Any] = get_prompt_manager().load_prompts(
+            module_name="question",
+            agent_name="pipeline",
+            language=self.language,
+            required_sections=(
+                "explore.system",
+                "plan.system",
+                "quiz_step.system",
+                "repair.system",
+            ),
+        )
 
     # ------------------------------------------------------------------
     # Public entry point

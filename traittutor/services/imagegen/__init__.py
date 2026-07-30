@@ -21,6 +21,7 @@ async def generate_image(
     size: str | None = None,
     quality: str | None = None,
     style: str | None = None,
+    ratio: str | None = None,
     n: int = 1,
 ) -> list[tuple[bytes, str]]:
     """Generate ``n`` images for ``prompt`` using the active imagegen selection.
@@ -40,6 +41,8 @@ async def generate_image(
         config.quality = quality
     if style:
         config.style = style
+    if ratio:
+        config.ratio = ratio
     adapter = get_imagegen_adapter(config.adapter)
     return await adapter.generate(prompt, config, n=max(1, n))
 

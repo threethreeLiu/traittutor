@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Bot, Check, ChevronDown, Settings2 } from "lucide-react";
+import { AlertCircle, Bot, Check, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ProviderIcon from "@/components/common/ProviderIcon";
 import type { LLMSelection } from "@/lib/unified-ws";
@@ -217,14 +216,13 @@ export default function ModelSelector({
 
   if (needsConfiguration) {
     return (
-      <Link
-        href="/settings/llm"
-        title={t("Add a model in Settings to use it in chat")}
-        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2 text-[13px] font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)]/55 hover:text-[var(--foreground)]"
+      <span
+        title={t("Models unavailable")}
+        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2 text-[13px] font-medium text-[var(--muted-foreground)]"
       >
-        <Settings2 size={16} strokeWidth={1.7} />
-        <span>{t("Configure model")}</span>
-      </Link>
+        <AlertCircle size={16} strokeWidth={1.7} />
+        <span>{t("Models unavailable")}</span>
+      </span>
     );
   }
 

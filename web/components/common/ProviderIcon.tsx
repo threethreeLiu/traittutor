@@ -1,4 +1,5 @@
 import { Bot } from "lucide-react";
+import { appPath } from "@/lib/base-path";
 
 /**
  * Vendor logos for LLM/embedding providers, keyed by binding name
@@ -78,7 +79,7 @@ export default function ProviderIcon({
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={`/provider-icons/${spec.file}`}
+      src={appPath(`/provider-icons/${spec.file}`)}
       alt=""
       aria-hidden
       width={size}

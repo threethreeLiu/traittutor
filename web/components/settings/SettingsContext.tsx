@@ -201,11 +201,8 @@ export type TourStep = {
   descKey: string
 }
 
-// Tour step order broadly follows the category order in
-// ``web/lib/settings-nav.ts`` so the guided walk moves through the hub's
-// sections top to bottom. Each step names the route it lives on (the Status
-// step targets the resident module on the hub itself); the overlay resolves
-// the ``data-tour`` target after the page renders.
+// Legacy setup-tour data remains private to this provider while existing
+// interface preferences migrate; it is no longer rendered in consumer UI.
 export const TOUR_STEPS: TourStep[] = [
   {
     target: 'tour-status',
@@ -486,7 +483,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   } = useAppShell()
 
   const [status, setStatus] = useState<SystemStatus | null>(null)
-  const [theme, setTheme] = useState<UiSettings['theme']>('snow')
+  const [theme, setTheme] = useState<UiSettings['theme']>('glass')
   const [language, setLanguage] = useState<UiSettings['language']>('zh')
   const [catalog, setCatalog] = useState<Catalog>(defaultCatalog())
   const [draft, setDraft] = useState<Catalog>(defaultCatalog())

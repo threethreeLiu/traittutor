@@ -220,7 +220,7 @@ def _architect_prompts(language: str) -> tuple[str, str]:
     """Return (system_prompt, user_template) for the SectionArchitect.
 
     The catalog block list and design principles live in
-    ``traittutor/book/prompts/{en,zh}/page_planner.yaml`` so they can be
+    ``traittutor/book/prompts/{en,zh}/page_planner.md`` so they can be
     iterated on without touching python.
     """
     bundle = load_book_prompts("page_planner", language)

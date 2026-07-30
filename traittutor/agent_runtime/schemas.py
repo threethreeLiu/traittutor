@@ -26,6 +26,8 @@ class AgentRunRequest(BaseModel):
     user_id: str | None = None
     materials: list[str] = Field(default_factory=list)
     profile_id: str | None = None
+    # UI language is a reply-language preference, not merely a display hint.
+    language: str = "en"
 
 
 class ToolPolicyDecision(BaseModel):

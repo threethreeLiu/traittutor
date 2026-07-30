@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { SidebarShell } from "@/components/sidebar/SidebarShell";
 import { LogoutButton } from "@/components/auth/LogoutButton";
-import { ProfileLink } from "@/components/auth/ProfileLink";
 import { useAppShell } from "@/context/AppShellContext";
 import {
   deleteSession,
@@ -90,12 +89,7 @@ export default function UtilitySidebar() {
       onSelectSession={handleSelectSession}
       onRenameSession={handleRenameSession}
       onDeleteSession={handleDeleteSession}
-      footerSlot={(collapsed) => (
-        <>
-          <ProfileLink collapsed={collapsed} />
-          <LogoutButton collapsed={collapsed} />
-        </>
-      )}
+      footerSlot={(collapsed) => <LogoutButton collapsed={collapsed} />}
     />
   );
 }

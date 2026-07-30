@@ -1309,8 +1309,8 @@ export const ChatMessageList = memo(function ChatMessageList({
   // generating — never when loading history. We capture the last-assistant
   // index at the moment streaming flips off; the matching speaker button
   // plays once. Switching sessions clears the marker. Uses the "adjust state
-  // during render" pattern (state-vs-prop comparison, like the API-key reset
-  // in ServiceConfigEditor) — both branches are conditional and bounded.
+  // during render" pattern (state-vs-prop comparison); both branches are
+  // conditional and bounded.
   const [prevStreaming, setPrevStreaming] = useState(isStreaming);
   const [prevSession, setPrevSession] = useState(sessionId);
   const [freshlyCompletedIndex, setFreshlyCompletedIndex] = useState<

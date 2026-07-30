@@ -111,6 +111,29 @@ class VisualizeCapability(BaseCapability):
                 stage="analyzing",
             )
 
+        # The conversational release deliberately has no sandbox / subprocess
+        # surface.  Keep the analysis-driven technology selection, but route
+        # animation requests to a renderable in-chat artifact instead of
+        # starting the Manim execution path.
+        if analysis.render_type in _MANIM_RENDER_TYPES:
+            requested_type = analysis.render_type
+            analysis.render_type = "html" if analysis.visual_genre == "interactive" else "svg"
+            analysis.rationale = (
+                f"{analysis.rationale} In-chat mode selected {analysis.render_type} "
+                f"instead of {requested_type}; sandbox rendering is unavailable."
+            ).strip()
+            no_sandbox_message = (
+                f"已选择 {analysis.render_type} 作为无需沙盒的对话内呈现方式。"
+                if context.language.lower().startswith("zh")
+                else f"Selected {analysis.render_type} for an in-chat rendering without a sandbox."
+            )
+            await stream.progress(
+                no_sandbox_message,
+                source=self.name,
+                stage="analyzing",
+                metadata={"trace_kind": "planning", "sandbox_disabled": True},
+            )
+
         # Branch: manim path takes over completely after the analysis stage,
         # using its own multi-agent pipeline + Manim subprocess.
         if analysis.render_type in _MANIM_RENDER_TYPES:

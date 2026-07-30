@@ -28,7 +28,7 @@ class NotebookSummarizeAgent:
         self.api_version = getattr(self.llm_config, "api_version", None)
         self.binding = getattr(self.llm_config, "binding", None) or "openai"
         self.extra_headers = getattr(self.llm_config, "extra_headers", None) or {}
-        # Prompts live under traittutor/agents/notebook/prompts/{en,zh}/summarize_agent.yaml
+        # Prompts live under traittutor/agents/notebook/prompts/{en,zh}/summarize_agent.md
         # so the notebook summarizer follows the same bilingual convention as
         # the rest of the agents and never hard-codes prompt strings here.
         self._prompts = get_prompt_manager().load_prompts(

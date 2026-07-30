@@ -5,12 +5,15 @@ Supports multi-language, caching, and language fallbacks.
 """
 
 from pathlib import Path
-from typing import Any
-
-import yaml
+import logging
+from typing import Any, Iterable
 
 from traittutor.runtime.home import PACKAGE_ROOT
 from traittutor.services.config import parse_language
+from traittutor.services.prompt.markdown import PromptLoadError, load_markdown_prompt
+
+
+logger = logging.getLogger(__name__)
 
 
 class PromptManager:
@@ -57,15 +60,19 @@ class PromptManager:
         agent_name: str,
         language: str = "zh",
         subdirectory: str | None = None,
+        *,
+        required_sections: Iterable[str] = (),
     ) -> dict[str, Any]:
         """
         Load prompts for an agent.
 
         Args:
             module_name: Module name (research, solve, question, co_writer)
-            agent_name: Agent name (filename without .yaml)
+            agent_name: Agent name (filename without .md)
             language: Language code ('zh' or 'en')
             subdirectory: Optional subdirectory (e.g., 'solve_loop' for solve module)
+            required_sections: Dot-paths which must resolve to non-empty prompt
+                values. Missing values raise :class:`PromptLoadError`.
 
         Returns:
             Loaded prompt configuration dictionary
@@ -74,10 +81,17 @@ class PromptManager:
         cache_key = self._build_cache_key(module_name, agent_name, lang_code, subdirectory)
 
         if cache_key in self._cache:
-            return self._cache[cache_key]
-
-        prompts = self._load_with_fallback(module_name, agent_name, lang_code, subdirectory)
-        self._cache[cache_key] = prompts
+            prompts = self._cache[cache_key]
+        else:
+            prompts = self._load_with_fallback(module_name, agent_name, lang_code, subdirectory)
+            self._cache[cache_key] = prompts
+        self._validate_required_sections(
+            prompts,
+            required_sections,
+            module_name=module_name,
+            agent_name=agent_name,
+            language=lang_code,
+        )
         return prompts
 
     def _build_cache_key(
@@ -102,19 +116,63 @@ class PromptManager:
         prompt_dirs = self._candidate_prompt_dirs(module_name)
         fallback_chain = self.LANGUAGE_FALLBACKS.get(lang_code, ["en"])
 
+        failures: list[str] = []
+        seen_paths: set[Path] = set()
         for prompts_dir in prompt_dirs:
             for lang in fallback_chain:
                 prompt_file = self._resolve_prompt_path(prompts_dir, lang, agent_name, subdirectory)
-                if prompt_file and prompt_file.exists():
-                    try:
-                        with open(prompt_file, encoding="utf-8") as f:
-                            return yaml.safe_load(f) or {}
-                    except Exception as e:
-                        print(f"Warning: Failed to load {prompt_file}: {e}")
-                        continue
+                if not prompt_file or not prompt_file.exists() or prompt_file in seen_paths:
+                    continue
+                seen_paths.add(prompt_file)
+                try:
+                    return load_markdown_prompt(prompt_file)
+                except (OSError, PromptLoadError, ValueError) as exc:
+                    failures.append(f"{prompt_file}: {exc}")
+                    logger.warning(
+                        "prompt_load_candidate_failed module=%s agent=%s language=%s path=%s error=%s",
+                        module_name,
+                        agent_name,
+                        lang,
+                        prompt_file,
+                        exc,
+                    )
 
-        print(f"Warning: No prompt file found for {module_name}/{agent_name}")
-        return {}
+        target = f"{module_name}/{agent_name} (language={lang_code})"
+        if failures:
+            raise PromptLoadError(
+                f"Unable to load prompt {target}; all candidate assets failed: "
+                + "; ".join(failures)
+            )
+        roots = ", ".join(str(path) for path in prompt_dirs)
+        raise PromptLoadError(
+            f"Prompt asset not found for {target}; searched prompt roots: {roots}"
+        )
+
+    @staticmethod
+    def _validate_required_sections(
+        prompts: dict[str, Any],
+        required_sections: Iterable[str],
+        *,
+        module_name: str,
+        agent_name: str,
+        language: str,
+    ) -> None:
+        """Reject a loaded bundle when a caller's required prompt is absent."""
+        missing: list[str] = []
+        for path in required_sections:
+            value: Any = prompts
+            for key in (part for part in path.split(".") if part):
+                if not isinstance(value, dict) or key not in value:
+                    value = None
+                    break
+                value = value[key]
+            if not isinstance(value, str) or not value.strip():
+                missing.append(path)
+        if missing:
+            raise PromptLoadError(
+                f"Prompt {module_name}/{agent_name} (language={language}) is missing "
+                f"required prompt sections: {', '.join(missing)}"
+            )
 
     def _candidate_prompt_dirs(self, module_name: str) -> list[Path]:
         """Return legacy and current prompt roots for a module."""
@@ -142,17 +200,17 @@ class PromptManager:
 
         # If subdirectory specified, look there first
         if subdirectory:
-            direct_path = lang_dir / subdirectory / f"{agent_name}.yaml"
+            direct_path = lang_dir / subdirectory / f"{agent_name}.md"
             if direct_path.exists():
                 return direct_path
 
         # Try direct path
-        direct_path = lang_dir / f"{agent_name}.yaml"
+        direct_path = lang_dir / f"{agent_name}.md"
         if direct_path.exists():
             return direct_path
 
         # Recursive search in subdirectories
-        found = list(lang_dir.rglob(f"{agent_name}.yaml"))
+        found = list(lang_dir.rglob(f"{agent_name}.md"))
         if found:
             return found[0]
 

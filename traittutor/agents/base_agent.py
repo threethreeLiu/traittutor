@@ -26,7 +26,7 @@ from traittutor.services.llm import (
     supports_response_format,
 )
 from traittutor.services.llm import stream as llm_stream
-from traittutor.services.prompt import get_prompt_manager
+from traittutor.services.prompt import PromptLoadError, get_prompt_manager
 
 
 class BaseAgent(ABC):
@@ -140,6 +140,12 @@ class BaseAgent(ABC):
             )
             if self.prompts:
                 self.logger.debug(f"Prompts loaded: {agent_name} ({language})")
+        except PromptLoadError:
+            # Do not start an agent with no system prompt after a malformed or
+            # missing prompt asset.  The caller can surface this configuration
+            # fault instead of silently sending an under-specified LLM request.
+            self.logger.exception("Prompt configuration failed for %s", agent_name)
+            raise
         except Exception as e:
             self.prompts = None
             self.logger.warning(f"Failed to load prompts for {agent_name}: {e}")

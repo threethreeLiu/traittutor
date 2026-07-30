@@ -15,17 +15,14 @@
  *   for tools/KBs/Space/attachments that never showed up in this session.
  */
 
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import Link from "next/link";
 import {
   AtSign,
-  BookOpen,
   Brain,
   ClipboardList,
   Database,
   ExternalLink,
-  History,
-  NotebookPen,
   Paperclip,
   UserRound,
   Wrench,
@@ -39,10 +36,6 @@ import type {
   MessageRequestSnapshot,
 } from "@/context/UnifiedChatContext";
 import type { StreamEvent } from "@/lib/unified-ws";
-import { listSessions, type SessionSummary } from "@/lib/session-api";
-import { listNotebooks, type NotebookSummary } from "@/lib/notebook-api";
-import { bookApi } from "@/lib/book-api";
-import type { Book } from "@/lib/book-types";
 
 /* ------------------------------------------------------------------ */
 /*  Aggregator                                                         */
@@ -163,80 +156,6 @@ export function buildSessionActivity(messages: MessageItem[]): SessionActivity {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Title resolver — lazy id -> title for Space items                  */
-/* ------------------------------------------------------------------ */
-
-interface ResolvedTitles {
-  sessions: Map<string, string>;
-  notebooks: Map<string, string>;
-  books: Map<string, string>;
-}
-
-function useResolvedTitles(
-  activity: SessionActivity,
-  open: boolean,
-): ResolvedTitles {
-  const [sessions, setSessions] = useState<Map<string, string>>(new Map());
-  const [notebooks, setNotebooks] = useState<Map<string, string>>(new Map());
-  const [books, setBooks] = useState<Map<string, string>>(new Map());
-
-  const needsSessions = activity.space.historySessionIds.length > 0;
-  const needsNotebooks = activity.space.notebookIds.length > 0;
-  const needsBooks = activity.space.bookIds.length > 0;
-
-  useEffect(() => {
-    if (!open || !needsSessions || sessions.size > 0) return;
-    let cancelled = false;
-    listSessions(200)
-      .then((rows: SessionSummary[]) => {
-        if (cancelled) return;
-        const map = new Map<string, string>();
-        rows.forEach((r) => map.set(r.session_id, r.title || r.session_id));
-        setSessions(map);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [open, needsSessions, sessions.size]);
-
-  useEffect(() => {
-    if (!open || !needsNotebooks || notebooks.size > 0) return;
-    let cancelled = false;
-    listNotebooks()
-      .then((rows: NotebookSummary[]) => {
-        if (cancelled) return;
-        const map = new Map<string, string>();
-        rows.forEach((r) => map.set(r.id, r.name || r.id));
-        setNotebooks(map);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [open, needsNotebooks, notebooks.size]);
-
-  useEffect(() => {
-    if (!open || !needsBooks || books.size > 0) return;
-    let cancelled = false;
-    bookApi
-      .list()
-      .then(({ books: rows }: { books: Book[] }) => {
-        if (cancelled) return;
-        const map = new Map<string, string>();
-        rows.forEach((r) => map.set(r.id, r.title || r.id));
-        setBooks(map);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [open, needsBooks, books.size]);
-
-  return { sessions, notebooks, books };
-}
-
-/* ------------------------------------------------------------------ */
 /*  Activity body                                                      */
 /*                                                                     */
 /*  Rendered as the "Activity" home view inside SessionViewerPanel (it */
@@ -253,24 +172,6 @@ interface SpaceCategoryDef {
 }
 
 const SPACE_CATEGORIES: Record<string, SpaceCategoryDef> = {
-  chat_history: {
-    key: "chat_history",
-    href: "/space/chat-history",
-    label: "Chat history",
-    icon: History,
-  },
-  books: {
-    key: "books",
-    href: "/space/books",
-    label: "Books",
-    icon: BookOpen,
-  },
-  notebooks: {
-    key: "notebooks",
-    href: "/space/notebooks",
-    label: "Notebooks",
-    icon: NotebookPen,
-  },
   question_bank: {
     key: "question_bank",
     href: "/space/questions",
@@ -304,59 +205,7 @@ export function ActivityBody({
 }) {
   const { t } = useTranslation();
   const { tools, knowledgeBases, space, attachments } = activity;
-  const { sessions, notebooks, books } = useResolvedTitles(activity, open);
-
   const spaceSubsections: ReactNode[] = [];
-  if (space.historySessionIds.length > 0) {
-    spaceSubsections.push(
-      <SpaceSubsection
-        key="chat_history"
-        category={SPACE_CATEGORIES.chat_history}
-        count={space.historySessionIds.length}
-      >
-        {space.historySessionIds.map((id) => (
-          <SpaceItemRow
-            key={id}
-            title={sessions.get(id) ?? id}
-            subtitle={id.slice(0, 8)}
-          />
-        ))}
-      </SpaceSubsection>,
-    );
-  }
-  if (space.bookIds.length > 0) {
-    spaceSubsections.push(
-      <SpaceSubsection
-        key="books"
-        category={SPACE_CATEGORIES.books}
-        count={space.bookIds.length}
-      >
-        {space.bookIds.map((id) => {
-          const pages = space.bookPages.get(id)?.length ?? 0;
-          return (
-            <SpaceItemRow
-              key={id}
-              title={books.get(id) ?? id}
-              subtitle={t("{{n}} page(s)", { n: pages })}
-            />
-          );
-        })}
-      </SpaceSubsection>,
-    );
-  }
-  if (space.notebookIds.length > 0) {
-    spaceSubsections.push(
-      <SpaceSubsection
-        key="notebooks"
-        category={SPACE_CATEGORIES.notebooks}
-        count={space.notebookIds.length}
-      >
-        {space.notebookIds.map((id) => (
-          <SpaceItemRow key={id} title={notebooks.get(id) ?? id} />
-        ))}
-      </SpaceSubsection>,
-    );
-  }
   if (space.questionEntryIds.length > 0) {
     spaceSubsections.push(
       <SpaceSubsection

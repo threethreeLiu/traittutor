@@ -674,6 +674,10 @@ class TurnRuntimeManager:
             "_regenerated_from_message_id",
             "_superseded_turn_id",
             "followup_question_context",
+            # Product routing is evaluated by this runtime after capability
+            # validation; it must never be sent to a strict chat/capability
+            # request schema as though it were a tool option.
+            "product_mode",
             # Per-turn subagent consult budget (composer stepper). Not part of
             # any capability's public config schema, so it rides as a runtime
             # key — stripped before validation, merged back into the turn config
@@ -719,7 +723,7 @@ class TurnRuntimeManager:
 
                 llm_selection = apply_allowed_llm_selection(llm_selection) or {}
             except PermissionError as exc:
-                raise RuntimeError(str(exc)) from exc
+                raise RuntimeError(f"Invalid LLM selection: {exc}") from exc
         else:
             # Non-admin users MUST end up with a concrete llm_selection so we
             # never silently fall through to the global LLM client (which is
@@ -1215,6 +1219,11 @@ class TurnRuntimeManager:
             from traittutor.services.skill import get_skill_service
 
             request_config = dict(payload.get("config", {}) or {})
+            # ``product_mode`` controls the outer request router only. It is
+            # not a capability setting, so passing it into strict capability
+            # request models (e.g. visual/math tools) causes Pydantic to
+            # reject an otherwise valid chat turn as an unknown field.
+            product_mode = str(request_config.pop("product_mode", "") or "").strip()
             followup_question_context = _extract_followup_question_context(request_config)
             persist_user_message = _extract_persist_user_message(request_config)
             is_regenerate = _extract_regenerate_flag(request_config)
@@ -1360,8 +1369,34 @@ class TurnRuntimeManager:
                 on_event=_emit_context_event,
                 leaf_message_id=branch_parent_id,
             )
-            memory_store = get_memory_store()
-            memory_context = memory_store.read_l3_concat() if memory_references else ""
+            # V2 learner personalization passes a minimal, versioned teaching
+            # plan rather than injecting the entire L3 memory document.
+            # The legacy L3 store remains available to its own workbench, but
+            # it is no longer raw model context for a chat response.
+            memory_context = ""
+            try:
+                from traittutor.personalization import get_personalization_service
+
+                learner_context = get_personalization_service().build_context(
+                    purpose="chat",
+                    # Fresh attachments are the most trustworthy current-turn
+                    # subject cue.  Their extracted text is passed only to the
+                    # local classifier; the resulting minimal context, never
+                    # raw attachment text or L3 memory, goes to the model.
+                    title=" ".join(str(item.get("filename") or "") for item in attachment_records),
+                    text="\n".join([str(payload.get("content") or payload.get("message") or ""), *document_texts])[:24000],
+                    current_instruction=str(payload.get("content") or payload.get("message") or ""),
+                    session_id=session_id,
+                )
+                memory_context = (
+                    "<personalization_context>\n"
+                    f"{json.dumps(learner_context.model_dump(exclude={'trace_id'}), ensure_ascii=False)}\n"
+                    "</personalization_context>\n"
+                    "Use this only as bounded teaching guidance. Do not mention personality scores, "
+                    "diagnoses, learning styles, or hidden reasoning."
+                )
+            except Exception:
+                logger.warning("Learner-model context unavailable; continuing with standard chat", exc_info=True)
 
             # Persona: at most one behaviour preset per turn, eagerly
             # injected (a persona must shape the voice from the first
@@ -1659,7 +1694,6 @@ class TurnRuntimeManager:
             )
 
             pending_done_event: StreamEvent | None = None
-            product_mode = str(request_config.get("product_mode") or "").strip()
             if product_mode in {"learn", "assist"}:
                 from traittutor.agent_runtime import AgentMode, AgentRunRequest, run_agent
 
@@ -1676,6 +1710,7 @@ class TurnRuntimeManager:
                         message=effective_user_message,
                         mode=AgentMode(product_mode),
                         session_id=session_id,
+                        language=str(payload.get("language", "en") or "en"),
                         materials=[
                             str(item.get("extracted_text") or "")
                             for item in attachments

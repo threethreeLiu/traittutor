@@ -251,6 +251,16 @@ class MemoryStore:
                 )
             if report.accepted:
                 await asyncio.to_thread(_atomic_write, path, serialize(doc))
+                # Keep the legacy memory workbench as the source of record,
+                # then asynchronously derive only referenced learner evidence.
+                # This bridge is deliberately best-effort: saving a preference
+                # must never depend on the learner-model subsystem.
+                try:
+                    from traittutor.personalization import get_personalization_service
+
+                    get_personalization_service().enqueue_memory_reconcile()
+                except Exception:
+                    logger.debug("learner-memory reconcile enqueue failed", exc_info=True)
             if reason:
                 # Surface the reason in logs for workbench observability.
                 logger.info("write_memory %s id=%s reason=%s", op, target_id or "new", reason)

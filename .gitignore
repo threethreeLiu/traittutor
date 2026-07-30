@@ -123,6 +123,11 @@ web/build/
 # ============================================
 # Common Output and Cache Directories
 # ============================================
+# Local scratch/design/test artifacts
+_temp/
+web/playwright-report/
+web/test-results/
+
 # Output directories
 output/
 outputs/

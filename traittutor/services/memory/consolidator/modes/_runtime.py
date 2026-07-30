@@ -18,12 +18,11 @@ from pathlib import Path
 import tempfile
 from typing import Any, Awaitable, Callable
 
-import yaml
-
 from traittutor.services.llm import clean_thinking_tags
 from traittutor.services.llm import complete as llm_complete
 from traittutor.services.llm import stream as llm_stream
 from traittutor.services.memory.document import Document, parse, serialize
+from traittutor.services.prompt.markdown import load_markdown_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -37,14 +36,14 @@ _META_CACHE: dict[str, dict[str, Any]] = {}
 
 
 def load_prompt(name: str, language: str) -> dict[str, str]:
-    """Load and cache one prompt YAML by name + language (en/zh)."""
+    """Load and cache one prompt Markdown asset by name + language (en/zh)."""
     lang = _lang_code(language)
     key = (lang, name)
     cached = _PROMPT_CACHE.get(key)
     if cached is not None:
         return cached
-    path = _PROMPTS_DIR / lang / f"{name}.yaml"
-    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    path = _PROMPTS_DIR / lang / f"{name}.md"
+    data = load_markdown_prompt(path)
     if not isinstance(data, dict) or "system" not in data or "user" not in data:
         raise RuntimeError(f"prompt {path} missing 'system'/'user' keys")
     _PROMPT_CACHE[key] = {"system": data["system"], "user": data["user"]}
@@ -57,8 +56,8 @@ def load_focus_meta(language: str) -> dict[str, Any]:
     cached = _META_CACHE.get(lang)
     if cached is not None:
         return cached
-    path = _PROMPTS_DIR / lang / "_meta.yaml"
-    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    path = _PROMPTS_DIR / lang / "_meta.md"
+    data = load_markdown_prompt(path)
     _META_CACHE[lang] = data
     return data
 
