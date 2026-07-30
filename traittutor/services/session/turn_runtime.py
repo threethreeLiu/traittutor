@@ -717,6 +717,11 @@ class TurnRuntimeManager:
             # validation; it must never be sent to a strict chat/capability
             # request schema as though it were a tool option.
             "product_mode",
+            # TraitTutor generation shortcuts (courseware / flashcards / quiz
+            # / exploration / diagrams) are handled by the chat runtime after
+            # strict public config validation. Keep the selected mode in the
+            # turn config, but do not pass it into ChatRequestConfig.
+            "traittutor_mode",
             # Per-turn subagent consult budget (composer stepper). Not part of
             # any capability's public config schema, so it rides as a runtime
             # key — stripped before validation, merged back into the turn config
