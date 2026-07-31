@@ -31,6 +31,29 @@ class PreferenceEvidence(BaseModel):
     expires_at: str | None = None
 
 
+class ReflectionView(BaseModel):
+    """A user-governed learner-memory reflection.
+
+    Reflections are the visible layer over profile evidence.  Candidate
+    reflections can be shown to the learner without being injected into the
+    Compass/personalization context until they are explicitly confirmed.
+    """
+
+    reflection_id: str
+    scope: Literal["global", "subject"]
+    subject: SubjectRef | None = None
+    category: Literal["goal", "explanation", "pacing", "feedback", "constraint", "concept", "strategy"]
+    value: str = Field(min_length=1, max_length=260)
+    status: Literal["candidate", "confirmed", "rejected", "stale", "needs_rebuild"]
+    source_state: Literal["explicit", "inferred", "rejected"] | None = None
+    confidence: float = Field(ge=0, le=1)
+    evidence_refs: list[str] = Field(default_factory=list, max_length=24)
+    updated_at: str
+    expires_at: str | None = None
+    applies_to_compass: bool = False
+    reason: str = Field(default="", max_length=220)
+
+
 class ConceptSignal(BaseModel):
     concept_id: str = Field(min_length=1, max_length=160)
     label: str = Field(min_length=1, max_length=160)
@@ -108,7 +131,7 @@ class LearnerProfile(BaseModel):
 class LearningSignal(BaseModel):
     signal_id: str = Field(min_length=1, max_length=128)
     owner_id: str | None = Field(default=None, min_length=1, max_length=160)
-    kind: Literal["explicit_preference", "goal", "artifact_outcome", "quiz_attempt", "strategy_feedback", "misconception", "subject_correction", "learner_event"]
+    kind: Literal["explicit_preference", "goal", "artifact_outcome", "quiz_attempt", "strategy_feedback", "misconception", "subject_correction", "learner_event", "reflection_decision"]
     subject_refs: list[SubjectRef] = Field(default_factory=list, max_length=5)
     payload: dict[str, Any] = Field(default_factory=dict)
     evidence_refs: list[str] = Field(default_factory=list, max_length=24)

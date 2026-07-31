@@ -52,6 +52,10 @@ class ClearRequest(BaseModel):
     confirmed: bool = False
 
 
+class ReflectionDecisionRequest(BaseModel):
+    status: Literal["candidate", "confirmed", "rejected"]
+
+
 class LearnerEventRequest(BaseModel):
     """Only user-authored, low-weight events are accepted from a browser."""
 
@@ -177,6 +181,21 @@ async def preview_context(request: ContextPreviewRequest):
 @router.get("/learner/evidence")
 async def learner_evidence(subject_id: str | None = None):
     return {"evidence": [signal.model_dump() for signal in get_personalization_service().evidence(subject_id=subject_id)]}
+
+
+@router.get("/learner/reflections")
+async def learner_reflections(subject_id: str | None = None):
+    service = get_personalization_service()
+    reflections = service.reflections(subject_id=subject_id)
+    return {"reflections": [item.model_dump() for item in reflections], "summary": service.reflection_summary()}
+
+
+@router.patch("/learner/reflections/{reflection_id}")
+async def decide_reflection(reflection_id: str, request: ReflectionDecisionRequest):
+    reflection = await get_personalization_service().decide_reflection(reflection_id, request.status)
+    if reflection is None:
+        raise HTTPException(status_code=404, detail="Reflection was not found or cannot be changed")
+    return {"reflection": reflection.model_dump()}
 
 
 @router.patch("/learner/inference")
