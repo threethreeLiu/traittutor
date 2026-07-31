@@ -19,6 +19,7 @@ import {
   ChevronDown,
   ChevronRight,
   ClipboardList,
+  GraduationCap,
   Loader2,
   MessageSquare,
   Mic,
@@ -43,6 +44,7 @@ import type { LLMOption } from "@/lib/llm-options";
 import ChatSpaceMenu from "@/components/chat/space/ChatSpaceMenu";
 import type { SpaceMemoryFile } from "@/lib/space-items";
 import type { SelectedBookReference } from "@/lib/book-references";
+import type { SelectedLearningArtifactReference } from "@/components/chat/LearningArtifactPicker";
 import AgentSelector from "./AgentSelector";
 import KnowledgeSelector from "./KnowledgeSelector";
 import ModelSelector from "./ModelSelector";
@@ -59,6 +61,7 @@ type SpaceSelectionCounts = {
   questionBank: number;
   persona: number;
   memory: number;
+  learningArtifacts: number;
 };
 import ContextReferenceTree, {
   type ContextTreeItem,
@@ -85,7 +88,7 @@ interface CapabilityDef {
   description: string;
   icon: TraitTutorIconName;
   allowedTools: string[];
-  // Loop-engine capabilities (solve / mastery) run on the chat agent loop and
+  // Loop-engine capabilities run on the chat agent loop and
   // are collapsed into the "More" flyout instead of listed directly.
   loopEngine?: boolean;
 }
@@ -94,7 +97,6 @@ type GenerationShortcut =
   | "guided_solve"
   | "learning_exploration"
   | "knowledge_diagram"
-  | "learning_path"
   | "humanizer";
 
 const GENERATION_SHORTCUTS: Array<{
@@ -106,7 +108,6 @@ const GENERATION_SHORTCUTS: Array<{
   { kind: "guided_solve", label: "解题", description: "分步推理并完成问题求解", icon: "solve" },
   { kind: "learning_exploration", label: "学习探索", description: "自动补足来源、概念和下一步", icon: "explore" },
   { kind: "knowledge_diagram", label: "知识图解", description: "在聊天中生成可积累的概念图", icon: "visualize" },
-  { kind: "learning_path", label: "学习路径", description: "Practice, feedback, and review at your pace", icon: "mastery" },
   { kind: "humanizer", label: "Humanizer", description: "自然改写文本，保留原意", icon: "motivation" },
 ];
 
@@ -228,6 +229,7 @@ export default memo(function ChatComposer({
   notebookReferenceGroups,
   selectedPersona,
   selectedMemoryFiles,
+  selectedLearningArtifacts = [],
   selectedKnowledgeBases,
   isStreaming,
   isVisualizeMode,
@@ -243,6 +245,7 @@ export default memo(function ChatComposer({
   onSelectQuestionBankPicker,
   onSelectPersonaPicker,
   onSelectMemoryPicker,
+  onSelectLearningArtifactPicker,
   onClearPersona,
   personaSelection,
   onPersonaSelectionChange,
@@ -258,6 +261,7 @@ export default memo(function ChatComposer({
   onRemoveBookReference,
   onRemoveNotebook,
   onRemoveQuestion,
+  onRemoveLearningArtifact,
   onDragEnter,
   onDragLeave,
   onDragOver,
@@ -311,6 +315,7 @@ export default memo(function ChatComposer({
   }>;
   selectedPersona: string | null;
   selectedMemoryFiles: SpaceMemoryFile[];
+  selectedLearningArtifacts?: SelectedLearningArtifactReference[];
   selectedKnowledgeBases: string[];
   isStreaming: boolean;
   isVisualizeMode: boolean;
@@ -326,6 +331,7 @@ export default memo(function ChatComposer({
   onSelectQuestionBankPicker: () => void;
   onSelectPersonaPicker: () => void;
   onSelectMemoryPicker: () => void;
+  onSelectLearningArtifactPicker?: () => void;
   onClearPersona: () => void;
   /**
    * Session-persona wiring (main chat only). When `onPersonaSelectionChange`
@@ -348,6 +354,7 @@ export default memo(function ChatComposer({
   onRemoveBookReference: (bookId: string) => void;
   onRemoveNotebook: (notebookId: string) => void;
   onRemoveQuestion: (entryId: number) => void;
+  onRemoveLearningArtifact?: (key: string) => void;
   onDragEnter: (event: React.DragEvent) => void;
   onDragLeave: (event: React.DragEvent) => void;
   onDragOver: (event: React.DragEvent) => void;
@@ -497,7 +504,8 @@ export default memo(function ChatComposer({
     !!selectedAgentSessions.length ||
     !!selectedQuestionEntries.length ||
     !!selectedPersona ||
-    !!selectedMemoryFiles.length;
+    !!selectedMemoryFiles.length ||
+    !!selectedLearningArtifacts.length;
 
   const canSend = (hasContent || hasReferences) && !isStreaming;
 
@@ -514,6 +522,7 @@ export default memo(function ChatComposer({
     questionBank: selectedQuestionEntries.length,
     persona: selectedPersona ? 1 : 0,
     memory: selectedMemoryFiles.length,
+    learningArtifacts: selectedLearningArtifacts.length,
   };
   // Badge on the "+" button = how many things are selected through the
   // "+" menu. Knowledge is excluded: it no longer lives in this menu —
@@ -577,6 +586,18 @@ export default memo(function ChatComposer({
         kind: t("Question Bank"),
         label: entry.question,
         onRemove: () => onRemoveQuestion(entry.id),
+      }),
+    ),
+    ...selectedLearningArtifacts.map(
+      (artifact): ContextTreeItem => ({
+        key: `learning-artifact-${artifact.pack_id}-${artifact.artifact_type}-${artifact.artifact_index ?? -1}`,
+        icon: GraduationCap,
+        kind: t("学习产物"),
+        label: `${artifact.title} · ${artifact.pack_title}`,
+        onRemove: () =>
+          onRemoveLearningArtifact?.(
+            `${artifact.pack_id}:${artifact.artifact_type}:${artifact.artifact_index ?? -1}`,
+          ),
       }),
     ),
     ...(selectedPersona
@@ -685,6 +706,9 @@ export default memo(function ChatComposer({
             selectedCounts={spaceSelectionCounts}
             onSelectAttach={handlePickFiles}
             onSelectQuestionBankPicker={onSelectQuestionBankPicker}
+            onSelectLearningArtifactPicker={
+              onSelectLearningArtifactPicker
+            }
             onSelectMemoryPicker={onSelectMemoryPicker}
             onOpenPersonaSelector={
               onPersonaSelectionChange && onPersonaSelectorOpenChange
@@ -886,9 +910,12 @@ export default memo(function ChatComposer({
                       <ChatSpaceMenu
                         variant="toolbar"
                         selectedCounts={spaceSelectionCounts}
+                        showLearningArtifacts={Boolean(onSelectLearningArtifactPicker)}
                         onSelectItem={(key) => {
                           onSetSpaceMenuOpen(false);
                           if (key === "attach") handlePickFiles();
+                          else if (key === "learning_artifacts")
+                            onSelectLearningArtifactPicker?.();
                           else if (key === "question_bank")
                             onSelectQuestionBankPicker();
                           else if (key === "memory") onSelectMemoryPicker();

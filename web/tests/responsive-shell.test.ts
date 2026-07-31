@@ -18,11 +18,11 @@ test("app shells keep a mobile navigation and a scrollable content region", () =
   assert.match(mobileNavigation, /overflow-x-auto/);
 });
 
-test("full-bleed learning tools reflow instead of retaining a desktop split", () => {
+test("legacy mastery route redirects into the current learner profile", () => {
   const spaceMain = read("components", "space", "SpaceMain.tsx");
-  const masteryPath = read("app", "(utility)", "space", "learning", "page.tsx");
+  const legacyLearning = read("app", "(utility)", "space", "learning", "page.tsx");
 
-  assert.match(spaceMain, /overflow-y-auto md:overflow-hidden/);
-  assert.match(masteryPath, /flex min-h-full flex-col md:h-full md:flex-row/);
-  assert.match(masteryPath, /max-h-\[46dvh\].*md:w-64/);
+  assert.match(spaceMain, /overflow-y-auto/);
+  assert.match(legacyLearning, /redirect\("\/space\/traittutor"\)/);
+  assert.doesNotMatch(legacyLearning, /Mastery Path|精通之路/);
 });

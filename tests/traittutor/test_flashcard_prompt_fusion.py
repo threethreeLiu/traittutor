@@ -52,6 +52,11 @@ def test_flashcard_prompt_is_strict_source_grounded_and_high_reasoning():
     assert "strict JSON" in instructions
     assert "atomic" in instructions
     assert "personality scores" in instructions
+    assert "graph-style generation system" in instructions
+    assert "not a single ReAct prompt" in instructions
+    assert "material intent" in instructions
+    assert "slr_actions" in instructions
+    assert "flashcard_targets" in instructions
 
 
 def test_flashcard_batch_plan_preserves_chunk_order_and_small_batch_limit():

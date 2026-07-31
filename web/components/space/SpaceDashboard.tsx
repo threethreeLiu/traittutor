@@ -6,7 +6,6 @@ import { useTranslation } from "react-i18next";
 import { TraitTutorIcon, type TraitTutorIconName } from "@/components/brand/TraitTutorIcon";
 
 import { listNotebookEntries } from "@/lib/notebook-api";
-import { fetchAllProgress } from "@/lib/learning-api";
 import { listLearningPacks, listTraitProfiles } from "@/lib/traittutor-api";
 
 /**
@@ -23,7 +22,6 @@ type Lang = { zh: string; en: string };
 type DashKey =
   | "question_bank"
   | "traittutor"
-  | "mastery_path"
   | "courseware"
   | "flashcards"
   | "quiz";
@@ -111,21 +109,6 @@ const GROUPS: DashboardGroup[] = [
         },
         unit: { zh: "份画像", en: "profiles" },
         load: async () => (await listTraitProfiles()).length,
-      },
-      {
-        key: "mastery_path",
-        href: "/space/learning",
-        icon: "motivation",
-        title: { zh: "精通之路", en: "Mastery Path" },
-        blurb: {
-          zh: "掌握式学习：硬门槛与间隔复习",
-          en: "Mastery-based learning: hard gate and spaced review",
-        },
-        unit: { zh: "条路径", en: "paths" },
-        invite: { zh: "开始一条 →", en: "Start one →" },
-        load: async () =>
-          (await fetchAllProgress()).summaries.filter((s) => s.kp_count > 0)
-            .length,
       },
     ],
   },

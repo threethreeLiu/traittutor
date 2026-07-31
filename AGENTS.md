@@ -23,16 +23,16 @@ What is already merged on `main` and what is the next feature slice — keep thi
 - **Learning profile signal UI** (`feat: redesign learning profile signal interface`, `feat: add initial SLR learning profile graphs`): trait signal cards + profile maps render inside the workbench.
 - **Config-driven model selector** (`feat: redesign config-driven chat model selector`, `feat(models): code-defined LLM models synced from CC Switch`): runtime config + code-defined catalog, no hard-coded provider list.
 - **Generate suite v1** (`feature/generate-suite`, `feature/generate-suite-streaming`, `feature/material-resolution`, `feature/courseware-prompt-fusion`, `feature/flashcard-quiz-fusion`, `feature/generate-workbench-integration`): `traittutor_generate` router + `traittutor/generate/{runner,tasks,service,materials,material_analysis,courseware,flashcards,quiz,visuals,catalog,grounding,evaluation,benchmark}` with sync + 202-async paths and `/tasks/{id}/events` stream.
+- **Release demo learning loop** (`fix: close learning-pack event loop`): material analysis snapshots now carry subject, bilingual grade band, difficulty, concept candidates, page evidence, and augmentation decision; Learning Packs can reuse the same material snapshot across courseware/flashcards/quiz; quiz answers and flashcard reviews write `LearnerEvent` records and update BKT-facing personalization state.
 - **Prompt catalog & runner** (`feature/prompt-catalog-and-runner`, `feature/toc-agent-product`): `traittutor/services/prompt/markdown.py` parser, unified `generate/runner.py` chokepoint, prompt catalog exposed to chat.
 - **Security remediation** (`security(auth)`, `security(api)`, `feat(gateway)`): invite-only registration, session revocation, authenticated artifact downloads, `admin` control-plane, `outputs` authenticated gateway, structured prompt routing with usage audit through `traittutor/gateway/`.
 - **i18n polish** (`fix: translate personas workspace page`, `fix/chinese-persona-i18n`, `fix/personas-page-chinese`): zh/en parity for personas workspace.
 - **Frontend workbench** (`feature/frontend-traittutor-workbench`, `feature/learning-space-modules`, `feature/traittutor-brand-icon`, `fix/transparent-brand-favicon`, `fix/brand-mark-import`, `fix/remove-sidebar-release-chrome`): `(utility)/profile` + `(utility)/space` workbench path, `SpaceDashboard` → `StudyToolWorkbench`, transparent brand mark, sidebar cleanup.
 
-Next expected slices (not yet on `main`, see `docs/PRD.md` §10 for milestones):
+Next expected slices (not yet on `main`, see `docs/PRD.md` for acceptance):
 
-- Generate suite fusion into Notebook / Knowledge / Question Bank / Space surfaces (`feature/generate-workbench-integration` finishing line).
 - Generation eval benchmark (offline/online gating).
-- Hardening pass on the GA checklist (`docs/PRD.md` §12).
+- Browser smoke for the complete demo path: upload real PDF → analyze → generate quiz → answer → inspect BKT/graph/profile → regenerate flashcards/courseware from weak concepts → open Why Drawer → delete evidence and rebuild.
 
 ## MVP Scope
 
@@ -84,8 +84,8 @@ All prompt assets are Markdown files (`*.md`) — no YAML prompt files remain. O
 
 - YAML frontmatter holds metadata and short values (single-line strings, numbers, lists, nested dicts of short values such as `labels:`/`status:`).
 - Multi-line strings live in the body under `## <key>` sections; nested keys use dotted paths (`## loop.system`).
-- Load assets through the shared parser `traittutor/services/prompt/markdown.py` (`load_markdown_prompt`), which rebuilds the same nested dict the old YAML produced. Do not add new `yaml.safe_load` prompt loaders.
-- `scripts/migrate_prompts_to_md.py --rerender` re-canonicalizes any edited prompt asset.
+- Load assets through the shared parser `traittutor/services/prompt/markdown.py` (`load_markdown_prompt`). Do not add prompt-specific `yaml.safe_load` loaders.
+- Edit prompt assets directly as Markdown. There is no YAML prompt migration path in the runtime.
 - Generation prompts live in `traittutor/generate/prompts/{courseware,flashcards,quiz}/*.md` and are routed through the unified `generate/runner.py` chokepoint; do not bypass the runner.
 - Prompt selection and audit go through `traittutor/gateway/` so every model call is observable; new entry points must register there.
 

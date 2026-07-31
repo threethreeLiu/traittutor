@@ -7,10 +7,10 @@ import type { GenerateSuiteResult, MaterialAnalysis } from "@/lib/traittutor-api
 const SUBJECT_LABELS: Record<string, { zh: string; en: string }> = {
   language_arts: { zh: "语文与语言", en: "Language arts" },
   mathematics: { zh: "数学", en: "Mathematics" },
-  english_foreign_languages: { zh: "英语与外语", en: "English & foreign languages" },
+  english_foreign_language: { zh: "英语与外语", en: "English & foreign languages" },
   science_engineering: { zh: "科学与工程", en: "Science & engineering" },
   social_sciences: { zh: "社会科学", en: "Social sciences" },
-  computer_information_technology: { zh: "计算机与信息技术", en: "Computing & IT" },
+  computing_it: { zh: "计算机与信息技术", en: "Computing & IT" },
   arts_design: { zh: "艺术与设计", en: "Arts & design" },
   health_physical_education: { zh: "健康与体育", en: "Health & physical education" },
   vocational_professional: { zh: "职业与专业", en: "Vocational & professional" },
@@ -35,14 +35,20 @@ export function MaterialAnalysisSummary({ analysis, compact = false }: { analysi
   const locale = zh ? "zh" : "en";
   const subject = displayLabel(analysis.subject, SUBJECT_LABELS, Boolean(zh));
   const difficulty = displayLabel(analysis.difficulty, DIFFICULTY_LABELS, Boolean(zh));
+  const evidence = analysis.page_evidence?.length ? analysis.page_evidence : analysis.evidence;
+  const candidates = analysis.concept_candidates ?? [];
+  const gradeBand = analysis.grade_band ?? { chinese: analysis.chinese_grade, international: analysis.international_grade };
+  const augmentationNeeded = analysis.augmentation_decision?.needed ?? analysis.augmentation_needed;
+  const augmentationReason = analysis.augmentation_decision?.reason ?? analysis.augmentation_reason;
 
   return <section className="mt-3 rounded-lg border border-teal-500/30 bg-teal-500/[0.04] p-3 text-[12px]" aria-label={zh ? "材料识别结果" : "Material analysis"}>
     <p className="font-medium">{zh ? "材料识别：" : "Material analysis: "}{analysis.sub_subject}</p>
-    <p className="mt-1 text-[var(--muted-foreground)]">{subject} · {zh ? "中国" : "China"}：{analysis.chinese_grade} · {zh ? "国际" : "International"}：{analysis.international_grade} · {difficulty} · {zh ? "置信度" : "Confidence"} {Math.round(analysis.confidence * 100)}%</p>
-    {!compact ? <p className="mt-1 text-[var(--muted-foreground)]">{analysis.augmentation_needed
-      ? (zh ? `将自动联网补足：${analysis.augmentation_reason}` : `Web supplementation will be considered: ${analysis.augmentation_reason}`)
+    <p className="mt-1 text-[var(--muted-foreground)]">{subject} · {zh ? "中国" : "China"}：{gradeBand.chinese ?? analysis.chinese_grade} · {zh ? "国际" : "International"}：{gradeBand.international ?? analysis.international_grade} · {difficulty} · {zh ? "置信度" : "Confidence"} {Math.round(analysis.confidence * 100)}%</p>
+    {!compact ? <p className="mt-1 text-[var(--muted-foreground)]">{augmentationNeeded
+      ? (zh ? `将自动联网补足：${augmentationReason}` : `Web supplementation will be considered: ${augmentationReason}`)
       : (zh ? "材料充分，默认不联网补足。" : "The material is sufficient; web supplementation is off by default.")}</p> : null}
-    {analysis.evidence.length > 0 ? <p className="mt-1 text-[var(--muted-foreground)]">{zh ? "识别依据：" : "Evidence: "}{analysis.evidence.slice(0, 2).map((item) => `${item.page ? (zh ? `第 ${item.page} 页` : `p. ${item.page}`) : (zh ? "材料片段" : "Material excerpt")} ${item.excerpt}`).join(" · ")}</p> : null}
+    {!compact && candidates.length > 0 ? <p className="mt-1 text-[var(--muted-foreground)]">{zh ? "候选概念：" : "Concept candidates: "}{candidates.slice(0, 4).map((item) => String(item.label || item.concept_id || "")).filter(Boolean).join(" · ")}</p> : null}
+    {evidence.length > 0 ? <p className="mt-1 text-[var(--muted-foreground)]">{zh ? "识别依据：" : "Evidence: "}{evidence.slice(0, 2).map((item) => `${item.page ? (zh ? `第 ${item.page} 页` : `p. ${item.page}`) : (zh ? "材料片段" : "Material excerpt")} ${item.excerpt}`).join(" · ")}</p> : null}
   </section>;
 }
 

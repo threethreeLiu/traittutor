@@ -25,6 +25,7 @@ class CreatePackRequest(BaseModel):
 
 class UpdatePackRequest(BaseModel):
     title: str | None = None
+    material: dict[str, Any] | None = None
     persona: str | None = None
     profile_id: str | None = None
     artifact: dict[str, Any] | None = None
@@ -32,6 +33,22 @@ class UpdatePackRequest(BaseModel):
     flashcard_progress: dict[str, Any] | None = None
     review_id: str | None = Field(default=None, min_length=1, max_length=128)
     quiz_attempt: dict[str, Any] | None = None
+
+
+def _checked_quiz_indexes(values: Any) -> set[int] | None:
+    if not isinstance(values, list):
+        return None
+    indexes: set[int] = set()
+    for value in values:
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, int):
+            indexes.add(value)
+            continue
+        text = str(value).strip()
+        if text.isdigit():
+            indexes.add(int(text))
+    return indexes
 
 
 async def _record_pack_learning_events(pack: dict[str, Any], patch: dict[str, Any]) -> None:
@@ -69,7 +86,7 @@ async def _record_pack_learning_events(pack: dict[str, Any], patch: dict[str, An
             await service.record_event(LearnerEvent(
                 event_id=f"pack-{pack_id}-card-{node_id}-{review_id}", event_type="flashcard_review", subject=subject,
                 concept_id=concept_id, concept_label=concept_label, module_id=module_id,
-                observation="known" if value in {"mastered", "known"} else "unknown",
+                observation="known" if value in {"mastered", "known"} else "uncertain" if value in {"uncertain", "fuzzy"} else "unknown",
                 confidence=.65, evidence_refs=[f"learning-pack:{pack_id}"], payload={"state": value},
                 occurred_at=str(pack.get("updated_at") or ""),
             ), trusted=True)
@@ -80,20 +97,36 @@ async def _record_pack_learning_events(pack: dict[str, Any], patch: dict[str, An
         if not quizzes or not isinstance(quizzes[-1], dict) or not quizzes[-1].get("verified_generation_id"):
             return
         answers = attempt.get("answers") if isinstance(attempt.get("answers"), dict) else {}
+        checked_indexes = _checked_quiz_indexes(attempt.get("checked"))
         submitted = str(attempt.get("submitted_at") or pack.get("updated_at") or "")
         for index, item in enumerate(items):
             if not isinstance(item, dict):
                 continue
             answer = str(answers.get(str(index), answers.get(index, ""))).strip()
+            if not answer or (checked_indexes is not None and index not in checked_indexes):
+                continue
             expected = str(item.get("correct_answer") or "").strip()
-            correct = bool(answer and expected and grade_answer(answer, expected, str(item.get("question_type") or "short")))
+            options = item.get("options") if isinstance(item.get("options"), list) else []
+            selected = next(
+                (
+                    option for option in options
+                    if isinstance(option, dict)
+                    and answer in {
+                        str(option.get("text") or "").strip(),
+                        str(option.get("key") or option.get("id") or "").strip(),
+                    }
+                ),
+                None,
+            )
+            correct = bool(selected.get("is_correct")) if isinstance(selected, dict) else bool(expected and grade_answer(answer, expected, str(item.get("question_type") or "short")))
             concept_id, concept_label, module_id = concept_for(item.get("node_id"), str(item.get("node_name") or item.get("question") or f"Question {index + 1}"))
             await service.record_event(LearnerEvent(
                 event_id=f"pack-{pack_id}-quiz-{item.get('question_id', index)}-{submitted}", event_type="quiz_answer", subject=subject,
                 concept_id=concept_id or f"quiz-{index}", concept_label=concept_label, module_id=module_id,
                 observation="correct" if correct else "incorrect", confidence=.9,
                 evidence_refs=[f"learning-pack:{pack_id}", f"question:{item.get('question_id', index)}"],
-                payload={"answer_present": bool(answer)}, occurred_at=submitted,
+                payload={"answer_present": True, "graded_by": "option_key" if isinstance(selected, dict) else "answer_match"},
+                occurred_at=submitted,
             ), trusted=True)
 
 

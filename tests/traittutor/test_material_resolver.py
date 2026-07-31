@@ -194,7 +194,13 @@ def test_material_analysis_persists_by_session_and_cannot_cross_load(tmp_path: P
         created_at="2026-01-01T00:00:00Z", trace={"reasoning_effort": "medium"},
     )
     save_material_analysis(analysis, root=tmp_path)
-    assert load_material_analysis("analysis-1", "session-a", root=tmp_path)["subject"] == "mathematics"
+    loaded = load_material_analysis("analysis-1", "session-a", root=tmp_path)
+    assert loaded["subject"] == "mathematics"
+    assert loaded["version"] == 1
+    assert loaded["grade_band"] == {"chinese": "junior_1", "international": "grade_7"}
+    assert loaded["concept_candidates"] == []
+    assert loaded["page_evidence"] == []
+    assert loaded["augmentation_decision"] == {"needed": False, "reason": "Material is sufficient."}
     with pytest.raises(FileNotFoundError):
         load_material_analysis("analysis-1", "session-b", root=tmp_path)
 
@@ -239,6 +245,16 @@ async def test_material_analysis_queues_knowledge_graph_without_touching_bkt(mon
             "difficulty": "standard",
             "confidence": 0.9,
             "evidence": [{"chunk_id": "material-1:chunk-1"}],
+            "concept_candidates": [
+                {
+                    "concept_id": "linear-functions.slope",
+                    "label": "斜率",
+                    "module_id": "linear-functions",
+                    "module_label": "一次函数",
+                    "confidence": 0.8,
+                    "evidence_chunk_ids": ["material-1:chunk-1"],
+                }
+            ],
             "augmentation_needed": False,
             "augmentation_reason": "Material is sufficient.",
         }
@@ -265,9 +281,65 @@ async def test_material_analysis_queues_knowledge_graph_without_touching_bkt(mon
     )
 
     assert analysis.subject == "mathematics"
+    assert analysis.grade_band == {"chinese": "junior_2", "international": "grade_8"}
+    assert analysis.concept_candidates and analysis.concept_candidates[0]["status"] == "confirmed"
+    assert analysis.page_evidence and analysis.page_evidence[0]["source_id"] == "material-1"
     assert queued
     assert queued[0]["source_ref"] == f"material-analysis:{analysis.analysis_id}"
     assert queued[0]["subject"].subject_id == "mathematics"
+
+
+@pytest.mark.asyncio
+async def test_material_analysis_tolerates_non_numeric_concept_confidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from traittutor.generate.service import MaterialSource
+
+    class _User:
+        id = "learner-a"
+
+    async def fake_prompt(_prompt, *, validate, reasoning_effort=None):
+        payload = {
+            "subject": "other",
+            "sub_subject": "commerce operations",
+            "chinese_grade": "adult",
+            "international_grade": "adult",
+            "difficulty": "standard",
+            "confidence": 0.7,
+            "evidence": [{"chunk_id": "material-1:chunk-1"}],
+            "concept_candidates": [
+                {
+                    "concept_id": "commerce.kol",
+                    "label": "KOL 营销",
+                    "module_id": "commerce",
+                    "module_label": "Commerce",
+                    "confidence": "high",
+                    "evidence_chunk_ids": ["material-1:chunk-1"],
+                }
+            ],
+            "augmentation_needed": False,
+            "augmentation_reason": "Material is sufficient.",
+        }
+        validate(payload)
+        return payload, SimpleNamespace(model="test-model", provider="test-provider", reasoning_effort=reasoning_effort or "medium")
+
+    monkeypatch.setattr(material_analysis, "get_current_user", lambda: _User())
+    monkeypatch.setattr(material_analysis, "run_structured_prompt", fake_prompt)
+    monkeypatch.setattr(material_analysis, "schedule_learning_knowledge_graph", lambda **_kwargs: None)
+    monkeypatch.setattr(material_analysis, "_analysis_dir", lambda root=None: tmp_path / "analyses")
+    monkeypatch.setattr(material_analysis, "_analysis_request_times", {})
+
+    analysis = await material_analysis.analyze_material(
+        MaterialSource(
+            source_type="paste",
+            source_id="material-1",
+            title="运营材料",
+            text="跨境电商直播运营需要同步 KOL 营销和供应链节奏。",
+        ),
+        session_id="session-a",
+    )
+
+    assert analysis.concept_candidates
+    assert analysis.concept_candidates[0]["confidence"] == 0.35
+    assert analysis.concept_candidates[0]["status"] == "candidate"
 
 
 def test_search_tool_rejects_malformed_provider_response(monkeypatch: pytest.MonkeyPatch) -> None:

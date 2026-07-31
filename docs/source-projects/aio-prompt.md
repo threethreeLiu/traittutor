@@ -4,40 +4,38 @@ Source path: `/Users/lrm/Documents/code/aio-prompt`
 
 ## Role In TraitTutor
 
-aio-prompt is the prompt source for structured learning outputs. TraitTutor should migrate selected YAML prompt files into a local prompt catalog, not the GitLab/Nacos deployment workflow.
+aio-prompt was reviewed as a source of structured learning-output patterns.
+TraitTutor no longer carries source prompt files forward directly; runtime
+prompts are first-party Markdown assets rewritten for the Learning Space
+generation graph. GitLab/Nacos deployment workflows are out of scope.
 
-## Observed Structure
+## Reviewed Source Areas
 
-- `common/`: shared tutor, explain, follow-up, question-generation prompts.
-- `knowledge/flashcard/`: knowledge-map flashcard prompts.
-- `knowledge/quiz/`: knowledge-map quiz prompts.
-- `knowledge/sg/`: study-guide operation prompts.
-- `workflow/sg/`: study-guide generation and merge prompts.
-- `workflow/card/`: study-guide card prompts.
-- `workflow/quiz/`: study-guide quiz prompts.
-- `scripts/sync-to-nacos.sh` and `.gitlab-ci.yml`: external synchronization workflow, not part of TraitTutor runtime.
+- Shared tutor, explanation, follow-up, and question-generation patterns.
+- Knowledge-map flashcard and quiz behavior.
+- Study-guide generation and merge behavior.
+- External synchronization workflow, which is not part of TraitTutor runtime.
 
-## Prompt Format
+## Runtime Prompt Format
 
-Prompt files are YAML and commonly include:
-
-- `type`
-- `name`
-- `module_name`
-- `description`
-- generation settings such as `temperature`, `reasoning_effort`, `max_output_tokens`, `fallback`
-- optional `json_schema`
-- `prompt_structure` with system/user prompt blocks
+TraitTutor runtime prompt assets are Markdown files with frontmatter metadata
+and `## system` / `## user` blocks. Generation prompts are loaded through
+`traittutor/services/prompt/markdown.py`.
 
 ## MVP Prompt Sources
 
-- Courseware/study guide: `workflow/sg/sg-full-note.yml` and related study-guide prompts.
-- Flashcards: `knowledge/flashcard/km-card-note.yml`.
-- Quiz: `knowledge/quiz/km-question-note.yml`.
-- Tutor explanation style: `common/ai-tutor.yml`.
+The source project informed TraitTutor's source-grounded prompt behavior, but
+runtime prompt assets now live only as Markdown under
+`traittutor/generate/prompts/` and are rewritten for the current Learning Space
+pipeline:
+
+- Courseware: intent/material-model analysis, SLR support planning, then mixed lesson rendering.
+- Flashcards: source-grounded active-recall card batches.
+- Quiz: source-grounded material review, question variation, and objective checks.
+- Tutor explanation style: folded into the chat and guided-solve Markdown prompts.
 
 ## Migration Notes
 
 - Keep source-grounded and schema-constrained behavior.
-- Do not migrate Nacos, GitLab CI, or environment synchronization.
+- Do not migrate Nacos, GitLab CI, environment synchronization, or legacy prompt files.
 - Treat strict JSON prompts carefully: stream progress immediately, but show generated flashcards/quiz only after batch JSON validation.

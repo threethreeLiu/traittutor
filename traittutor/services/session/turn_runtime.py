@@ -245,6 +245,7 @@ def _request_snapshot_metadata(
     history_references: list[Any],
     question_notebook_references: list[Any],
     book_references: list[Any],
+    learning_artifact_references: list[Any],
     persona: str,
     memory_references: Sequence[str],
     llm_selection: dict[str, str] | None,
@@ -269,6 +270,8 @@ def _request_snapshot_metadata(
         snapshot["questionNotebookReferences"] = question_notebook_references
     if book_references:
         snapshot["bookReferences"] = book_references
+    if learning_artifact_references:
+        snapshot["learningArtifactReferences"] = learning_artifact_references
     if persona:
         snapshot["persona"] = persona
     if memory_references:
@@ -1297,6 +1300,7 @@ class TurnRuntimeManager:
             notebook_references = payload.get("notebook_references", []) or []
             history_references = payload.get("history_references", []) or []
             question_notebook_references = payload.get("question_notebook_references", []) or []
+            learning_artifact_references = payload.get("learning_artifact_references", []) or []
             book_context_result = build_book_context(payload.get("book_references", []) or [])
             book_references = book_context_result.references
             memory_references = _extract_memory_references(payload)
@@ -1531,6 +1535,7 @@ class TurnRuntimeManager:
                     fresh_book_references=book_references,
                     fresh_history_session_ids=history_references,
                     fresh_question_entry_ids=question_notebook_references,
+                    fresh_learning_artifact_references=learning_artifact_references,
                     language=str(payload.get("language", "en") or "en"),
                 )
                 source_manifest_text, source_index = render_manifest(inventory)
@@ -1683,6 +1688,7 @@ class TurnRuntimeManager:
                         history_references=history_references,
                         question_notebook_references=question_notebook_references,
                         book_references=book_references,
+                        learning_artifact_references=learning_artifact_references,
                         persona=active_persona,
                         memory_references=memory_references,
                         llm_selection=payload.get("llm_selection"),
@@ -1720,6 +1726,7 @@ class TurnRuntimeManager:
                     "history_references": history_references,
                     "question_notebook_references": question_notebook_references,
                     "book_references": book_references,
+                    "learning_artifact_references": learning_artifact_references,
                     "book_context": book_context,
                     "book_context_warnings": book_context_result.warnings,
                     "memory_references": memory_references,

@@ -24,6 +24,7 @@ test("home chat keeps analysis shortcuts but hides study artifact shortcuts", ()
   assert.match(composer, /kind:\s*"guided_solve"/);
   assert.match(composer, /kind:\s*"learning_exploration"/);
   assert.match(composer, /kind:\s*"knowledge_diagram"/);
+  assert.doesNotMatch(composer, /kind:\s*"learning_path"/);
   assert.doesNotMatch(composer, /kind:\s*"courseware"/);
   assert.doesNotMatch(composer, /kind:\s*"flashcards"/);
   assert.doesNotMatch(composer, /kind:\s*"quiz"/);
@@ -35,4 +36,6 @@ test("my learning keeps dedicated courseware flashcard and quiz surfaces", () =>
   assert.match(source, /href:\s*"\/space\/courseware"/);
   assert.match(source, /href:\s*"\/space\/flashcards"/);
   assert.match(source, /href:\s*"\/space\/quiz"/);
+  assert.doesNotMatch(source, /href:\s*"\/space\/learning"/);
+  assert.doesNotMatch(source, /精通之路|Mastery Path/);
 });

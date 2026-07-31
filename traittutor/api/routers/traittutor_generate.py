@@ -46,6 +46,7 @@ class GenerateSuiteRequest(BaseModel):
 class PrepareMaterialRequest(BaseModel):
     filename: str
     base64: str
+    mime_type: str | None = None
 
 
 class AnalyzeMaterialRequest(BaseModel):
@@ -81,7 +82,7 @@ async def prepare_material(request: PrepareMaterialRequest):
     import base64
     try:
         data = base64.b64decode(request.base64, validate=True)
-        prepared = prepare_learning_document(request.filename, data)
+        prepared = prepare_learning_document(request.filename, data, mime_type=request.mime_type)
     except (ValueError, LearningDocumentError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {

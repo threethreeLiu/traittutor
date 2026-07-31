@@ -117,6 +117,7 @@ async def build_inventory(
     fresh_book_references: Sequence[dict[str, Any]],
     fresh_history_session_ids: Sequence[Any],
     fresh_question_entry_ids: Sequence[Any],
+    fresh_learning_artifact_references: Sequence[Any] = (),
     language: str = "en",
 ) -> SourceInventory:
     """Compose the session-cumulative inventory for one chat turn.
@@ -150,6 +151,11 @@ async def build_inventory(
         inv,
         store=store,
         question_entry_ids=fresh_question_entry_ids,
+        current_turn_ordinal=current_turn_ordinal,
+    )
+    _add_fresh_learning_artifacts(
+        inv,
+        learning_artifact_references=fresh_learning_artifact_references,
         current_turn_ordinal=current_turn_ordinal,
     )
     await _add_historical(
@@ -525,6 +531,12 @@ async def _collect_from_user_message(
             )
         )
 
+    # TraitTutor learning artifacts generated in the Learning Space.
+    for ref in snap.get("learningArtifactReferences") or []:
+        entry = _resolve_learning_artifact(ref, fresh=False, first_seen_turn=turn_ordinal)
+        if entry is not None:
+            inv.add(entry)
+
 
 # ----- Lineage walker (branch-safe, store-protocol-compatible) ------------
 
@@ -607,6 +619,141 @@ def _resolve_book_section(book_reference: dict[str, Any]) -> tuple[str, str]:
         return "", ""
     name = _extract_book_title(text, fallback=f"Book {book_reference.get('book_id', '?')}")
     return text, name
+
+
+def _add_fresh_learning_artifacts(
+    inv: SourceInventory,
+    *,
+    learning_artifact_references: Sequence[Any],
+    current_turn_ordinal: int,
+) -> None:
+    for ref in learning_artifact_references:
+        entry = _resolve_learning_artifact(ref, fresh=True, first_seen_turn=current_turn_ordinal)
+        if entry is not None:
+            inv.add(entry)
+
+
+def _resolve_learning_artifact(
+    reference: Any,
+    *,
+    fresh: bool,
+    first_seen_turn: int,
+) -> SourceEntry | None:
+    if not isinstance(reference, dict):
+        return None
+    pack_id = str(reference.get("pack_id") or "").strip()
+    artifact_type = str(reference.get("artifact_type") or "").strip()
+    if not pack_id or artifact_type not in {"courseware", "flashcards", "quiz"}:
+        return None
+    try:
+        raw_index = reference.get("artifact_index")
+        requested_index = int(raw_index) if raw_index is not None else -1
+    except (TypeError, ValueError):
+        requested_index = -1
+
+    try:
+        from traittutor import learning_packs
+
+        pack = learning_packs.get_pack(pack_id)
+    except Exception:
+        logger.debug("Failed to resolve learning artifact pack %r", pack_id, exc_info=True)
+        return None
+    if not isinstance(pack, dict):
+        return None
+    artifacts = pack.get("artifacts") if isinstance(pack.get("artifacts"), dict) else {}
+    candidates = artifacts.get(artifact_type) if isinstance(artifacts, dict) else []
+    if not isinstance(candidates, list) or not candidates:
+        return None
+    index = requested_index if 0 <= requested_index < len(candidates) else len(candidates) - 1
+    artifact = candidates[index]
+    if not isinstance(artifact, dict):
+        return None
+    full_text = _serialize_learning_artifact(pack, artifact_type, artifact)
+    if not full_text.strip():
+        return None
+    title = str(artifact.get("title") or pack.get("title") or "Learning artifact")
+    return SourceEntry(
+        sid=f"lp-{pack_id}-{artifact_type}-{index}",
+        kind="learning_artifact",
+        name=f"{title} ({artifact_type})",
+        full_text=full_text,
+        fresh=fresh,
+        first_seen_turn=first_seen_turn,
+    )
+
+
+def _serialize_learning_artifact(
+    pack: dict[str, Any],
+    artifact_type: str,
+    artifact: dict[str, Any],
+) -> str:
+    material = pack.get("material") if isinstance(pack.get("material"), dict) else {}
+    lines = [
+        f"# TraitTutor Learning Artifact: {artifact.get('title') or pack.get('title') or 'Untitled'}",
+        f"- pack_id: {pack.get('pack_id')}",
+        f"- artifact_type: {artifact_type}",
+        f"- material_title: {material.get('title') or pack.get('title') or 'Untitled material'}",
+        "",
+    ]
+    if artifact_type == "courseware":
+        markdown = str(artifact.get("markdown") or "").strip()
+        if markdown:
+            lines.extend(["## Courseware Markdown", markdown])
+        sections = artifact.get("sections")
+        if isinstance(sections, list):
+            rendered = []
+            for idx, section in enumerate(sections, start=1):
+                if not isinstance(section, dict):
+                    continue
+                title = str(section.get("title") or section.get("section_title") or f"Section {idx}")
+                content = section.get("content")
+                if isinstance(content, list):
+                    body = "\n".join(str(item) for item in content if str(item).strip())
+                else:
+                    body = str(section.get("core_content") or content or "")
+                if body.strip():
+                    rendered.append(f"### {title}\n{body}")
+            if rendered:
+                lines.extend(["## Courseware Sections", "\n\n".join(rendered)])
+    elif artifact_type == "flashcards":
+        items = artifact.get("items")
+        if isinstance(items, list):
+            rendered = []
+            for idx, item in enumerate(items, start=1):
+                if not isinstance(item, dict):
+                    continue
+                front = str(item.get("front") or item.get("question") or "").strip()
+                back = str(item.get("back") or item.get("answer") or "").strip()
+                if front or back:
+                    rendered.append(f"{idx}. Front: {front}\n   Back: {back}")
+            if rendered:
+                lines.extend(["## Flashcards", "\n\n".join(rendered)])
+    elif artifact_type == "quiz":
+        items = artifact.get("items")
+        if isinstance(items, list):
+            rendered = []
+            for idx, item in enumerate(items, start=1):
+                if not isinstance(item, dict):
+                    continue
+                question = str(item.get("question") or "").strip()
+                answer = str(item.get("correct_answer") or "").strip()
+                explanation = str(item.get("explanation") or "").strip()
+                options = item.get("options")
+                option_text = ""
+                if isinstance(options, list):
+                    option_text = "\n".join(
+                        f"   - {opt.get('text') if isinstance(opt, dict) else opt}"
+                        for opt in options
+                    )
+                rendered.append(
+                    f"{idx}. Question: {question}\n"
+                    f"{option_text}\n"
+                    f"   Correct answer: {answer}\n"
+                    f"   Explanation: {explanation}".strip()
+                )
+            if rendered:
+                lines.extend(["## Quiz", "\n\n".join(rendered)])
+    return "\n".join(lines).strip()
 
 
 # Human labels for the external agents a session can be imported from. The

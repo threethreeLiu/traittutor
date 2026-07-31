@@ -40,7 +40,7 @@ from .materials import MaterialResolver
 from .material_abstraction import build_learning_targets, build_material_abstraction
 from .quiz import QuizBatchPlan, plan_quiz_batches, validate_quiz_payload
 from .runner import GenerationConfigurationError, run_structured_prompt
-from .visuals import generate_learning_visual, merge_learning_visual
+from .visuals import generate_learning_visual, merge_learning_visual, should_generate_learning_visual
 from .material_analysis import load_material_analysis, search_learning_sources
 
 GenerationType = Literal["courseware", "flashcards", "quiz"]
@@ -643,16 +643,27 @@ async def generate_traittutor_content_async(
         for chunk in generation_chunks
     ]
     generation_id = generation_id or uuid4().hex
-    # Image generation gets only the resolved material summary. It starts with
-    # the structured text generation and its finished asset is merged later,
-    # so image latency never serializes courseware/card/quiz generation.
+    visual_decision = should_generate_learning_visual(
+        slr_support=strategy["slr_support"],
+        learning_targets=learning_targets,
+        generation_type=request.generation_type,
+    )
+    # Image generation is gated by SLR/visual-target need.  When needed, it
+    # starts beside structured text generation and is merged later, so image
+    # latency never serializes courseware/card/quiz generation.
     visual_seed = {
         "kind": request.generation_type,
         "title": resolved.title,
         "sections": [{"core_content": chunks[0]["text"]}] if request.generation_type == "courseware" and chunks else [],
         "items": [{"back": chunks[0]["text"]}] if request.generation_type != "courseware" and chunks else [],
+        "visual_targets": visual_decision["visual_targets"],
+        "slr_visual_reason": ", ".join(visual_decision["support_reasons"]),
     }
-    image_task = asyncio.create_task(generate_learning_visual(visual_seed, generation_id=generation_id))
+    image_task = (
+        asyncio.create_task(generate_learning_visual(visual_seed, generation_id=generation_id, max_attempts=2))
+        if visual_decision["should_generate"]
+        else None
+    )
     events = [
         _event("accepted", "Generation request accepted", generation_id=generation_id),
         _event("material_resolved", "Material resolved", source_type=resolved.source_type, chunks=len(chunks)),
@@ -678,6 +689,11 @@ async def generate_traittutor_content_async(
             flashcard_targets=len(learning_targets["flashcard_targets"]),
             quiz_targets=len(learning_targets["quiz_targets"]),
             visual_targets=len(learning_targets["visual_targets"]),
+        ),
+        _event(
+            "image_generation_decision",
+            "Learning illustration decision completed",
+            image_generation=visual_decision,
         ),
         _event("learning_knowledge_graph", "Learning knowledge graph queued", queued=bool(analysis and personalization.subject), subject_id=personalization.subject.subject_id if personalization.subject else None),
         _event("generation_started", "Generating structured learning content", generation_type=request.generation_type),
@@ -773,7 +789,11 @@ async def generate_traittutor_content_async(
         strategy=strategy["teaching_adjustments"],
     )
     result["evaluation"] = evaluation.to_dict()
-    image_trace = await image_task
+    image_trace = await image_task if image_task else {
+        "status": "skipped",
+        "reason": visual_decision["reason"],
+        "decision": visual_decision,
+    }
     asset = image_trace.get("asset")
     if isinstance(asset, dict):
         merge_learning_visual(result, asset)

@@ -19,6 +19,7 @@ Build only:
 - Big Five profile assessment (`traittutor_profile` router + `traittutor/assessment/big_five.py`, surfaced through onboarding).
 - Trait-aware courseware, flashcard, and quiz generation (`traittutor_generate` router + `traittutor/generate/{runner,tasks,service,courseware,flashcards,quiz,materials,visuals,grounding,catalog,evaluation,benchmark}`).
 - Fusion with Space, Knowledge, Notebook, Question Bank, Chat, and Settings.
+- Release demo loop: reusable material analysis snapshot → Learning Pack artifacts → Quiz/Flashcard `LearnerEvent` → BKT/knowledge/profile update → Why Drawer explanation.
 - Auth, admin, and authenticated outputs gate (`traittutor/api/routers/{auth,admin,outputs}.py`) plus the `traittutor/gateway/` audit/router layer.
 
 Do not build posttests, PPS, RIMMS, PSRLS/SRL questionnaires, experiment grouping, knowledge pretests, paper statistics, or Lark manuscript flows.
@@ -32,6 +33,7 @@ Do not build posttests, PPS, RIMMS, PSRLS/SRL questionnaires, experiment groupin
 - Treat personality as a bounded personalization cue, never a diagnosis or proof of learning gain. Every public profile response must carry `usage_boundary`.
 - All prompt assets are Markdown (`*.md`); load them through `traittutor/services/prompt/markdown.py`. Do not add new YAML prompt loaders.
 - All model calls go through `traittutor/gateway/` for prompt routing and audit.
+- Keep old mastery-path style public entries hidden unless they are explicitly redesigned into the current learner-model flow. Do not hide or delete the core features: chat, Deep Research, guided solve, learning exploration, knowledge diagram, courseware, flashcards, quiz, and learner profile.
 
 ## Checks
 

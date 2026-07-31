@@ -48,6 +48,16 @@ def test_quiz_prompt_is_strict_source_grounded_and_high_reasoning():
     assert {"source_id", "chunk_id", "text_snippet"} <= set(reference_schema["required"])
     assert "answerable" in instructions
     assert "personality scores" in instructions
+    assert 'mode: "material"' in instructions
+    assert 'mode: "variation"' in instructions
+    assert 'mode: "objective"' in instructions
+    assert "never output `\"mixed\"` as an item difficulty" in instructions
+    assert "Do not reuse the same question stem" in instructions
+    assert "graph-style generation system" in instructions
+    assert "not a single ReAct prompt" in instructions
+    assert "material intent" in instructions
+    assert "slr_actions" in instructions
+    assert "quiz_targets" in instructions
 
 
 def test_quiz_batch_plan_tracks_source_order_and_question_id_ranges():

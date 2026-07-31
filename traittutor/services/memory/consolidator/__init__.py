@@ -27,7 +27,7 @@ Submodule layout:
       audit.py         chunk-based line edits vs raw evidence
       dedup.py         iterative line-level dedup over full doc
     prompts/
-      {en,zh}/{update_l2,update_l3,audit_l2,audit_l3,dedup,_meta}.yaml
+      {en,zh}/{update_l2,update_l3,audit_l2,audit_l3,dedup,_meta}.md
 """
 
 from __future__ import annotations

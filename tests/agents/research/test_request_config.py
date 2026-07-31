@@ -1,8 +1,6 @@
 """Tests for the research request-config helpers.
 
-The legacy multi-agent prompt manifests (rephrase_agent.yaml,
-decompose_agent.yaml, research_agent.yaml, note_agent.yaml,
-reporting_agent.yaml) were deleted in the agentic-loop refactor. The
+ The legacy multi-agent prompt manifests were deleted in the agentic-loop refactor. The
 ``sources`` knob was retired alongside them — tool composition now
 goes through ``compose_enabled_tools`` like chat, driven by the user's
 composer toggles plus the attached KB (auto-mounted as ``rag``). What

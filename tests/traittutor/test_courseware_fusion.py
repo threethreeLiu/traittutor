@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from traittutor.generate.courseware import generate_courseware
 from traittutor.generate.runner import LLMRunMetadata
+from traittutor.services.prompt.markdown import load_markdown_prompt
+
+PROMPT_ROOT = Path(__file__).resolve().parents[2] / "traittutor/generate/prompts/courseware"
 
 
 @pytest.mark.asyncio
@@ -29,3 +34,27 @@ async def test_courseware_uses_three_source_grounded_stages():
 
     assert seen == ["traittutor-content-analysis", "traittutor-adaptation-plan", "traittutor-courseware"]
     assert artifact.lesson["sections"][0]["references"][0]["chunk_id"] == "c1"
+
+
+def test_courseware_prompts_follow_traittutor_graph_design():
+    analysis = load_markdown_prompt(PROMPT_ROOT / "content-analysis.md")
+    plan = load_markdown_prompt(PROMPT_ROOT / "adaptation-plan.md")
+    render = load_markdown_prompt(PROMPT_ROOT / "traittutor-courseware.md")
+    instructions = "\n".join(
+        [
+            analysis["system"],
+            analysis["user"],
+            plan["system"],
+            plan["user"],
+            render["system"],
+            render["user"],
+        ]
+    )
+
+    assert "material_intent" in instructions
+    assert "material_model" in instructions
+    assert "generation_mix" in instructions
+    assert "SLR support action catalog" in instructions
+    assert "selected_slr_actions" in instructions
+    assert "not a ReAct transcript" in instructions
+    assert "not behave like an open-ended ReAct agent" in instructions

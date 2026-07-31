@@ -188,6 +188,51 @@ async def test_build_inventory_fresh_attachments_only() -> None:
 
 
 @pytest.mark.asyncio
+async def test_build_inventory_fresh_learning_artifact_reference(monkeypatch: pytest.MonkeyPatch) -> None:
+    from traittutor import learning_packs
+
+    monkeypatch.setattr(
+        learning_packs,
+        "get_pack",
+        lambda pack_id: {
+            "pack_id": pack_id,
+            "title": "跨境电商材料",
+            "material": {"title": "运营手册.pdf"},
+            "artifacts": {
+                "courseware": [
+                    {
+                        "title": "东南亚运营课件",
+                        "markdown": "## KOL 与供应链\n直播电商需要协同 KOL 营销与履约。",
+                    }
+                ],
+                "flashcards": [],
+                "quiz": [],
+            },
+        },
+    )
+    inv = await build_inventory(
+        FakeStore(),
+        session_id="s1",
+        leaf_message_id=None,
+        current_turn_ordinal=1,
+        fresh_attachment_records=[],
+        fresh_notebook_records=[],
+        fresh_book_context_text="",
+        fresh_book_references=[],
+        fresh_history_session_ids=[],
+        fresh_question_entry_ids=[],
+        fresh_learning_artifact_references=[
+            {"pack_id": "pack-a", "artifact_type": "courseware", "artifact_index": 0}
+        ],
+    )
+    text, source_index = render_manifest(inv)
+    assert "type=learning_artifact" in text
+    assert "东南亚运营课件" in text
+    assert source_index["lp-pack-a-courseware-0"].startswith("# TraitTutor Learning Artifact")
+    assert "KOL 与供应链" in source_index["lp-pack-a-courseware-0"]
+
+
+@pytest.mark.asyncio
 async def test_build_inventory_historical_attachment_visible_to_next_turn() -> None:
     """Attachment uploaded in turn 1 must appear as 'previously attached
     (turn 1)' in turn 2's manifest, even though turn 2's payload is empty."""

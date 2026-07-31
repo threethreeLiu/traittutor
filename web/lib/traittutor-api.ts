@@ -289,27 +289,38 @@ export type PreparedLearningMaterial = {
   source_id: string;
   title: string;
   text: string;
-  metadata: Record<string, unknown>;
+  metadata: Record<string, unknown> & {
+    filename?: string;
+    mime_type?: string;
+    converted_to_pdf?: boolean;
+    page_count?: number;
+    page_slices?: Array<{ page: number; text: string }>;
+  };
 };
 
 export type MaterialAnalysis = {
   analysis_id: string;
   session_id: string;
   source_id: string;
+  version?: number;
   subject: string;
   sub_subject: string;
   chinese_grade: string;
   international_grade: string;
+  grade_band?: { chinese?: string; international?: string };
   difficulty: string;
   confidence: number;
   evidence: Array<{ chunk_id: string; page?: number; excerpt: string }>;
+  page_evidence?: Array<{ chunk_id: string; page?: number; excerpt: string; source_id?: string }>;
+  concept_candidates?: Array<Record<string, unknown>>;
   augmentation_needed: boolean;
   augmentation_reason: string;
+  augmentation_decision?: { needed?: boolean; reason?: string };
   created_at: string;
   trace: Record<string, unknown>;
 };
 
-/** Convert an uploaded learning document to PDF and return page-scoped model material. */
+/** Prepare an uploaded learning document and return page-scoped model material. */
 export async function prepareTraitTutorMaterial(file: File): Promise<PreparedLearningMaterial> {
   const dataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -320,7 +331,7 @@ export async function prepareTraitTutorMaterial(file: File): Promise<PreparedLea
   const response = await apiFetch(apiUrl("/api/v1/traittutor/generate/materials/prepare"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ filename: file.name, base64: dataUrl.split(",")[1] || "" }),
+    body: JSON.stringify({ filename: file.name, mime_type: file.type || "", base64: dataUrl.split(",")[1] || "" }),
   });
   return expectJson<PreparedLearningMaterial>(response);
 }
