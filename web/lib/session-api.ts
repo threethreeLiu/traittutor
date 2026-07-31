@@ -1,4 +1,5 @@
 import { apiFetch, apiUrl } from "@/lib/api";
+import { appPath } from "@/lib/base-path";
 import { invalidateClientCache, withClientCache } from "@/lib/client-cache";
 import type { LLMSelection, StreamEvent } from "@/lib/unified-ws";
 
@@ -119,7 +120,7 @@ export interface QuizResultItem {
 async function expectJson<T>(response: Response): Promise<T> {
   if (response.status === 401 && typeof window !== "undefined") {
     const next = encodeURIComponent(window.location.pathname);
-    window.location.href = `/login?next=${next}`;
+    window.location.href = appPath(`/login?next=${next}`);
     return new Promise(() => {});
   }
   if (!response.ok) {

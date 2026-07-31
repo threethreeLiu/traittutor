@@ -1,4 +1,5 @@
 import { apiFetch, apiUrl, setRuntimeAuthEnabled } from "@/lib/api";
+import { appRelativePath } from "@/lib/base-path";
 
 // Auth state is resolved at runtime from the backend (`/api/v1/auth/status`),
 // not from a build-time/env constant: the browser bundle never sees
@@ -19,7 +20,7 @@ export interface AuthStatus {
 /** Keep post-auth navigation within the TraitTutor app. */
 export function safeAuthRedirect(next: string | null | undefined, fallback = "/"): string {
   if (!next || !next.startsWith("/") || next.startsWith("//") || next.includes("\\")) return fallback;
-  return next;
+  return appRelativePath(next);
 }
 
 /**

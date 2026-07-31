@@ -90,7 +90,7 @@ export async function apiFetch(
     typeof window !== "undefined"
   ) {
     const next = encodeURIComponent(window.location.pathname);
-    window.location.href = `/login?next=${next}`;
+    window.location.href = appPath(`/login?next=${next}`);
     return new Promise(() => {});
   }
 
