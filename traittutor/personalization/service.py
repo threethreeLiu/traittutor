@@ -16,7 +16,7 @@ from traittutor.services.memory import paths as memory_paths
 
 from .models import (ConceptSignal, LearnerEvent, LearnerProfile, LearningSignal,
                      LearnerMemorySnapshot, PersonalizationContext, PreferenceEvidence, StrategyEvidence,
-                     SubjectRef, SubjectUnderstanding, TeachingAction,
+                     ReflectionView, SubjectRef, SubjectUnderstanding, TeachingAction,
                      TeachingStrategyPlan, VisibleRationale)
 
 _locks: dict[str, asyncio.Lock] = {}
@@ -278,6 +278,20 @@ class PersonalizationService:
     def _apply_to_profile(self, profile: LearnerProfile, signal: LearningSignal) -> LearnerProfile:
         data = profile.model_dump()
         prefs = [PreferenceEvidence.model_validate(item) for item in data["preferences"]]
+        if signal.kind == "reflection_decision":
+            target_id = str(signal.payload.get("reflection_id") or "")
+            decision = str(signal.payload.get("decision") or "")
+            if target_id and decision in {"candidate", "confirmed", "rejected"}:
+                state_by_decision = {"candidate": "inferred", "confirmed": "explicit", "rejected": "rejected"}
+                prefs = [
+                    item.model_copy(update={
+                        "state": state_by_decision[decision],
+                        "confidence": 1.0 if decision == "confirmed" else item.confidence,
+                        "updated_at": _now(),
+                        "expires_at": None if decision == "confirmed" else ((datetime.now(UTC) + _INFERENCE_TTL).isoformat() if decision == "candidate" else item.expires_at),
+                    }) if item.id == target_id else item
+                    for item in prefs
+                ]
         if signal.kind in {"explicit_preference", "goal", "strategy_feedback"}:
             category = "goal" if signal.kind == "goal" else str(signal.payload.get("category") or "explanation")
             value = str(signal.payload.get("value") or signal.payload.get("text") or "").strip()
@@ -410,7 +424,75 @@ class PersonalizationService:
 
     def overview(self) -> dict[str, Any]:
         global_profile = self.global_profile(); subjects = self.subjects()
-        return {"global": global_profile.model_dump(), "subjects": [item.model_dump() for item in subjects], "inference_enabled": global_profile.inference_enabled, "pending_subjects": [item.model_dump() for item in subjects if item.subject and not item.subject.confirmed], "memory_reconcile": self.memory_reconcile_status()}
+        return {
+            "global": global_profile.model_dump(), "subjects": [item.model_dump() for item in subjects],
+            "inference_enabled": global_profile.inference_enabled,
+            "pending_subjects": [item.model_dump() for item in subjects if item.subject and not item.subject.confirmed],
+            "memory_reconcile": self.memory_reconcile_status(),
+            "reflection_summary": self.reflection_summary(),
+        }
+
+    def reflections(self, *, subject_id: str | None = None) -> list[ReflectionView]:
+        profiles = [self.global_profile(), *self.subjects()]
+        if subject_id:
+            profiles = [profile for profile in profiles if profile.subject and profile.subject.subject_id == subject_id]
+        out: list[ReflectionView] = []
+        now = datetime.now(UTC)
+        for profile in profiles:
+            for preference in profile.preferences:
+                expired = bool(preference.expires_at and datetime.fromisoformat(preference.expires_at) <= now)
+                if profile.needs_rebuild:
+                    status = "needs_rebuild"
+                elif preference.state == "explicit":
+                    status = "confirmed"
+                elif preference.state == "rejected":
+                    status = "rejected"
+                elif expired:
+                    status = "stale"
+                else:
+                    status = "candidate"
+                out.append(ReflectionView(
+                    reflection_id=preference.id, scope=profile.scope, subject=profile.subject,
+                    category=preference.category, value=preference.value, status=status,
+                    source_state=preference.state, confidence=preference.confidence,
+                    evidence_refs=preference.evidence_refs, updated_at=preference.updated_at,
+                    expires_at=preference.expires_at,
+                    applies_to_compass=status == "confirmed",
+                    reason="已确认，会用于下一次生成。" if status == "confirmed" else ("已拒绝，仅作为约束或审计记录。" if status == "rejected" else "候选记忆；确认前不会进入生成上下文。"),
+                ))
+            for concept in profile.concept_signals:
+                confirmed = concept.verified_observation_count > 0
+                status = "needs_rebuild" if profile.needs_rebuild else ("confirmed" if confirmed else "candidate")
+                out.append(ReflectionView(
+                    reflection_id=f"concept:{concept.concept_id}", scope=profile.scope, subject=profile.subject,
+                    category="concept", value=f"{concept.label} · {concept.support_level}",
+                    status=status, source_state=None, confidence=concept.confidence,
+                    evidence_refs=concept.evidence_refs, updated_at=concept.last_practised_at or profile.updated_at,
+                    applies_to_compass=confirmed and concept.support_level == "needs_support",
+                    reason="来自可判分练习/复习，会用于安排薄弱概念。" if confirmed else "来自材料候选图谱，等待作答或复习证据确认。",
+                ))
+        return sorted(out, key=lambda item: item.updated_at, reverse=True)[:120]
+
+    def reflection_summary(self) -> dict[str, int]:
+        summary = {"confirmed": 0, "candidate": 0, "rejected": 0, "stale": 0, "needs_rebuild": 0, "applies_to_compass": 0}
+        for reflection in self.reflections():
+            summary[reflection.status] += 1
+            summary["applies_to_compass"] += int(reflection.applies_to_compass)
+        return summary
+
+    async def decide_reflection(self, reflection_id: str, decision: Literal["candidate", "confirmed", "rejected"]) -> ReflectionView | None:
+        existing = next((item for item in self.reflections() if item.reflection_id == reflection_id and item.category != "concept"), None)
+        if existing is None:
+            return None
+        signal = LearningSignal(
+            signal_id=f"reflection-{uuid4().hex}", kind="reflection_decision",
+            subject_refs=[existing.subject] if existing.subject else [],
+            payload={"reflection_id": reflection_id, "decision": decision},
+            evidence_refs=list(dict.fromkeys([reflection_id, *existing.evidence_refs]))[:24],
+            source="user", occurred_at=_now(),
+        )
+        await self.apply_signal(signal)
+        return next((item for item in self.reflections() if item.reflection_id == reflection_id), None)
 
     def clear_session_state(self, session_id: str) -> bool:
         """Delete only the current user's auxiliary learner session state."""
@@ -606,9 +688,9 @@ class PersonalizationService:
             global_profile = self.global_profile()
             snapshot = self._session_memory_snapshot(session_id, global_profile) if session_id else self._curate_memory_snapshot(global_profile)
             subject_profile = self.subject_profile(subject.subject_id) if subject and subject.confidence >= .65 else None
-            now = datetime.now(UTC)
-            preferences = [item for item in ((subject_profile.preferences if subject_profile else []) + global_profile.preferences) if item.state == "explicit" or (item.state == "inferred" and (not item.expires_at or datetime.fromisoformat(item.expires_at) > now))]
-            explicit = [item for item in preferences if item.state == "explicit"]
+            scoped_preferences = (subject_profile.preferences if subject_profile else []) + global_profile.preferences
+            explicit = [item for item in scoped_preferences if item.state == "explicit"]
+            rejected = [item for item in scoped_preferences if item.state == "rejected"]
             strategy_evidence = subject_profile.strategy_evidence if subject_profile and global_profile.inference_enabled else []
             selected = max(strategy_evidence, key=lambda item: (item.positive_weight-item.negative_weight, item.confidence), default=None)
             # A strategy inferred from behavior needs three independent events;
@@ -621,7 +703,7 @@ class PersonalizationService:
             if selected: rationale.append(VisibleRationale(source="strategy_evidence", text="Used a strategy supported by your prior feedback in this subject.", evidence_refs=selected.evidence_refs))
             if not rationale and self._personality_prior(): rationale.append(VisibleRationale(source="personality_prior", text="Used a bounded teaching-support cue from your active profile.", evidence_refs=[]))
             if not rationale: rationale.append(VisibleRationale(source="default", text="Used TraitTutor's standard teaching structure.", evidence_refs=[]))
-            goals = [item.value for item in preferences if item.category == "goal" and item.state != "rejected"]
+            goals = [item.value for item in explicit if item.category == "goal"]
             signals = sorted(subject_profile.concept_signals, key=lambda item: (item.support_level != "needs_support", item.mastery_probability, -item.verified_observation_count))[:5] if subject_profile else []
             evidence_refs = list(dict.fromkeys(ref for item in rationale for ref in item.evidence_refs))
             teaching_plan = TeachingStrategyPlan(
@@ -631,7 +713,7 @@ class PersonalizationService:
             context = PersonalizationContext(
                 purpose=purpose, subject=subject, active_goal=goals[0] if goals else None,
                 plan=teaching_plan, memory_snapshot=snapshot, relevant_concept_signals=signals,
-                constraints=[item.value for item in preferences if item.state == "rejected"],
+                constraints=[item.value for item in rejected],
                 evidence_refs=evidence_refs, trace_id=f"personalization:{uuid4().hex}",
             )
             if session_id:

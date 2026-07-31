@@ -44,6 +44,48 @@ async def test_explicit_preference_is_immediate_and_subject_ids_preserve_unicode
     assert "先举例" in context.plan.rationale[0].text
 
 
+@pytest.mark.asyncio
+async def test_candidate_reflections_do_not_enter_compass_until_confirmed(learner_service):
+    service, _ = learner_service
+    await service.apply_signal(LearningSignal(
+        signal_id="candidate-pref", kind="strategy_feedback",
+        payload={"value": "总是用类比开头", "category": "explanation"},
+        evidence_refs=["chat:turn-2"], source="system",
+        occurred_at="2026-07-29T00:00:00+00:00",
+    ))
+
+    reflection = service.reflections()[0]
+    assert reflection.status == "candidate"
+    assert reflection.applies_to_compass is False
+    context = service.build_context(purpose="chat")
+    assert "总是用类比开头" not in context.memory_snapshot.explicit_preferences
+    assert all("总是用类比开头" not in item.text for item in context.plan.rationale)
+
+    await service.decide_reflection("candidate-pref", "confirmed")
+    confirmed = next(item for item in service.reflections() if item.reflection_id == "candidate-pref")
+    assert confirmed.status == "confirmed"
+    context = service.build_context(purpose="chat")
+    assert "总是用类比开头" in context.memory_snapshot.explicit_preferences
+    assert any("总是用类比开头" in item.text for item in context.plan.rationale)
+
+
+@pytest.mark.asyncio
+async def test_rejected_reflection_becomes_generation_constraint(learner_service):
+    service, _ = learner_service
+    await service.apply_signal(LearningSignal(
+        signal_id="candidate-constraint", kind="strategy_feedback",
+        payload={"value": "用很长的故事包装概念", "category": "explanation"},
+        evidence_refs=["chat:turn-3"], source="system",
+        occurred_at="2026-07-29T00:00:00+00:00",
+    ))
+    await service.decide_reflection("candidate-constraint", "rejected")
+
+    reflection = next(item for item in service.reflections() if item.reflection_id == "candidate-constraint")
+    assert reflection.status == "rejected"
+    context = service.build_context(purpose="courseware")
+    assert "用很长的故事包装概念" in context.constraints
+
+
 def test_subject_path_rejects_path_traversal(learner_service):
     service, _ = learner_service
     with pytest.raises(ValueError, match="invalid subject id"):
