@@ -9,6 +9,7 @@ PDF is extracted one page at a time.  Page numbers survive through
 from __future__ import annotations
 
 import io
+import mimetypes
 from pathlib import Path
 import shutil
 import subprocess
@@ -26,23 +27,47 @@ PDF_CONVERTIBLE_EXTENSIONS = frozenset({
     ".ppt", ".pptx", ".odp", ".txt", ".md", ".csv", ".html", ".htm",
 })
 MAX_PAGE_CHARS = 12_000
+_IGNORED_BROWSER_MIME_TYPES = {"", "application/octet-stream", "binary/octet-stream"}
+_EXTENSION_MIME_TYPES: dict[str, set[str]] = {
+    ".pdf": {"application/pdf"},
+    ".doc": {"application/msword", "application/octet-stream"},
+    ".docx": {"application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+    ".rtf": {"application/rtf", "text/rtf"},
+    ".odt": {"application/vnd.oasis.opendocument.text"},
+    ".xls": {"application/vnd.ms-excel", "application/octet-stream"},
+    ".xlsx": {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
+    ".ods": {"application/vnd.oasis.opendocument.spreadsheet"},
+    ".ppt": {"application/vnd.ms-powerpoint", "application/octet-stream"},
+    ".pptx": {"application/vnd.openxmlformats-officedocument.presentationml.presentation"},
+    ".odp": {"application/vnd.oasis.opendocument.presentation"},
+    ".txt": {"text/plain"},
+    ".md": {"text/markdown", "text/plain"},
+    ".csv": {"text/csv", "application/csv", "application/vnd.ms-excel", "text/plain"},
+    ".html": {"text/html"},
+    ".htm": {"text/html"},
+}
+_ZIP_BASED_EXTENSIONS = {".docx", ".xlsx", ".pptx", ".odt", ".ods", ".odp"}
+_OLE_BASED_EXTENSIONS = {".doc", ".xls", ".ppt"}
 
 
 class LearningDocumentError(ValueError):
     """A safe, learner-facing document preparation error."""
 
 
-def prepare_learning_document(filename: str, data: bytes) -> dict[str, Any]:
+def prepare_learning_document(filename: str, data: bytes, mime_type: str | None = None) -> dict[str, Any]:
     """Validate, convert, and return page-addressable text slices.
 
     LibreOffice is used for Office fidelity where available.  For text-like
     files, a small PDF is generated locally from already-supported extraction
     output, so every accepted input follows the same PDF-page pipeline.
     """
+    if not data:
+        raise LearningDocumentError("Uploaded file is empty")
     safe_name = DocumentValidator.validate_upload_safety(filename, len(data))
     ext = Path(safe_name).suffix.lower()
     if ext not in PDF_CONVERTIBLE_EXTENSIONS:
         raise LearningDocumentError("Only PDF, Word, spreadsheet, presentation, and text materials are supported")
+    _validate_declared_type(safe_name, data, mime_type)
     if ext == ".pdf":
         pdf_bytes = data
         converted = False
@@ -61,9 +86,31 @@ def prepare_learning_document(filename: str, data: bytes) -> dict[str, Any]:
     return {
         "filename": safe_name,
         "converted_to_pdf": converted,
+        "mime_type": _normalized_mime_type(mime_type) or mimetypes.guess_type(safe_name)[0] or "",
         "page_count": len(pages),
         "page_slices": pages,
     }
+
+
+def _normalized_mime_type(mime_type: str | None) -> str:
+    return str(mime_type or "").split(";", 1)[0].strip().lower()
+
+
+def _validate_declared_type(filename: str, data: bytes, mime_type: str | None) -> None:
+    ext = Path(filename).suffix.lower()
+    normalized_mime = _normalized_mime_type(mime_type)
+    allowed_mimes = _EXTENSION_MIME_TYPES.get(ext, set())
+    if normalized_mime not in _IGNORED_BROWSER_MIME_TYPES and allowed_mimes and normalized_mime not in allowed_mimes:
+        raise LearningDocumentError(f"{filename} does not match its declared file type")
+
+    if ext == ".pdf":
+        if not data.startswith(b"%PDF-"):
+            raise LearningDocumentError(f"{filename} is not a valid PDF file")
+        return
+    if ext in _ZIP_BASED_EXTENSIONS and not data.startswith((b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")):
+        raise LearningDocumentError(f"{filename} does not look like a valid Office/OpenDocument file")
+    if ext in _OLE_BASED_EXTENSIONS and not data.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
+        raise LearningDocumentError(f"{filename} does not look like a valid legacy Office file")
 
 
 def _convert_office_to_pdf(filename: str, data: bytes) -> bytes:

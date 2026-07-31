@@ -5,10 +5,10 @@ import { usePathname } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-// Sections that own their full height + scroll (Mastery Path's list/detail
-// console). They must NOT be squeezed into the centered, padded document
+// Sections that own their full height + scroll. They must NOT be squeezed into
+// the centered, padded document
 // container the list-style sections use.
-const FULL_BLEED = ["/space/learning"];
+const FULL_BLEED: string[] = [];
 
 function isFullBleed(pathname: string): boolean {
   return FULL_BLEED.some((p) => pathname === p || pathname.startsWith(`${p}/`));

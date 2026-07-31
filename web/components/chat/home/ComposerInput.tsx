@@ -34,6 +34,7 @@ interface ComposerInputProps {
   onSelectAttach: () => void;
   onSelectQuestionBankPicker: () => void;
   onSelectMemoryPicker: () => void;
+  onSelectLearningArtifactPicker?: () => void;
   /**
    * Wires the `/persona` slash command. Typing "/" (then any prefix of
    * "persona") at the start of an empty composer pops a command hint;
@@ -108,9 +109,10 @@ export const ComposerInput = memo(
       onInputChange,
       onPaste,
       selectedCounts,
-      onSelectAttach,
-      onSelectQuestionBankPicker,
-      onSelectMemoryPicker,
+    onSelectAttach,
+    onSelectQuestionBankPicker,
+    onSelectMemoryPicker,
+    onSelectLearningArtifactPicker,
       onOpenPersonaSelector,
       placeholder,
       minHeight = 28,
@@ -256,18 +258,21 @@ export const ComposerInput = memo(
       (
         key:
           | "attach"
+          | "learning_artifacts"
           | "question_bank"
           | "memory",
       ) => {
         clearTrailingMention();
         setShowAtPopup(false);
         if (key === "attach") onSelectAttach();
+        else if (key === "learning_artifacts") onSelectLearningArtifactPicker?.();
         else if (key === "question_bank") onSelectQuestionBankPicker();
         else if (key === "memory") onSelectMemoryPicker();
       },
       [
         clearTrailingMention,
         onSelectAttach,
+        onSelectLearningArtifactPicker,
         onSelectQuestionBankPicker,
         onSelectMemoryPicker,
       ],
@@ -306,6 +311,7 @@ export const ComposerInput = memo(
               variant="mention"
               selectedCounts={selectedCounts}
               onSelectItem={handleSelectSpaceItem}
+              showLearningArtifacts={Boolean(onSelectLearningArtifactPicker)}
             />
           </div>
         )}

@@ -70,11 +70,18 @@ type QuestionNotebookReferencePayload = number[];
 
 type MemoryReferencePayload = Array<"summary" | "profile">;
 
+export interface LearningArtifactReferencePayload {
+  pack_id: string;
+  artifact_type: "courseware" | "flashcards" | "quiz";
+  artifact_index?: number;
+}
+
 export interface SendMessageOptions {
   displayUserMessage?: boolean;
   persistUserMessage?: boolean;
   requestSnapshotOverride?: MessageRequestSnapshot;
   bookReferences?: BookReferencePayload[];
+  learningArtifactReferences?: LearningArtifactReferencePayload[];
   /** Edit-branching: when set, the new user message is inserted as a
    *  sibling under this parent rather than appended to the session tail.
    *  ``null`` means "explicitly attach to the session root". */
@@ -138,6 +145,7 @@ export interface MessageRequestSnapshot {
   historyReferences?: HistoryReferencePayload;
   questionNotebookReferences?: QuestionNotebookReferencePayload;
   bookReferences?: BookReferencePayload[];
+  learningArtifactReferences?: LearningArtifactReferencePayload[];
   persona?: string;
   memoryReferences?: MemoryReferencePayload;
   llmSelection?: LLMSelection | null;
@@ -857,6 +865,26 @@ function asQuestionReferences(
     : [];
 }
 
+function asLearningArtifactReferences(value: unknown): LearningArtifactReferencePayload[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const ref = asRecord(item);
+    const packId = typeof ref?.pack_id === "string" ? ref.pack_id.trim() : "";
+    const artifactType = typeof ref?.artifact_type === "string" ? ref.artifact_type : "";
+    const rawIndex = ref?.artifact_index;
+    const artifactIndex =
+      typeof rawIndex === "number" ? rawIndex : rawIndex == null ? undefined : Number(rawIndex);
+    if (!packId || !["courseware", "flashcards", "quiz"].includes(artifactType)) return [];
+    return [{
+      pack_id: packId,
+      artifact_type: artifactType as LearningArtifactReferencePayload["artifact_type"],
+      ...(Number.isInteger(artifactIndex) && Number(artifactIndex) >= 0
+        ? { artifact_index: Number(artifactIndex) }
+        : {}),
+    }];
+  });
+}
+
 function hydrateRequestSnapshot(
   message: SessionMessage,
   content: string,
@@ -892,6 +920,9 @@ function hydrateRequestSnapshot(
       : "";
   const memoryReferences = asMemoryReferences(stored.memoryReferences);
   const bookReferences = normalizeBookReferences(stored.bookReferences);
+  const learningArtifactReferences = asLearningArtifactReferences(
+    stored.learningArtifactReferences,
+  );
   const llmSelection = asLLMSelection(stored.llmSelection);
 
   if (config && Object.keys(config).length) snapshot.config = config;
@@ -902,6 +933,9 @@ function hydrateRequestSnapshot(
     snapshot.questionNotebookReferences = questionNotebookReferences;
   }
   if (bookReferences.length) snapshot.bookReferences = bookReferences;
+  if (learningArtifactReferences.length) {
+    snapshot.learningArtifactReferences = learningArtifactReferences;
+  }
   if (persona) snapshot.persona = persona;
   if (memoryReferences.length) snapshot.memoryReferences = memoryReferences;
   if (llmSelection) snapshot.llmSelection = llmSelection;
@@ -1395,6 +1429,9 @@ export function UnifiedChatProvider({
         replaySnapshot?.memoryReferences ?? memoryReferences;
       const effectiveBookReferences =
         replaySnapshot?.bookReferences ?? options?.bookReferences;
+      const effectiveLearningArtifactReferences =
+        replaySnapshot?.learningArtifactReferences ??
+        options?.learningArtifactReferences;
       const effectiveAttachments =
         replaySnapshot?.attachments?.map((a) => ({
           type: a.type,
@@ -1438,6 +1475,9 @@ export function UnifiedChatProvider({
           : {}),
         ...(effectiveBookReferences?.length
           ? { bookReferences: effectiveBookReferences }
+          : {}),
+        ...(effectiveLearningArtifactReferences?.length
+          ? { learningArtifactReferences: effectiveLearningArtifactReferences }
           : {}),
         ...(effectivePersona ? { persona: effectivePersona } : {}),
         ...(effectiveMemoryReferences?.length
@@ -1506,6 +1546,9 @@ export function UnifiedChatProvider({
           : {}),
         ...(effectiveBookReferences?.length
           ? { book_references: effectiveBookReferences }
+          : {}),
+        ...(effectiveLearningArtifactReferences?.length
+          ? { learning_artifact_references: effectiveLearningArtifactReferences }
           : {}),
         // Always sent (possibly ""): an explicit key is the backend's signal
         // to persist the value into session.preferences — "" clears back to

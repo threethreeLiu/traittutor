@@ -75,6 +75,11 @@ export interface StartTurnMessage {
     book_id: string;
     page_ids: string[];
   }[];
+  learning_artifact_references?: {
+    pack_id: string;
+    artifact_type: "courseware" | "flashcards" | "quiz";
+    artifact_index?: number;
+  }[];
   persona?: string;
   llm_selection?: LLMSelection | null;
   /** Edit-branching: when present (even as ``null``) the new user message

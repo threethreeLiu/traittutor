@@ -29,6 +29,7 @@ import { useTranslation } from "react-i18next";
 import type { SelectedRecord } from "@/lib/notebook-selection-types";
 import type { SelectedHistorySession } from "@/components/chat/HistorySessionPicker";
 import type { SelectedQuestionEntry } from "@/components/chat/QuestionBankPicker";
+import type { SelectedLearningArtifactReference } from "@/components/chat/LearningArtifactPicker";
 import ChatComposer from "@/components/chat/home/ChatComposer";
 import { ChatMessageList } from "@/components/chat/home/ChatMessages";
 import SessionLoadingView from "@/components/chat/home/SessionLoadingView";
@@ -105,6 +106,12 @@ const QuestionBankPicker = dynamic(
 const MemoryPicker = dynamic(() => import("@/components/chat/MemoryPicker"), {
   ssr: false,
 });
+const LearningArtifactPicker = dynamic(
+  () => import("@/components/chat/LearningArtifactPicker"),
+  {
+    ssr: false,
+  },
+);
 const BookReferencePicker = dynamic(
   () => import("@/components/chat/BookReferencePicker"),
   {
@@ -149,7 +156,7 @@ interface CapabilityDef {
   icon: TraitTutorIconName;
   allowedTools: ToolName[];
   defaultTools: ToolName[];
-  // Loop-engine capabilities run on the chat agent loop (solve / mastery) rather
+  // Loop-engine capabilities run on the chat agent loop rather
   // than a bespoke pipeline. They are collapsed into the "More" flyout in the
   // capability picker instead of listed directly. Driven by the loop-capability
   // registry on the backend; mirrored here as a static flag.
@@ -191,7 +198,6 @@ type ChatGenerationKind =
   | "guided_solve"
   | "learning_exploration"
   | "knowledge_diagram"
-  | "learning_path"
   | "humanizer";
 
 interface PendingAttachment {
@@ -290,6 +296,8 @@ export default function ChatPage() {
   // context (state.personaSelection) so it follows the session.
   const [personaSelectorOpen, setPersonaSelectorOpen] = useState(false);
   const [showMemoryPicker, setShowMemoryPicker] = useState(false);
+  const [showLearningArtifactPicker, setShowLearningArtifactPicker] =
+    useState(false);
   // Product-level intent: this is deliberately separate from the legacy
   // capability picker. The backend routes it through TraitTutor's internal
   // LangGraph agents instead of external CLI/Partner connections.
@@ -316,6 +324,9 @@ export default function ChatPage() {
   >([]);
   const [selectedMemoryFiles, setSelectedMemoryFiles] = useState<
     SpaceMemoryFile[]
+  >([]);
+  const [selectedLearningArtifacts, setSelectedLearningArtifacts] = useState<
+    SelectedLearningArtifactReference[]
   >([]);
   const dragCounter = useRef(0);
   const capMenuRef = useRef<HTMLDivElement>(null);
@@ -1022,7 +1033,8 @@ export default function ChatPage() {
           !selectedNotebookRecords.length &&
           !selectedHistorySessions.length &&
           !selectedQuestionEntries.length &&
-          !selectedMemoryFiles.length) ||
+          !selectedMemoryFiles.length &&
+          !selectedLearningArtifacts.length) ||
         state.isStreaming
       )
         return;
@@ -1059,9 +1071,7 @@ export default function ChatPage() {
               ? buildLearningExplorationInstruction(state.language)
               : chatGenerationKind === "knowledge_diagram"
                 ? buildKnowledgeDiagramInstruction(state.language)
-                : chatGenerationKind === "learning_path"
-                  ? t("Create a personalized learning path with practice, feedback, and review checkpoints.")
-                  : "";
+                : "";
       const generationInstruction = chatGenerationKind ? modeInstruction : "";
       const messageContent =
         content ||
@@ -1070,6 +1080,7 @@ export default function ChatPage() {
         selectedHistorySessions.length ||
         selectedAgentSessions.length ||
         selectedQuestionEntries.length ||
+        selectedLearningArtifacts.length ||
         memoryPayload.length
           ? t("Please use the selected context to help with this request.")
           : "") ||
@@ -1085,7 +1096,14 @@ export default function ChatPage() {
         config,
         notebookReferencesPayload,
         historyReferencesPayload,
-        { bookReferences: bookReferencesPayload },
+        {
+          bookReferences: bookReferencesPayload,
+          learningArtifactReferences: selectedLearningArtifacts.map((item) => ({
+            pack_id: item.pack_id,
+            artifact_type: item.artifact_type,
+            artifact_index: item.artifact_index,
+          })),
+        },
         questionNotebookReferencesPayload,
         undefined,
         memoryPayload,
@@ -1098,6 +1116,7 @@ export default function ChatPage() {
       setSelectedAgentSessions([]);
       setSelectedQuestionEntries([]);
       setSelectedMemoryFiles([]);
+      setSelectedLearningArtifacts([]);
       setChatGenerationKind(null);
     },
     [
@@ -1113,6 +1132,7 @@ export default function ChatPage() {
       selectedHistorySessions.length,
       selectedAgentSessions.length,
       selectedMemoryFiles.length,
+      selectedLearningArtifacts,
       selectedBookReferences.length,
       selectedNotebookRecords.length,
       selectedQuestionEntries.length,
@@ -1200,6 +1220,9 @@ export default function ChatPage() {
   const handleSelectMemoryPicker = useCallback(() => {
     setShowMemoryPicker(true);
   }, []);
+  const handleSelectLearningArtifactPicker = useCallback(() => {
+    setShowLearningArtifactPicker(true);
+  }, []);
   const handleRemoveHistory = useCallback((sessionId: string) => {
     setSelectedHistorySessions((prev) =>
       prev.filter((item) => item.sessionId !== sessionId),
@@ -1223,6 +1246,14 @@ export default function ChatPage() {
   const handleRemoveQuestion = useCallback((entryId: number) => {
     setSelectedQuestionEntries((prev) =>
       prev.filter((entry) => entry.id !== entryId),
+    );
+  }, []);
+  const handleRemoveLearningArtifact = useCallback((key: string) => {
+    setSelectedLearningArtifacts((prev) =>
+      prev.filter(
+        (item) =>
+          `${item.pack_id}:${item.artifact_type}:${item.artifact_index ?? -1}` !== key,
+      ),
     );
   }, []);
   const handleClearPersona = useCallback(() => {
@@ -1288,6 +1319,15 @@ export default function ChatPage() {
   const handleApplyMemoryFiles = useCallback((files: SpaceMemoryFile[]) => {
     setSelectedMemoryFiles(files);
   }, []);
+  const handleCloseLearningArtifactPicker = useCallback(() => {
+    setShowLearningArtifactPicker(false);
+  }, []);
+  const handleApplyLearningArtifacts = useCallback(
+    (references: SelectedLearningArtifactReference[]) => {
+      setSelectedLearningArtifacts(references);
+    },
+    [],
+  );
 
   const handleDownloadMarkdown = useCallback(() => {
     if (!state.messages.length) return;
@@ -1467,6 +1507,7 @@ export default function ChatPage() {
               notebookReferenceGroups={notebookReferenceGroups}
               selectedPersona={null}
               selectedMemoryFiles={selectedMemoryFiles}
+              selectedLearningArtifacts={selectedLearningArtifacts}
               selectedKnowledgeBases={selectedKbOnly}
               isStreaming={state.isStreaming}
               isVisualizeMode={false}
@@ -1482,6 +1523,7 @@ export default function ChatPage() {
               onSelectQuestionBankPicker={handleSelectQuestionBankPicker}
               onSelectPersonaPicker={handleSelectPersonaPicker}
               onSelectMemoryPicker={handleSelectMemoryPicker}
+              onSelectLearningArtifactPicker={handleSelectLearningArtifactPicker}
               onClearPersona={handleClearPersona}
               personaSelection={state.personaSelection}
               onPersonaSelectionChange={setPersonaSelection}
@@ -1496,6 +1538,7 @@ export default function ChatPage() {
               onRemoveBookReference={handleRemoveBookReference}
               onRemoveNotebook={handleRemoveNotebook}
               onRemoveQuestion={handleRemoveQuestion}
+              onRemoveLearningArtifact={handleRemoveLearningArtifact}
               onDragEnter={handleDragEnter}
               onDragLeave={handleDragLeave}
               onDragOver={handleDragOver}
@@ -1515,8 +1558,6 @@ export default function ChatPage() {
                   ? t("Paste or describe a problem to solve step by step.")
                   : chatGenerationKind === "knowledge_diagram"
                   ? t("Paste material to turn into a knowledge diagram.")
-                  : chatGenerationKind === "learning_path"
-                  ? t("Paste material or a goal to build a learning path.")
                   : undefined
               }
               onCancelStreaming={cancelStreamingTurn}
@@ -1582,6 +1623,12 @@ export default function ChatPage() {
             initialFiles={selectedMemoryFiles}
             onClose={handleCloseMemoryPicker}
             onApply={handleApplyMemoryFiles}
+          />
+          <LearningArtifactPicker
+            open={showLearningArtifactPicker}
+            initialReferences={selectedLearningArtifacts}
+            onClose={handleCloseLearningArtifactPicker}
+            onApply={handleApplyLearningArtifacts}
           />
           <FilePreviewDrawer
             open={previewSource !== null}

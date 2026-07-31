@@ -3,6 +3,7 @@
 import { Fragment, memo, useEffect, useRef, useState } from "react";
 import {
   ChevronRight,
+  Layers,
   Paperclip,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -10,11 +11,13 @@ import { setPickerOrigin } from "@/lib/picker-origin";
 
 type SelectableSpaceKey =
   | "attach"
+  | "learning_artifacts"
   | "question_bank"
   | "memory";
 
 export interface ChatSpaceSelectionCounts {
   attachments: number;
+  learningArtifacts: number;
   questionBank: number;
   memory: number;
 }
@@ -23,10 +26,12 @@ interface ChatSpaceMenuProps {
   variant: "toolbar" | "mention";
   selectedCounts: ChatSpaceSelectionCounts;
   onSelectItem: (key: SelectableSpaceKey) => void;
+  showLearningArtifacts?: boolean;
 }
 
 const ITEM_ORDER: SelectableSpaceKey[] = [
   "attach",
+  "learning_artifacts",
   "question_bank",
   "memory",
 ];
@@ -38,6 +43,8 @@ function countFor(
   switch (key) {
     case "attach":
       return counts.attachments;
+    case "learning_artifacts":
+      return counts.learningArtifacts;
     case "question_bank":
       return counts.questionBank;
     case "memory":
@@ -51,18 +58,29 @@ export default memo(function ChatSpaceMenu({
   variant,
   selectedCounts,
   onSelectItem,
+  showLearningArtifacts = false,
 }: ChatSpaceMenuProps) {
   const { t } = useTranslation();
   const compact = variant === "toolbar";
   const isMention = variant === "mention";
 
-  const items = ITEM_ORDER.map((key) => {
+  const items = ITEM_ORDER.filter(
+    (key) => showLearningArtifacts || key !== "learning_artifacts",
+  ).map((key) => {
       if (key === "attach") {
         return {
           key,
           label: t("Attach files"),
           description: t("Upload images, Office docs, code & text."),
           icon: Paperclip,
+        };
+      }
+      if (key === "learning_artifacts") {
+        return {
+          key,
+          label: t("学习产物"),
+          description: t("引用已生成的课件、闪卡或 Quiz。"),
+          icon: Layers,
         };
       }
       if (key === "question_bank") {

@@ -70,7 +70,7 @@ def update_pack(pack_id: str, patch: dict[str, Any]) -> dict[str, Any] | None:
     for pack in packs:
         if pack.get("pack_id") != pack_id:
             continue
-        for key in ("title", "persona", "profile_id"):
+        for key in ("title", "persona", "profile_id", "material"):
             if key in patch:
                 pack[key] = patch[key]
         if "artifact" in patch and isinstance(patch["artifact"], dict):
