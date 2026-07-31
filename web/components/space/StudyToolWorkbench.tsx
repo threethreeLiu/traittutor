@@ -239,6 +239,7 @@ export default function StudyToolWorkbench({ kind }: { kind: ToolKind }) {
         ...material,
         metadata: { ...(material.metadata ?? {}), learner_analysis: resolvedAnalysis },
       };
+      const analysisSessionId = resolvedAnalysis.session_id || materialSessionId.current;
       const pack = selectedPack ?? await createLearningPack({ title: material.title, material: materialWithAnalysis, profile_id: profile?.profile_id });
       const packWithSnapshot = selectedPack ? await updateLearningPack(pack.pack_id, { material: materialWithAnalysis }) : pack;
       setLearningPacks((packs) => upsertLearningPack(packs, packWithSnapshot));
@@ -247,7 +248,7 @@ export default function StudyToolWorkbench({ kind }: { kind: ToolKind }) {
         generation_type: kind,
         material: materialWithAnalysis,
         learner_profile: profile ?? undefined,
-        options: { ...(kind === "quiz" ? { mode: quizMode, question_count: Number(questionCount), difficulty } : { language: zh ? "zh-CN" : "en" }), session_id: materialSessionId.current, analysis_id: resolvedAnalysis.analysis_id },
+        options: { ...(kind === "quiz" ? { mode: quizMode, question_count: Number(questionCount), difficulty } : { language: zh ? "zh-CN" : "en" }), session_id: analysisSessionId, analysis_id: resolvedAnalysis.analysis_id },
       });
       await watchTask(task, packWithSnapshot.pack_id);
     } catch (cause) {

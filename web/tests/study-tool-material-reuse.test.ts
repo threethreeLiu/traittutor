@@ -16,6 +16,8 @@ test("study tools can reuse an existing learning-pack material across courseware
   assert.match(workbench, /chooseLearningPack/);
   assert.match(workbench, /const pack = selectedPack \?\? await createLearningPack/);
   assert.match(workbench, /material: materialWithAnalysis/);
+  assert.match(workbench, /const analysisSessionId = resolvedAnalysis\.session_id \|\| materialSessionId\.current/);
+  assert.match(workbench, /session_id: analysisSessionId/);
   assert.match(workbench, /updateLearningPack\(packIdForTask, \{ generation_id: loaded\.generation_id \}\)/);
   assert.match(workbench, /复用已有材料/);
   assert.match(workbench, /已复用学习包材料/);
