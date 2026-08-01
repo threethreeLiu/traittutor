@@ -81,7 +81,7 @@ def test_plugin_chat_stream_routes_to_specified_partner_session(monkeypatch):
         "/api/v1/plugins/capabilities/chat/execute-stream",
         json={
             "content": "hi",
-            # Legacy TutorBot HTTP API field name still addresses a partner.
+            # Legacy legacy partner HTTP API field name still addresses a partner.
             "bot_id": "math-bot",
             "session_id": "lesson-1",
             "enabledTools": [],

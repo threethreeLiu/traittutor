@@ -4,16 +4,16 @@ import test from "node:test";
 import { personaSearchText, presentPersona } from "@/lib/persona-localization";
 
 const preset = {
-  name: "teacher",
-  description: "Patient Socratic tutor who guides through questions.",
+  name: "lesson-designer",
+  description: "Artifact designer for courseware, flashcards, quiz, and explanations.",
   source: "admin" as const,
   read_only: true,
 };
 
 test("presents built-in personas in Chinese", () => {
   assert.deepEqual(presentPersona(preset, "zh-CN"), {
-    name: "苏格拉底导师",
-    description: "通过提问和分步引导，帮助你建立理解的耐心导师。",
+    name: "讲解设计师",
+    description: "按材料分析、SLR 支持和薄弱概念设计课件、闪卡、测验与讲解。",
   });
 });
 
@@ -24,6 +24,6 @@ test("keeps user-authored personas unchanged", () => {
 
 test("searches preset names in both stored and displayed languages", () => {
   const text = personaSearchText(preset, "zh-CN");
-  assert.ok(text.includes("teacher"));
-  assert.ok(text.includes("苏格拉底导师"));
+  assert.ok(text.includes("lesson-designer"));
+  assert.ok(text.includes("讲解设计师"));
 });

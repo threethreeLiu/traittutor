@@ -134,3 +134,31 @@ def test_reflection_api_subject_filter_is_scoped(client: TestClient) -> None:
     assert response.status_code == 200
     ids = {item["reflection_id"] for item in response.json()["reflections"]}
     assert ids == {"math-pref"}
+
+
+def test_context_preview_accepts_explicit_subject_for_compass_scope(client: TestClient) -> None:
+    subject = _subject()
+    _apply(LearningSignal(
+        signal_id="subject-pref-preview", kind="explicit_preference", subject_refs=[subject],
+        payload={"value": "函数题先画图", "category": "explanation"},
+        evidence_refs=["feedback:math"], source="user",
+        occurred_at="2026-07-29T00:00:00+00:00",
+    ))
+    asyncio.run(_service().record_event(LearnerEvent(
+        event_id="subject-concept-preview", event_type="quiz_answer", subject=subject,
+        concept_id="slope", concept_label="斜率", observation="incorrect",
+        evidence_refs=["question:slope"], confidence=0.9, occurred_at="2026-07-29T00:01:00+00:00",
+    ), trusted=True))
+
+    response = client.post("/api/v1/memory/learner/context/preview", json={
+        "purpose": "courseware",
+        "subject": subject.model_dump(),
+        "current_instruction": "预览这门学科的 Compass",
+    })
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["subject"]["subject_id"] == "math"
+    rationale_text = [item["text"] for item in body["plan"]["rationale"]]
+    assert any("函数题先画图" in text for text in rationale_text)
+    assert [item["concept_id"] for item in body["relevant_concept_signals"]] == ["slope"]

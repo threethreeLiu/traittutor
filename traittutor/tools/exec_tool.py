@@ -1,10 +1,10 @@
 """
 Sandboxed shell execution tool for chat.
 
-This is the chat-side counterpart to TutorBot's ExecTool, but every command
+This is the chat-side counterpart to legacy partner's ExecTool, but every command
 runs through the :mod:`traittutor.services.sandbox` layer rather than a raw
 subprocess. The pipeline mounts the turn's workspace read-write and exposes
-it as the working directory; the deny-pattern guard from TutorBot is reused
+it as the working directory; the deny-pattern guard from legacy partner is reused
 as defence-in-depth on top of OS isolation.
 
 Mounting and the policy gate (who may call this) live in the chat pipeline —
@@ -27,7 +27,7 @@ from traittutor.tools.prompting import load_prompt_hints
 # cycle. Every other builtin tool imports its service deps inside ``execute``
 # for the same reason.
 
-# Defence-in-depth deny list (mirrors TutorBot's ExecTool). The sandbox is the
+# Defence-in-depth deny list (mirrors legacy partner's ExecTool). The sandbox is the
 # real boundary; these patterns stop obviously destructive commands early.
 _DENY_PATTERNS: tuple[str, ...] = (
     r"\brm\s+-[rf]{1,2}\b",

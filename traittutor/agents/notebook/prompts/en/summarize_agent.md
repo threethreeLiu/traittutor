@@ -1,7 +1,7 @@
 ---
 record_hints:
   chat: A full chat transcript; focus on the question, conclusion, and next actions.
-  tutorbot: A conversation with a Partner (a named AI assistant); focus on what was
+  legacy_partner: A conversation with a Partner (a named AI assistant); focus on what was
     asked, the Partner's conclusion, and any next actions.
   guided_learning: A guided learning record; focus on topic, knowledge structure,
     and partial/final output.

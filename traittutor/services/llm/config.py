@@ -160,7 +160,7 @@ def initialize_environment() -> None:
 
 
 def _get_llm_config_from_resolver() -> LLMConfig:
-    """Resolve LLM config from the TutorBot-style runtime adapter."""
+    """Resolve LLM config from the partner-style runtime adapter."""
     resolved = resolve_llm_runtime_config()
     if not resolved.model:
         raise LLMConfigError(

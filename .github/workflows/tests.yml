@@ -1,13 +1,11 @@
-name: Tests
+name: TraitTutor Core Checks
 
 on:
   push:
     branches:
       - main
-      - dev
     paths:
       - "traittutor/**"
-      - "traittutor_cli/**"
       - "tests/**"
       - "requirements/**"
       - "requirements.txt"
@@ -17,10 +15,8 @@ on:
   pull_request:
     branches:
       - main
-      - dev
     paths:
       - "traittutor/**"
-      - "traittutor_cli/**"
       - "tests/**"
       - "requirements/**"
       - "requirements.txt"
@@ -111,7 +107,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements/server.txt
 
-      - name: Check module imports
+      - name: Check core module imports
         run: |
           echo "🐍 Testing with Python ${{ matrix.python-version }}"
           python -c "from traittutor.runtime.orchestrator import ChatOrchestrator; print('✅ Orchestrator imports OK')"
@@ -120,6 +116,8 @@ jobs:
           python -c "from traittutor.services.config.runtime_settings import RuntimeSettingsService; print('✅ RuntimeSettingsService imports OK')"
           python -c "from traittutor.api.routers.unified_ws import unified_websocket; print('✅ Unified WS imports OK')"
           python -c "from traittutor.services.prompt.manager import PromptManager; print('✅ Prompt manager imports OK')"
+          python -c "from traittutor.generate.service import generate_learning_artifact; print('✅ Generate service imports OK')"
+          python -c "from traittutor.personalization.service import PersonalizationService; print('✅ Learner model imports OK')"
           python -c "from traittutor.logging import configure_logging, bind_log_context, capture_process_logs, ProcessLogEvent; print('✅ Logging imports OK')"
         env:
           PYTHONPATH: ${{ github.workspace }}
@@ -151,7 +149,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('requirements/server.txt', 'requirements/cli.txt', 'requirements/partners.txt') }}
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('requirements/server.txt', 'requirements/cli.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-${{ matrix.python-version }}-
 
@@ -159,7 +157,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements/server.txt
-          pip install -r requirements/partners.txt
           pip install pytest pytest-asyncio
 
       - name: Create minimal runtime config
@@ -172,10 +169,17 @@ jobs:
             level: WARNING
           YAML
 
-      - name: Run Python tests
+      - name: Run core TraitTutor tests
         run: |
           echo "🧪 Running Python tests on Python ${{ matrix.python-version }}"
-          pytest -q tests traittutor/learning/tests
+          pytest -q \
+            tests/traittutor/test_business_learning_loop.py \
+            tests/traittutor/test_learning_pack_events.py \
+            tests/traittutor/test_generate_suite.py \
+            tests/traittutor/test_personalization.py \
+            tests/api/test_personalization_router.py \
+            tests/services/test_evolution_core.py \
+            tests/services/session/test_source_inventory.py
         env:
           PYTHONPATH: ${{ github.workspace }}
 

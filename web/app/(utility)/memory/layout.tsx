@@ -1,7 +1,4 @@
-// Bare shell — each memory page owns its own padding + scroll behavior.
-// Hub uses `overflow-y-auto` with a max-width container; the L2/L3
-// workbench pages use a full-height flex column with internal scrolling
-// per pane (preview / LLM workspace) so the outer page never grows.
+// Compatibility shell for old memory URLs. Routes redirect to the learner model.
 export default function MemoryLayout({
   children,
 }: Readonly<{

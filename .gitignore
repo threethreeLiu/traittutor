@@ -1,11 +1,11 @@
 # ============================================
-# AI-Tutor Project .gitignore
+# TraitTutor Project .gitignore
 # ============================================
 
 # ============================================
 # User Generated Data and Outputs
 # ============================================
-# Runtime data (knowledge bases, tutorbot workspaces, memory, etc.)
+# Runtime data (knowledge bases, learner workspaces, memory, etc.)
 data/
 /multi-user/
 run_code_workspace/

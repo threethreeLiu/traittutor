@@ -33,6 +33,42 @@ def _signal(signal_id: str, *, kind: str = "strategy_feedback", subject: Subject
     )
 
 
+def _subject_ref(subject_id: str, label: str, *path: str) -> SubjectRef:
+    return SubjectRef(
+        subject_id=subject_id,
+        label=label,
+        path=[label, *path],
+        confidence=0.95,
+        source="material_analysis",
+    )
+
+
+def _expected_bkt(
+    prior: float,
+    *,
+    correct: bool,
+    transition: float,
+    guess: float,
+    slip: float,
+    weight: float,
+) -> float:
+    """Independent BKT oracle for strict regression tests.
+
+    Keep this formula intentionally separate from ``traittutor.personalization``
+    internals so the test catches accidental changes to event weighting,
+    transition, guess, slip, or weighted posterior blending.
+    """
+
+    predicted = prior + (1 - prior) * transition
+    likelihood = (
+        predicted * (1 - slip) + (1 - predicted) * guess
+        if correct
+        else predicted * slip + (1 - predicted) * (1 - guess)
+    )
+    posterior = predicted if likelihood <= 0 else predicted * ((1 - slip) if correct else slip) / likelihood
+    return max(0.0, min(1.0, prior * (1 - weight) + posterior * weight))
+
+
 @pytest.mark.asyncio
 async def test_explicit_preference_is_immediate_and_subject_ids_preserve_unicode(learner_service):
     service, _ = learner_service
@@ -293,6 +329,139 @@ async def test_concept_ids_do_not_merge_when_labels_match(learner_service):
             evidence_refs=[f"question:{event_id}"], occurred_at="2026-07-29T00:00:00+00:00",
         ), trusted=True)
     assert {item.concept_id for item in service.subject_profile(subject.subject_id).concept_signals} == {"algebra:function", "calculus:function"}
+
+
+@pytest.mark.asyncio
+async def test_bkt_strict_multi_subject_event_matrix_keeps_subjects_isolated(learner_service):
+    service, _ = learner_service
+    mathematics = _subject_ref("mathematics", "数学", "函数")
+    physics = _subject_ref("physics", "物理", "力学")
+    biology = _subject_ref("biology", "生物", "植物生理")
+
+    await service.record_event(LearnerEvent(
+        event_id="math-slope-q1", event_type="quiz_answer", subject=mathematics,
+        concept_id="rate", concept_label="变化率", module_id="linear-functions",
+        observation="correct", confidence=.9, evidence_refs=["math:quiz:1"],
+        occurred_at="2026-07-29T00:01:00+00:00",
+    ), trusted=True)
+    await service.record_event(LearnerEvent(
+        event_id="math-slope-q2", event_type="quiz_answer", subject=mathematics,
+        concept_id="rate", concept_label="变化率", module_id="linear-functions",
+        observation="correct", confidence=.9, evidence_refs=["math:quiz:2"],
+        occurred_at="2026-07-29T00:02:00+00:00",
+    ), trusted=True)
+    # Courseware participation may add engagement evidence, but must not move
+    # mastery probability or verified-observation count.
+    await service.record_event(LearnerEvent(
+        event_id="math-slope-courseware", event_type="courseware_outcome", subject=mathematics,
+        concept_id="rate", concept_label="变化率", module_id="linear-functions",
+        observation="engaged", confidence=.8, evidence_refs=["math:courseware:1"],
+        occurred_at="2026-07-29T00:03:00+00:00",
+    ), trusted=True)
+
+    await service.record_event(LearnerEvent(
+        event_id="physics-force-q1", event_type="quiz_answer", subject=physics,
+        concept_id="force", concept_label="力", module_id="mechanics",
+        observation="incorrect", confidence=.9, evidence_refs=["physics:quiz:1"],
+        occurred_at="2026-07-29T00:01:00+00:00",
+    ), trusted=True)
+    await service.record_event(LearnerEvent(
+        event_id="biology-rate-card", event_type="flashcard_review", subject=biology,
+        # Same concept_id as the mathematics concept: subject scoping must keep
+        # these as separate BKT states.
+        concept_id="rate", concept_label="光合速率", module_id="photosynthesis",
+        observation="uncertain", confidence=.7, evidence_refs=["biology:card:1"],
+        occurred_at="2026-07-29T00:01:00+00:00",
+    ), trusted=True)
+
+    math_expected = _expected_bkt(
+        _expected_bkt(.2, correct=True, transition=.15, guess=.20, slip=.10, weight=1.0),
+        correct=True, transition=.15, guess=.20, slip=.10, weight=1.0,
+    )
+    physics_expected = _expected_bkt(.2, correct=False, transition=.15, guess=.20, slip=.10, weight=1.0)
+    biology_expected = _expected_bkt(.2, correct=False, transition=.08, guess=.28, slip=.16, weight=.55)
+
+    math_signal = service.subject_profile("mathematics").concept_signals[0]
+    physics_signal = service.subject_profile("physics").concept_signals[0]
+    biology_signal = service.subject_profile("biology").concept_signals[0]
+
+    assert math_signal.concept_id == "rate"
+    assert math_signal.label == "变化率"
+    assert math_signal.module_id == "linear-functions"
+    assert math_signal.mastery_probability == pytest.approx(math_expected)
+    assert math_signal.verified_observation_count == 2
+    assert math_signal.observation_count == 3
+    assert math_signal.support_level == "supported"
+    assert math_signal.last_observation_source == "courseware_outcome"
+
+    assert physics_signal.concept_id == "force"
+    assert physics_signal.mastery_probability == pytest.approx(physics_expected)
+    assert physics_signal.verified_observation_count == 1
+    assert physics_signal.support_level == "needs_support"
+
+    assert biology_signal.concept_id == "rate"
+    assert biology_signal.label == "光合速率"
+    assert biology_signal.mastery_probability == pytest.approx(biology_expected)
+    assert biology_signal.verified_observation_count == 1
+    assert biology_signal.support_level == "needs_support"
+    assert biology_signal.last_observation_source == "flashcard_review"
+
+    subjects = {profile.subject.subject_id for profile in service.subjects() if profile.subject}
+    assert subjects == {"mathematics", "physics", "biology"}
+
+    math_context = service.build_context(purpose="quiz", subject=mathematics)
+    physics_context = service.build_context(purpose="quiz", subject=physics)
+    biology_context = service.build_context(purpose="flashcards", subject=biology)
+    assert [item.concept_id for item in math_context.relevant_concept_signals] == ["rate"]
+    assert math_context.relevant_concept_signals[0].label == "变化率"
+    assert [item.concept_id for item in physics_context.relevant_concept_signals] == ["force"]
+    assert [item.label for item in biology_context.relevant_concept_signals] == ["光合速率"]
+
+
+@pytest.mark.asyncio
+async def test_bkt_strict_delete_evidence_rebuilds_only_the_affected_subject(learner_service):
+    service, _ = learner_service
+    mathematics = _subject_ref("mathematics", "数学", "函数")
+    physics = _subject_ref("physics", "物理", "力学")
+
+    for index in (1, 2):
+        await service.record_event(LearnerEvent(
+            event_id=f"math-limit-q{index}", event_type="quiz_answer", subject=mathematics,
+            concept_id="limits", concept_label="极限", observation="correct",
+            evidence_refs=[f"math:quiz:{index}"],
+            occurred_at=f"2026-07-29T00:0{index}:00+00:00",
+        ), trusted=True)
+    await service.record_event(LearnerEvent(
+        event_id="physics-force-q1", event_type="quiz_answer", subject=physics,
+        concept_id="force", concept_label="力", observation="incorrect",
+        evidence_refs=["physics:quiz:1"], occurred_at="2026-07-29T00:01:00+00:00",
+    ), trusted=True)
+
+    before_math = service.subject_profile("mathematics").concept_signals[0]
+    before_physics = service.subject_profile("physics").concept_signals[0]
+    two_correct_expected = _expected_bkt(
+        _expected_bkt(.2, correct=True, transition=.15, guess=.20, slip=.10, weight=1.0),
+        correct=True, transition=.15, guess=.20, slip=.10, weight=1.0,
+    )
+    assert before_math.mastery_probability == pytest.approx(two_correct_expected)
+    assert before_math.verified_observation_count == 2
+
+    assert await service.delete_evidence("math-limit-q2") is True
+
+    after_math = service.subject_profile("mathematics").concept_signals[0]
+    after_physics = service.subject_profile("physics").concept_signals[0]
+    one_correct_expected = _expected_bkt(.2, correct=True, transition=.15, guess=.20, slip=.10, weight=1.0)
+
+    assert after_math.mastery_probability == pytest.approx(one_correct_expected)
+    assert after_math.verified_observation_count == 1
+    assert after_math.support_level == "developing"
+    assert after_math.evidence_refs == ["math:quiz:1"]
+
+    assert after_physics.mastery_probability == before_physics.mastery_probability
+    assert after_physics.verified_observation_count == before_physics.verified_observation_count
+    assert after_physics.evidence_refs == before_physics.evidence_refs
+    assert {item.signal_id for item in service.evidence(subject_id="mathematics")} == {"math-limit-q1"}
+    assert {item.signal_id for item in service.evidence(subject_id="physics")} == {"physics-force-q1"}
 
 
 @pytest.mark.asyncio

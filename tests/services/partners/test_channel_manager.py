@@ -1,4 +1,4 @@
-"""Unit tests for TutorBot channel dispatch behavior."""
+"""Unit tests for legacy partner channel dispatch behavior."""
 
 from __future__ import annotations
 

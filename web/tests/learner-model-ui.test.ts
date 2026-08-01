@@ -7,6 +7,10 @@ const source = fs.readFileSync(
   path.join(process.cwd(), "components", "personalization", "LearnerModelApp.tsx"),
   "utf8",
 );
+const subjectSource = fs.readFileSync(
+  path.join(process.cwd(), "app", "(utility)", "profile", "learning-model", "[subjectId]", "page.tsx"),
+  "utf8",
+);
 
 test("learner model combines memory evidence and BKT progress", () => {
   assert.match(source, /EVIDENCE MEMORY/);
@@ -41,4 +45,13 @@ test("learner model shows non-blocking reflection loading errors", () => {
   assert.match(source, /reflectionError/);
   assert.match(source, /学习反思暂不可用/);
   assert.match(source, /其他学习模型信息仍可正常查看/);
+});
+
+test("subject learner model fuses Hermes Compass and governed reflections", () => {
+  assert.match(subjectSource, /HERMES COMPASS/);
+  assert.match(subjectSource, /REFLECTION GOVERNANCE/);
+  assert.match(subjectSource, /previewPersonalization\(\{/);
+  assert.match(subjectSource, /subject: nextProfile\.subject/);
+  assert.match(subjectSource, /updateLearnerReflectionStatus\(reflectionId, status\)/);
+  assert.match(subjectSource, /会进入 Compass/);
 });

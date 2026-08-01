@@ -244,7 +244,7 @@ export default function PersonasSection() {
         icon={UserRound}
         title={t("Personas")}
         description={t(
-          "Behavior presets that shape the assistant's tone and style. Apply one per chat turn from the composer.",
+          "TraitTutor conversation roles for learning support, evidence research, and artifact design. Apply one per chat turn from the composer.",
         )}
         meta={
           <span className="rounded-full border border-[var(--border)] bg-[var(--card)] px-2 py-0.5 text-[10.5px] font-medium text-[var(--muted-foreground)]">
@@ -282,7 +282,7 @@ export default function PersonasSection() {
           </p>
           <p className="mx-auto mt-1 max-w-sm text-[12.5px] leading-relaxed text-[var(--muted-foreground)]">
             {t(
-              "Create a persona to define a reusable behavior preset (e.g. a patient tutor, a blunt code reviewer).",
+              "Create a reusable TraitTutor role, such as a material analyst, review coach, or exam-prep guide.",
             )}
           </p>
           <button
@@ -498,7 +498,7 @@ export default function PersonasSection() {
                       name: slugifySkillName(e.target.value),
                     })
                   }
-                  placeholder={t("e.g. patient-tutor")}
+                  placeholder={t("e.g. review-coach")}
                   className={`w-full rounded-lg border bg-[var(--background)] px-3 py-2 text-[13px] outline-none transition-colors focus:border-[var(--foreground)]/25 ${
                     editorNameInvalid
                       ? "border-red-400 dark:border-red-600"

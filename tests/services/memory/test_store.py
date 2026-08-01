@@ -233,23 +233,23 @@ def test_migrate_partner_surface_renames_artifacts(tmp_memory: Path) -> None:
     import json
 
     l2 = tmp_memory / "L2"
-    (l2 / "tutorbot.md").write_text(
-        "# Tutorbot memory\n\n"
+    (l2 / "legacy_partner.md").write_text(
+        "# Legacy Partner memory\n\n"
         "## Themes\n"
-        "- Engages with a tutorbot named Frank[^m_01HZK4ABCDEFGHJKMNPQRSTVWX]\n\n"
+        "- Engages with a legacy_partner named Frank[^m_01HZK4ABCDEFGHJKMNPQRSTVWX]\n\n"
         "---\n\n"
-        "[^m_01HZK4ABCDEFGHJKMNPQRSTVWX]: tutorbot:frank:web_s1\n",
+        "[^m_01HZK4ABCDEFGHJKMNPQRSTVWX]: legacy_partner:frank:web_s1\n",
         encoding="utf-8",
     )
-    (l2 / "tutorbot.meta.json").write_text(
-        json.dumps({"seen_entity_refs": ["tutorbot:frank:web_s1"]}), encoding="utf-8"
+    (l2 / "legacy_partner.meta.json").write_text(
+        json.dumps({"seen_entity_refs": ["legacy_partner:frank:web_s1"]}), encoding="utf-8"
     )
-    (tmp_memory / "snapshot" / "tutorbot").mkdir(parents=True)
-    (tmp_memory / "snapshot" / "tutorbot" / "state.json").write_text("{}", encoding="utf-8")
-    (tmp_memory / "trace" / "tutorbot").mkdir(parents=True, exist_ok=True)
+    (tmp_memory / "snapshot" / "legacy_partner").mkdir(parents=True)
+    (tmp_memory / "snapshot" / "legacy_partner" / "state.json").write_text("{}", encoding="utf-8")
+    (tmp_memory / "trace" / "legacy_partner").mkdir(parents=True, exist_ok=True)
     (tmp_memory / "L3").mkdir(exist_ok=True)
     (tmp_memory / "L3" / "profile.meta.json").write_text(
-        json.dumps({"seen_l2_entry_ids": {"tutorbot": ["m_01HZK4ABCDEFGHJKMNPQRSTVWX"]}}),
+        json.dumps({"seen_l2_entry_ids": {"legacy_partner": ["m_01HZK4ABCDEFGHJKMNPQRSTVWX"]}}),
         encoding="utf-8",
     )
 
@@ -257,25 +257,25 @@ def test_migrate_partner_surface_renames_artifacts(tmp_memory: Path) -> None:
 
     new_md = l2 / "partner.md"
     assert new_md.exists()
-    assert not (l2 / "tutorbot.md").exists()
+    assert not (l2 / "legacy_partner.md").exists()
     text = new_md.read_text(encoding="utf-8")
     # Footnote ref prefix and bare prose word both rewritten.
     assert "partner:frank:web_s1" in text
     assert "a partner named Frank" in text
-    assert "tutorbot" not in text.lower()
+    assert "legacy_partner" not in text.lower()
 
     meta = json.loads((l2 / "partner.meta.json").read_text(encoding="utf-8"))
     assert meta["seen_entity_refs"] == ["partner:frank:web_s1"]
 
     assert (tmp_memory / "snapshot" / "partner").is_dir()
-    assert not (tmp_memory / "snapshot" / "tutorbot").exists()
+    assert not (tmp_memory / "snapshot" / "legacy_partner").exists()
     assert (tmp_memory / "trace" / "partner").is_dir()
 
     l3 = json.loads((tmp_memory / "L3" / "profile.meta.json").read_text(encoding="utf-8"))
     assert "partner" in l3["seen_l2_entry_ids"]
-    assert "tutorbot" not in l3["seen_l2_entry_ids"]
+    assert "legacy_partner" not in l3["seen_l2_entry_ids"]
 
-    # Idempotent: a second run finds nothing tutorbot-shaped.
+    # Idempotent: a second run finds nothing legacy_partner-shaped.
     assert migrate_partner_surface_if_needed() is False
 
 

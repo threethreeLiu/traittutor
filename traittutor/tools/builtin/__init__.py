@@ -7,19 +7,12 @@ import json
 import logging
 from typing import Any
 
-from traittutor.capabilities.mastery import MASTERY_TOOL_TYPES
 from traittutor.capabilities.obsidian import OBSIDIAN_TOOL_TYPES
 from traittutor.capabilities.solve import SOLVE_TOOL_TYPES
 from traittutor.capabilities.subagent import SUBAGENT_TOOL_TYPES
 from traittutor.core.tool_protocol import BaseTool, ToolDefinition, ToolParameter, ToolResult
 from traittutor.tools.exec_tool import ExecTool
 from traittutor.tools.media_gen_tool import ImagegenTool, VideogenTool
-from traittutor.tools.partner_memory import (
-    PARTNER_BUILTIN_TOOL_NAMES,
-    PartnerMemorizeTool,
-    PartnerReadTool,
-    PartnerSearchTool,
-)
 from traittutor.tools.prompting import load_prompt_hints
 
 logger = logging.getLogger(__name__)
@@ -1477,25 +1470,16 @@ BUILTIN_TOOL_TYPES: tuple[type[BaseTool], ...] = (
     # grant-gated; the chat pipeline only mounts them when a model is configured.
     ImagegenTool,
     VideogenTool,
-    # Mastery Path + Solve + Obsidian tools — globally registered so schemas/API
+    # Solve + Obsidian tools — globally registered so schemas/API
     # stay stable; the chat loop capabilities decide when to auto-mount them for
     # a turn. Obsidian is a knowledge capability: when its vault is selected it
     # runs the turn exclusively on these tools.
-    *MASTERY_TOOL_TYPES,
     *SOLVE_TOOL_TYPES,
     *OBSIDIAN_TOOL_TYPES,
     # Subagent consult tool — globally registered; the subagent knowledge
     # capability runs the turn exclusively on it when a connected agent is the
     # selected KB.
     *SUBAGENT_TOOL_TYPES,
-    # Partner-only memory + history tools. Globally registered so schemas/API
-    # stay stable, but never mounted in product chat: the partner runtime
-    # force-mounts them (and suppresses chat's read_memory/write_memory) on
-    # every partner turn. Deliberately absent from CONFIGURABLE_BUILTIN_TOOL_NAMES
-    # — they are mandatory, not owner-configurable.
-    PartnerReadTool,
-    PartnerMemorizeTool,
-    PartnerSearchTool,
 )
 
 # No tools are parked right now. When a tool's implementation is being
@@ -1527,12 +1511,10 @@ USER_TOGGLEABLE_TOOL_NAMES: tuple[str, ...] = (
 
 # Built-in tools the chat agent loop auto-mounts under context gates (a KB
 # attached, the sandbox enabled, the user having memory/notebooks, …) rather
-# than user toggles — "locked-on" in the product chat composer. Partners,
-# however, can selectively allow/deny these per companion (default: all
-# allowed) so an IM-facing partner can be denied e.g. memory access.
+# than user toggles — "locked-on" in the product chat composer. Deployment
+# policy can still allow/deny these tools for constrained runtimes.
 # ``tool_composition.AUTO_MOUNTED_TOOLS`` is derived from this tuple, so the
-# two stay in lockstep; this ordering is the canonical display order for the
-# partner config UI. Capability-owned tools (mastery/solve/obsidian/subagent)
+# two stay in lockstep. Capability-owned tools (solve/obsidian/subagent)
 # are intentionally absent — they are gated by capability activation, never by
 # this surface.
 CONFIGURABLE_BUILTIN_TOOL_NAMES: tuple[str, ...] = (
@@ -1566,7 +1548,6 @@ __all__ = [
     "COMING_SOON_TOOL_NAMES",
     "COMING_SOON_TOOL_TYPES",
     "CONFIGURABLE_BUILTIN_TOOL_NAMES",
-    "PARTNER_BUILTIN_TOOL_NAMES",
     "TOOL_ALIASES",
     "USER_TOGGLEABLE_TOOL_NAMES",
     "AskUserTool",
@@ -1579,9 +1560,6 @@ __all__ = [
     "VideogenTool",
     "ListNotebookTool",
     "PaperSearchToolWrapper",
-    "PartnerMemorizeTool",
-    "PartnerReadTool",
-    "PartnerSearchTool",
     "RAGTool",
     "LoadToolsTool",
     "ReadMemoryTool",

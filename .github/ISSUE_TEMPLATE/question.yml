@@ -26,13 +26,15 @@ body:
       options:
         - Dashboard
         - Knowledge Base Management
-        - Smart Solver
-        - Question Generator
+        - Guided Solving
+        - Courseware
+        - Flashcards
+        - Quiz
         - Deep Research
-        - Co-Writer
+        - Learner Model
         - Notebook
-        - Guided Learning
-        - Idea Generation
+        - Learning Exploration
+        - Knowledge Diagram
         - API/Backend
         - Frontend/Web
         - Installation/Setup

@@ -52,7 +52,7 @@ from traittutor.services.llm import (
 )
 from traittutor.services.llm.context_window import resolve_effective_context_window
 from traittutor.services.prompt import PromptLoadError, get_prompt_manager
-from traittutor.tools.builtin import PARTNER_BUILTIN_TOOL_NAMES
+from traittutor.tools.partner_memory import PARTNER_BUILTIN_TOOL_NAMES
 
 logger = logging.getLogger(__name__)
 
@@ -544,7 +544,7 @@ class AgenticChatPipeline:
                     return bool(get_current_user().is_admin)
                 except Exception:
                     # Single-user local runtime: APPLICATION isolation is the
-                    # same explicit opt-in posture TutorBot uses for local dev.
+                    # same explicit opt-in posture legacy partner uses for local dev.
                     return True
             return False
         except Exception:

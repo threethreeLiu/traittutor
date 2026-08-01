@@ -1,218 +1,85 @@
 # Contributing to TraitTutor
 
-Thank you for your interest in contributing to TraitTutor! We welcome developers of all skill levels to help build the next-generation intelligent learning companion.
+Thanks for helping improve TraitTutor. This repository is focused on one product: a source-grounded learning workspace that turns learner signals and uploaded material into courseware, flashcards, quizzes, research support, and an evidence-backed learner model.
 
-<p align="center">
-<a href="https://discord.gg/eRsjPgMU4t"><img src="https://img.shields.io/badge/Discord-Join_Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
-</p>
+## Product boundaries
 
----
+Please keep contributions inside the current TraitTutor scope:
 
-## Table of Contents
+- learner profile and explicit learning preferences;
+- material analysis with source metadata;
+- courseware, flashcards, quizzes, guided solving, learning exploration, knowledge diagrams, and Deep Research;
+- Learning Packs, Knowledge, Notebook, Question Bank, Chat, and the learner model;
+- Hermes / Reflection / Compass memory governance for explainable personalization.
 
-- [Maintainers](#maintainers)
-- [Branching Strategy](#branching-strategy)
-- [Quick Start for Contributors](#quick-start-for-contributors)
-- [Development Setup](#development-setup)
-- [Code Quality & Security](#code-quality--security)
-- [Coding Standards](#coding-standards)
-- [Commit Message Format](#commit-message-format)
-- [Security Best Practices](#security-best-practices)
+Do not add or reintroduce unrelated foundation surfaces unless they are first redesigned as TraitTutor learning features and covered by tests.
 
----
-
-## Maintainer
-
-Maintained by the TraitTutor contributor team.
-
----
-
-## Branching Strategy
-
-We use a multi-branch model to keep development organized:
-
-| Branch | Purpose | Stability |
-|---|---|---|
-| `dev` | General development | May have bugs or breaking changes |
-| `multi-user` | Multi-user scenario development | Experimental, focused on multi-tenant features |
-
-> [!IMPORTANT]
-> Please do **not** submit PRs directly to `main`. All contributions should target `dev` or `multi-user`.
-
-### Which Branch Should I Target?
-
-**Target `dev`** if your PR includes:
-
-- New features or functionality
-- Refactoring that may affect existing behavior
-- Changes to APIs or configuration
-- General bug fixes
-
-**Target `multi-user`** if your PR includes:
-
-- Multi-user / multi-tenant related features
-- Session isolation, user management, or permission changes
-- Collaborative or shared workspace functionality
-
-> [!NOTE]
-> When in doubt, target `dev` — it is the default development branch.
-
----
-
-## Quick Start for Contributors
-
-1. **Fork & Clone** the repository.
-2. **Sync** with the target branch before starting:
+## Development setup
 
 ```bash
-git checkout dev && git pull origin dev
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+
+cd web
+npm install
 ```
 
-3. **Create** your feature branch from the target branch:
+Run the backend:
 
 ```bash
-git checkout -b feature/your-feature-name
+traittutor serve
 ```
 
-4. **Develop** your changes, following the coding standards below.
-5. **Validate** by running pre-commit checks:
+Run the frontend:
 
 ```bash
-pre-commit run --all-files
+cd web
+npm run dev
 ```
 
-6. **Submit** your Pull Request to the correct target branch (not `main` unless it's a hotfix or docs-only change).
+## Before opening a pull request
 
-> [!TIP]
-> Browse the issue tracker for tasks labeled `good first issue` to find a great starting point. Comment on the issue to let others know you're working on it.
-
----
-
-## Development Setup
-
-<details>
-<summary><b>Setting Up Your Environment</b></summary>
-
-**Step 1: Create a virtual environment**
+Run the smallest relevant checks for your change. For core learning-loop work, use:
 
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+.venv/bin/python -m pytest \
+  tests/traittutor/test_business_learning_loop.py \
+  tests/traittutor/test_learning_pack_events.py \
+  tests/traittutor/test_generate_suite.py \
+  tests/traittutor/test_personalization.py \
+  tests/api/test_personalization_router.py \
+  tests/services/test_evolution_core.py -q
 ```
 
-**Step 2: Install dependencies**
+Frontend:
 
 ```bash
-pip install -e ".[all]"
+cd web
+npm run test:node
+npm run lint
 ```
 
-</details>
-
-<details>
-<summary><b>Setting Up Pre-commit (First Time Only)</b></summary>
-
-**Step 1: Install pre-commit**
+Build check:
 
 ```bash
-pip install pre-commit
-# Or: conda install -c conda-forge pre-commit
+cd web
+npm run build
 ```
 
-**Step 2: Install Git hooks**
+`npm run build` may need network access when Google Fonts are fetched by Next.js.
 
-```bash
-pre-commit install
-```
+## Coding guidelines
 
-**Step 3: Initialize the Secrets Baseline**
+- Keep prompt assets in Markdown and load them through the shared prompt catalog.
+- Route generation through the gateway / runner path so model calls are auditable.
+- Store generated artifacts with material snapshot, prompt signature, model, citations, visual generation status, and degradation state.
+- Update tests with every behavior change.
+- Never use personality scores as diagnosis, ability labels, learning-style labels, or proof of learning gain.
 
-If you encounter false-positive secrets (like API hash placeholders), update the baseline:
+## Pull request checklist
 
-```bash
-detect-secrets scan > .secrets.baseline
-```
-
-</details>
-
-### Common Commands
-
-| Task | Command |
-|---|---|
-| Check all files | `pre-commit run --all-files` |
-| Check quietly | `pre-commit run --all-files -q` |
-| Update tools | `pre-commit autoupdate` |
-| Emergency skip | `git commit --no-verify -m "message"` *(not recommended)* |
----
-
-## Code Quality & Security
-
-We use automated tools (configured via `pyproject.toml` and `.pre-commit-config.yaml`) to maintain high standards:
-
-| Tool | Purpose |
-|---|---|
-| **Ruff** | Python linting and formatting |
-| **Prettier** | Frontend & config file formatting |
-| **detect-secrets** | Hardcoded secret scanning |
-| **pip-audit** | Dependency vulnerability scanning |
-| **Bandit** | Security issue analysis |
-| **MyPy** | Static type checking |
-| **Interrogate** | Docstring coverage reporting |
-
-> [!IMPORTANT]
-> Local pre-commit hooks may only show warnings, but **CI will perform strict checks** and automatically reject PRs that fail.
-
----
-
-## Coding Standards
-
-### Python
-
-- Use **type hints** for all function signatures.
-- Prefer **f-strings** for string formatting.
-- Follow **PEP 8** (enforced by Ruff).
-- Keep functions **small and focused** on a single responsibility.
-
-### Documentation
-
-- Every new module, class, and public function should have a **docstring** (Google Python Style Guide format).
-- Update `README.md` if your change introduces new features or configuration.
-
----
-
-## Commit Message Format
-
-```
-<type>: <short description>
-
-[optional body]
-```
-
-| Type | Description |
-|---|---|
-| `feat` | A new feature (MINOR version bump) |
-| `fix` | A bug fix (PATCH version bump) |
-| `docs` | Documentation only changes |
-| `style` | Formatting, no logic changes |
-| `refactor` | Code restructuring, no new features or fixes |
-| `test` | Adding or correcting tests |
-| `chore` | Build process, tooling, or dependency updates |
-
----
-
-## Security Best Practices
-
-### File Uploads
-
-- **Size Limits**: General files capped at 100 MB; PDFs capped at 50 MB.
-- **Validation**: Multi-layer validation (extension + MIME type + content sanitization).
-- **Sanitization**: All filenames are sanitized to prevent path traversal.
-
-### Development Standards
-
-- **Subprocesses**: Always use `shell=False` to prevent command injection.
-- **Pathing**: Use `pathlib.Path` for cross-platform compatibility.
-- **Line Endings**: LF (Unix) line endings enforced for critical scripts via `.gitattributes`.
-
----
-
-Questions? Reach out on [Discord](https://discord.gg/eRsjPgMU4t). Let's build the future of AI tutoring together!
+- The change preserves courseware, flashcards, quiz, guided solving, learning exploration, knowledge diagrams, Deep Research, and learner model flows.
+- Any new user-facing text is bilingual or goes through the existing i18n path.
+- New data that affects personalization is evidence-backed and deletable/rebuildable.
+- Public docs and screenshots describe TraitTutor, not inherited foundation products.

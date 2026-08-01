@@ -42,7 +42,6 @@ Usage:
 
 # Keep service package import side-effects minimal.
 # Modules are lazy-loaded in __getattr__ to avoid circular imports.
-from .path_service import PathService, get_path_service
 
 __all__ = [
     "llm",
@@ -83,4 +82,8 @@ def __getattr__(name: str):
         from .session import BaseSessionManager
 
         return BaseSessionManager
+    if name in {"PathService", "get_path_service"}:
+        from . import path_service
+
+        return getattr(path_service, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

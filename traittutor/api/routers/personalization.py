@@ -42,6 +42,7 @@ class FeedbackRequest(BaseModel):
 
 class ContextPreviewRequest(BaseModel):
     purpose: Literal["chat", "courseware", "flashcards", "quiz"]
+    subject: SubjectRef | None = None
     title: str = ""
     text: str = Field(default="", max_length=24000)
     material_analysis: dict[str, Any] = Field(default_factory=dict)
@@ -174,7 +175,14 @@ async def strategy_feedback(request: FeedbackRequest):
 
 @router.post("/learner/context/preview")
 async def preview_context(request: ContextPreviewRequest):
-    context = get_personalization_service().build_context(purpose=request.purpose, title=request.title, text=request.text, material_analysis=request.material_analysis, current_instruction=request.current_instruction)
+    context = get_personalization_service().build_context(
+        purpose=request.purpose,
+        subject=request.subject,
+        title=request.title,
+        text=request.text,
+        material_analysis=request.material_analysis,
+        current_instruction=request.current_instruction,
+    )
     return context.model_dump()
 
 

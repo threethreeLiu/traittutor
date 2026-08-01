@@ -1,7 +1,5 @@
-"use client";
-
-import MemoryGraph from "@/components/memory/MemoryGraph";
+import { redirect } from "next/navigation";
 
 export default function MemoryGraphPage() {
-  return <MemoryGraph />;
+  redirect("/profile/learning-model");
 }

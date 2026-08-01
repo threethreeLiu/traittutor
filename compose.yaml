@@ -150,10 +150,9 @@ services:
       # inside is also UID $UID, so writes from the FastAPI backend,
       # Next.js, and supervisord all line up. The same path was used
       # by the original docker-compose.yml; we keep it for consistency.
-      # The data tree holds: admin workspace + runtime settings
-      # (data/user), per-user workspaces (data/users), partners
-      # (data/partners), accounts/grants/audit (data/system),
-      # knowledge bases, memory, logs. One tree to back up.
+      # The data tree holds: runtime settings (data/user), per-user
+      # workspaces (data/users), accounts/grants/audit (data/system),
+      # knowledge bases, memory, logs, and generated learning artifacts.
       - ./data:/app/data:U
     environment:
       # Time zone — picked up by Python (time.tzset) and Next.js at boot.

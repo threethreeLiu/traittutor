@@ -589,7 +589,7 @@ export default function SkillsSection() {
           </p>
           <p className="mx-auto mt-1 max-w-sm text-[12.5px] leading-relaxed text-[var(--muted-foreground)]">
             {t(
-              "Create a skill to define reusable guidance (e.g. a patient tutor, a rigorous research assistant).",
+              "Create a skill to define reusable guidance for material analysis, review planning, or evidence checks.",
             )}
           </p>
           <button
@@ -834,7 +834,7 @@ export default function SkillsSection() {
                       name: slugifySkillName(e.target.value),
                     })
                   }
-                  placeholder={t("e.g. socratic-math-mentor")}
+                  placeholder={t("e.g. evidence-checker")}
                   className={`w-full rounded-lg border bg-[var(--background)] px-3 py-2 text-[13px] outline-none transition-colors focus:border-[var(--foreground)]/25 ${
                     editorNameInvalid
                       ? "border-red-400 dark:border-red-600"

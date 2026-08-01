@@ -57,7 +57,7 @@ class CapabilityExecuteRequest(BaseModel):
     language: str = "en"
     config: dict[str, Any] = Field(default_factory=dict)
     attachments: list[dict[str, Any]] = Field(default_factory=list)
-    # ``bot_id`` is the legacy TutorBot field name; it now addresses a partner.
+    # ``bot_id`` is the legacy legacy partner field name; it now addresses a partner.
     partner_id: str | None = Field(default=None, alias="bot_id")
     session_id: str | None = None
     chat_id: str | None = None

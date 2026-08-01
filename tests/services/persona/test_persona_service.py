@@ -115,19 +115,36 @@ def test_migrate_is_idempotent(tmp_path: Path) -> None:
 
 
 def test_seed_presets_creates_defaults(service: PersonaService) -> None:
-    # Issue #659: fresh installs must expose peer / teacher / research-assistant.
+    # Issue #659: fresh installs must expose TraitTutor's built-in personas.
     seeded = service.seed_presets()
-    assert set(seeded) == {"peer", "teacher", "research-assistant"}
+    assert set(seeded) == {"learning-companion", "evidence-researcher", "lesson-designer"}
     names = {p.name for p in service.list_personas()}
-    assert {"peer", "teacher", "research-assistant"} <= names
-    teacher = service.get_detail("teacher")
-    assert teacher.description  # frontmatter description survived
-    assert "Teacher Mode" in teacher.content
+    assert {"learning-companion", "evidence-researcher", "lesson-designer"} <= names
+    designer = service.get_detail("lesson-designer")
+    assert designer.description  # frontmatter description survived
+    assert "Lesson Designer" in designer.content
 
 
 def test_seed_presets_is_idempotent_and_non_destructive(service: PersonaService) -> None:
     service.seed_presets()
     # A user edit to a seeded persona must not be clobbered by a later seed.
-    service.update("peer", content="---\nname: peer\ndescription: mine\n---\n\nCustom body.")
+    service.update(
+        "learning-companion",
+        content="---\nname: learning-companion\ndescription: mine\n---\n\nCustom body.",
+    )
     assert service.seed_presets() == []  # nothing re-seeded
-    assert "Custom body." in service.get_detail("peer").content
+    assert "Custom body." in service.get_detail("learning-companion").content
+
+
+def test_retire_legacy_bundled_personas(service: PersonaService) -> None:
+    service.create("peer", "legacy", "old body")
+    service.create("teacher", "legacy", "old body")
+    service.create("research-assistant", "legacy", "old body")
+    service.create("custom-role", "mine", "keep me")
+
+    retired = service.retire_legacy_bundled_personas()
+
+    assert set(retired) == {"peer", "teacher", "research-assistant"}
+    names = {p.name for p in service.list_personas()}
+    assert "custom-role" in names
+    assert not {"peer", "teacher", "research-assistant"} & names

@@ -68,7 +68,7 @@ _TAGS_FILE = ".tags.json"
 
 # Builtin skills shipped inside the package. Partners run on the chat agent
 # loop, so this is the single builtin set for both product chat and partner
-# workspaces (the old TutorBot-only skill set died with its engine).
+# workspaces (the old legacy partner-only skill set died with its engine).
 BUILTIN_SKILLS_ROOT = Path(__file__).resolve().parents[2] / "skills" / "builtin"
 
 # Hard cap for read_skill payloads so a huge reference file cannot flood the

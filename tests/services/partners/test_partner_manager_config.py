@@ -110,13 +110,13 @@ class TestWorkspaceSeeding:
         assert read_soul("p1") == "# Custom"
 
 
-class TestLegacyTutorBotMigration:
+class TestLegacyPartnerMigration:
     def _seed_legacy_bot(self, admin_root, bot_id="old-bot", **overrides):
-        legacy = admin_root / "tutorbot" / bot_id
+        legacy = admin_root / "legacy_partner" / bot_id
         legacy.mkdir(parents=True)
         data = {
             "name": "Old Bot",
-            "description": "from tutorbot",
+            "description": "from legacy_partner",
             "persona": "# Soul\nLegacy persona text",
             "channels": {"telegram": {"enabled": True, "token": "tok"}},
             "llm_selection": {"profile_id": "p", "model_id": "m"},
@@ -144,7 +144,7 @@ class TestLegacyTutorBotMigration:
         assert cfg.name == "Old Bot"
         assert cfg.channels["telegram"]["token"] == "tok"
         assert cfg.llm_selection == {"profile_id": "p", "model_id": "m"}
-        assert cfg.soul_origin == {"type": "tutorbot", "id": "old-bot"}
+        assert cfg.soul_origin == {"type": "legacy_partner", "id": "old-bot"}
         assert read_soul("old-bot") == "# Soul\nLegacy persona text"
         assert mgr._load_auto_start("old-bot", default=False) is True
 
@@ -171,27 +171,27 @@ class TestLegacyTutorBotMigration:
 class TestSoulLibraryRefresh:
     """Untouched old-seed library entries upgrade in place; user souls survive."""
 
-    _TUTORBOT_ENTRY = {
-        "id": "default-tutorbot",
-        "name": "Default TutorBot",
-        "content": "# Soul\n\nI am TutorBot, a personal learning companion.\n\n"
+    _LEGACY_PARTNER_ENTRY = {
+        "id": "default-legacy_partner",
+        "name": "Default Legacy Partner",
+        "content": "# Soul\n\nI am Legacy Partner, a personal learning companion.\n\n"
         "## Personality\n\n- Helpful and friendly\n- Clear, encouraging, and patient\n"
         "- Adapts explanations to the user's level\n\n"
         "## Values\n\n- Accuracy over speed\n- User privacy and safety\n- Transparency in actions",
     }
 
-    def test_tutorbot_era_library_is_upgraded(self, partners_root):
+    def test_legacy_partner_era_library_is_upgraded(self, partners_root):
         mgr = _mgr()
-        mgr._save_souls([dict(self._TUTORBOT_ENTRY)])
+        mgr._save_souls([dict(self._LEGACY_PARTNER_ENTRY)])
         souls = mgr.list_souls()
         assert [s["id"] for s in souls] == ["companion"]
-        assert "tutorbot" not in yaml.dump(souls).lower()
+        assert "legacy_partner" not in yaml.dump(souls).lower()
 
     def test_user_souls_pass_through_verbatim(self, partners_root):
         mgr = _mgr()
-        mine = {"id": "my-bot", "name": "Mine", "content": "I miss TutorBot"}
+        mine = {"id": "my-bot", "name": "Mine", "content": "I miss Legacy Partner"}
         edited_seed = {"id": "math-tutor", "name": "Math Tutor", "content": "# My own text"}
-        mgr._save_souls([dict(self._TUTORBOT_ENTRY), mine, edited_seed])
+        mgr._save_souls([dict(self._LEGACY_PARTNER_ENTRY), mine, edited_seed])
         souls = mgr.list_souls()
         assert souls == [
             {"id": "companion", "name": "Learning Companion", "content": souls[0]["content"]},
@@ -201,6 +201,6 @@ class TestSoulLibraryRefresh:
 
     def test_refresh_is_idempotent(self, partners_root):
         mgr = _mgr()
-        mgr._save_souls([dict(self._TUTORBOT_ENTRY)])
+        mgr._save_souls([dict(self._LEGACY_PARTNER_ENTRY)])
         first = mgr.list_souls()
         assert mgr.list_souls() == first
