@@ -45,6 +45,7 @@ export default function LearnerModelApp() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState("");
+  const [reflectionError, setReflectionError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,7 +61,12 @@ export default function LearnerModelApp() {
       setError(overviewResult.reason instanceof Error ? overviewResult.reason.message : "学习模型暂时无法读取，请稍后刷新。");
     }
     if (evidenceResult.status === "fulfilled") setEvidence(evidenceResult.value.evidence);
-    if (reflectionResult.status === "fulfilled") setReflections(reflectionResult.value.reflections);
+    if (reflectionResult.status === "fulfilled") {
+      setReflections(reflectionResult.value.reflections);
+      setReflectionError("");
+    } else {
+      setReflectionError(reflectionResult.reason instanceof Error ? reflectionResult.reason.message : "学习反思暂时无法读取。");
+    }
     setLoading(false);
   }, []);
 
@@ -108,6 +114,7 @@ export default function LearnerModelApp() {
           const latestReflections = await getLearnerReflections();
           setEvidence(latestEvidence.evidence);
           setReflections(latestReflections.reflections);
+          setReflectionError("");
           return;
         }
       }
@@ -168,6 +175,7 @@ export default function LearnerModelApp() {
               <span className="rounded-full bg-[var(--muted)] px-3 py-1 text-[var(--muted-foreground)]">候选 {reflections.filter((item) => item.status === "candidate").length}</span>
             </div>
           </div>
+          {reflectionError ? <div role="status" className="mt-4 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">学习反思暂不可用：{reflectionError}。其他学习模型信息仍可正常查看。</div> : null}
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
             {loading ? <LoadingRows /> : reflections.length ? reflections.slice(0, 6).map((reflection) => (
               <article key={reflection.reflection_id} className="rounded-lg border border-[var(--border)] bg-[var(--muted)]/20 p-4">

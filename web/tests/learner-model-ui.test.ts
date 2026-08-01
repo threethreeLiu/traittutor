@@ -22,3 +22,23 @@ test("learner model uses responsive reflow for mobile and desktop", () => {
   assert.match(source, /flex flex-col gap-2 sm:flex-row/);
   assert.match(source, /flex flex-col gap-5 sm:flex-row/);
 });
+
+test("learner model exposes governed reflection controls", () => {
+  assert.match(source, /REFLECTION GOVERNANCE/);
+  assert.match(source, /哪些记忆会影响下一次生成/);
+  assert.match(source, /已进入 Compass/);
+  assert.match(source, /候选 \{reflections\.filter/);
+  assert.match(source, /确认使用/);
+  assert.match(source, /拒绝/);
+});
+
+test("learner model keeps concept reflections read-only", () => {
+  assert.match(source, /reflection\.status === "candidate" && reflection\.category !== "concept"/);
+  assert.match(source, /updateLearnerReflectionStatus\(reflectionId, status\)/);
+});
+
+test("learner model shows non-blocking reflection loading errors", () => {
+  assert.match(source, /reflectionError/);
+  assert.match(source, /学习反思暂不可用/);
+  assert.match(source, /其他学习模型信息仍可正常查看/);
+});

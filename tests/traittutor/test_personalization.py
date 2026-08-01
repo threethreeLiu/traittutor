@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -84,6 +85,71 @@ async def test_rejected_reflection_becomes_generation_constraint(learner_service
     assert reflection.status == "rejected"
     context = service.build_context(purpose="courseware")
     assert "用很长的故事包装概念" in context.constraints
+    assert "用很长的故事包装概念" not in context.memory_snapshot.explicit_preferences
+
+
+@pytest.mark.asyncio
+async def test_reflection_decision_rebuilds_from_remaining_evidence(learner_service):
+    service, _ = learner_service
+    await service.apply_signal(LearningSignal(
+        signal_id="candidate-rebuild", kind="strategy_feedback",
+        payload={"value": "先用对比例子", "category": "explanation"},
+        evidence_refs=["chat:turn-4"], source="system",
+        occurred_at="2026-07-29T00:00:00+00:00",
+    ))
+    await service.decide_reflection("candidate-rebuild", "confirmed")
+    assert next(item for item in service.reflections() if item.reflection_id == "candidate-rebuild").status == "confirmed"
+
+    decision_id = next(item.signal_id for item in service.evidence() if item.kind == "reflection_decision")
+    assert await service.delete_evidence(decision_id) is True
+
+    rebuilt = next(item for item in service.reflections() if item.reflection_id == "candidate-rebuild")
+    assert rebuilt.status == "candidate"
+    context = service.build_context(purpose="chat")
+    assert "先用对比例子" not in context.memory_snapshot.explicit_preferences
+
+
+@pytest.mark.asyncio
+async def test_expired_candidate_reflection_is_stale_and_not_in_compass(learner_service):
+    service, _ = learner_service
+    await service.apply_signal(LearningSignal(
+        signal_id="expired-candidate", kind="strategy_feedback",
+        payload={"value": "每段都加口诀", "category": "explanation"},
+        evidence_refs=["chat:turn-5"], source="system",
+        occurred_at="2026-07-29T00:00:00+00:00",
+    ))
+    profile = service.global_profile()
+    expired = profile.preferences[0].model_copy(update={
+        "expires_at": (datetime.now(UTC) - timedelta(days=1)).isoformat(),
+    })
+    service._write_profile(service._global_path(), profile.model_copy(update={"preferences": [expired]}))
+
+    reflection = next(item for item in service.reflections() if item.reflection_id == "expired-candidate")
+    assert reflection.status == "stale"
+    assert reflection.applies_to_compass is False
+    context = service.build_context(purpose="chat")
+    assert "每段都加口诀" not in context.memory_snapshot.explicit_preferences
+
+
+@pytest.mark.asyncio
+async def test_subject_scoped_reflection_decision_does_not_pollute_global_profile(learner_service):
+    service, _ = learner_service
+    subject = _subject()
+    await service.apply_signal(LearningSignal(
+        signal_id="subject-candidate", kind="strategy_feedback", subject_refs=[subject],
+        payload={"value": "函数题先画图", "category": "explanation"},
+        evidence_refs=["quiz:feedback"], source="system",
+        occurred_at="2026-07-29T00:00:00+00:00",
+    ))
+    await service.decide_reflection("subject-candidate", "confirmed")
+
+    assert service.global_profile().preferences == []
+    subject_profile = service.subject_profile(subject.subject_id)
+    assert subject_profile.preferences[0].state == "explicit"
+    context = service.build_context(purpose="quiz", subject=subject)
+    assert "函数题先画图" in context.memory_snapshot.explicit_preferences or any(
+        "函数题先画图" in item.text for item in context.plan.rationale
+    )
 
 
 def test_subject_path_rejects_path_traversal(learner_service):
