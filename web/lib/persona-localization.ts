@@ -5,17 +5,17 @@ type PersonaSource = PersonaPresentation &
   Partial<Pick<PersonaInfo, "source" | "read_only">>;
 
 const ZH_PRESETS: Record<string, PersonaPresentation> = {
-  peer: {
-    name: "学习伙伴",
-    description: "和你一起思考、提出问题并探索不同角度的学习伙伴。",
+  "learning-companion": {
+    name: "学习共振",
+    description: "围绕你的目标、材料和学习画像一起推进对话与下一步。",
   },
-  teacher: {
-    name: "苏格拉底导师",
-    description: "通过提问和分步引导，帮助你建立理解的耐心导师。",
+  "evidence-researcher": {
+    name: "证据研究员",
+    description: "区分材料证据、推断与不确定性，沉淀可复用研究上下文。",
   },
-  "research-assistant": {
-    name: "研究助手",
-    description: "专注引用、方法与批判性分析的严谨研究助手。",
+  "lesson-designer": {
+    name: "讲解设计师",
+    description: "按材料分析、SLR 支持和薄弱概念设计课件、闪卡、测验与讲解。",
   },
 };
 

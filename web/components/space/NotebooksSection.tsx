@@ -6,14 +6,12 @@ import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import {
   ArrowRight,
-  Bot,
   ChevronDown,
   ChevronRight,
   ExternalLink,
   Loader2,
   MessageSquare,
   NotebookPen,
-  Pencil,
   Plus,
   Search,
   Trash2,
@@ -180,33 +178,12 @@ export default function NotebooksSection() {
           color: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
           icon: MessageSquare,
         };
-      case "tutorbot": {
-        // Partner conversations carry the partner's name in metadata so the
-        // badge reads as that partner's own category, not a generic "Chat".
-        const partnerName =
-          typeof record.metadata?.partner_name === "string"
-            ? record.metadata.partner_name.trim()
-            : "";
-        return {
-          label: partnerName || t("Partner"),
-          color:
-            "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
-          icon: Bot,
-        };
-      }
       case "research":
         return {
           label: t("Research"),
           color:
             "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
           icon: Search,
-        };
-      case "co_writer":
-        return {
-          label: t("Co-Writer"),
-          color:
-            "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-          icon: Pencil,
         };
       default:
         return {
@@ -232,7 +209,7 @@ export default function NotebooksSection() {
         icon={NotebookPen}
         title={t("Notebooks")}
         description={t(
-          "Save and organize outputs from chat, research, and Co-Writer sessions into a personal library.",
+          "Save and organize outputs from chat, research, courseware, flashcards, and quizzes into a personal library.",
         )}
         meta={
           <span className="rounded-full border border-[var(--border)] bg-[var(--card)] px-2 py-0.5 text-[10.5px] font-medium text-[var(--muted-foreground)]">

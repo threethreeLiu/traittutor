@@ -1,4 +1,4 @@
-"""Web Search Service with TutorBot-style provider selection."""
+"""Web Search Service with partner-style provider selection."""
 
 from __future__ import annotations
 

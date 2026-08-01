@@ -1,111 +1,110 @@
 # TraitTutor
 
-TraitTutor is a learner-centered study workspace. It turns a learner profile and source material into personalized courseware, flashcards, quizzes, and research support while keeping the reasoning evidence inspectable.
+<p align="center">
+  <strong>A learner-centered AI study workspace for source-grounded courseware, flashcards, quizzes, and explainable learner memory.</strong>
+</p>
 
-The current product scope is intentionally narrow:
+<p align="center">
+  <a href="README.zh-CN.md">中文</a>
+  ·
+  <a href="#features">Features</a>
+  ·
+  <a href="#quick-start">Quick start</a>
+  ·
+  <a href="#verification">Verification</a>
+  ·
+  <a href="#contributing">Contributing</a>
+</p>
 
-- Big Five profile assessment as a personalization signal, not diagnosis or ability scoring.
-- Material upload / paste analysis with subject, grade, language, difficulty, and source metadata.
-- Trait-aware generation for courseware, flashcards, and quizzes.
-- Learner model storage with evidence-backed memory, BKT-style concept progress, and a lightweight learning knowledge graph.
-- Chat, notebooks, knowledge bases, saved learning packs, personas, settings, and learning exploration.
-- Home composer learning modes: 解题, 生成 Quiz, 学习探索, 知识图解, 学习路径, 改写课件, 生成闪卡, and Humanizer.
+<p align="center">
+  <img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white">
+  <img alt="Next.js" src="https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white">
+  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-ready-009688?logo=fastapi&logoColor=white">
+  <img alt="License" src="https://img.shields.io/badge/License-Apache--2.0-blue">
+</p>
 
-## Core workflow
+TraitTutor helps learners turn real materials into usable study artifacts. Upload a PDF, document, deck, spreadsheet, image, or text; TraitTutor analyzes the source, identifies subject and grade context, generates learning artifacts, and keeps the evidence trail visible as the learner practices.
 
-1. Complete the learner profile.
-2. Upload or paste learning material.
-3. TraitTutor analyzes the material and preserves file metadata.
-4. Generate one of the learning artifacts:
-   - courseware
-   - flashcards
-   - quiz
-5. Save the artifact into the learning workspace.
-6. Review, answer, or discuss it in chat.
-7. Verified learning events update the learner model; raw uploads only update the knowledge graph, not mastery.
+The product is intentionally narrow: profile signals personalize support, but they are never used as diagnosis, ability labels, or learning-style claims.
 
-## Generation pipeline
+## Features
 
-The generation stack lives under `traittutor/generate/`.
+- **Source-grounded material analysis**: subject, grade band, difficulty, language, concept candidates, page evidence, and augmentation decisions are stored as a reusable material snapshot.
+- **One material, many artifacts**: courseware, flashcards, and quizzes can share the same Learning Pack instead of requiring repeated uploads.
+- **Learning-event feedback loop**: quiz answers and flashcard reviews write auditable learner events that update BKT-style concept progress.
+- **Explainable learner model**: Reflection / Compass memory governance separates explicit preferences, inferred support needs, concept progress, evidence, and deletion/rebuild behavior.
+- **Chat-native study workflows**: chat, Deep Research, guided solving, learning exploration, knowledge diagrams, and follow-up questions over generated artifacts.
+- **Trait-aware generation boundary**: profile cues adapt wording and support actions without turning personality scores into labels or judgments.
+- **Gateway-based model calls**: generation and chat use the configured model gateway for routing, retry, fallback, and auditability.
 
-Key pieces:
+## How it works
 
-- `material_analysis.py` identifies source characteristics and queues graph extraction.
-- `material_abstraction.py` reuses the existing material analysis to build subject-aware generation targets.
-- `service.py` orchestrates profile strategy, material grounding, generation, validation, persistence, and artifact routing.
-- `tasks.py` provides durable asynchronous generation tasks with resume, retry, and cancellation.
-- `visuals.py` contains the generation-side image/visual asset seam.
-- `assessment/slr_action_catalog.json` stores editable SLR/action support rules outside code.
-
-## Learner model
-
-The learner model lives under `traittutor/personalization/`.
-
-It separates:
-
-- learner profile and explicit preferences;
-- material-derived knowledge graph concepts;
-- verified learning events from quiz answers, flashcard reviews, and courseware outcomes;
-- BKT-style concept progress;
-- visible rationales used in later generation.
-
-Chat history can contribute curated, auditable memory signals. It is not copied wholesale into BKT. New files can update the knowledge graph after material analysis, but mastery changes only after learning events.
-
-## Home learning modes
-
-The home composer keeps the broad learning entry points the product needs:
-
-- 解题: step-by-step problem solving inside chat.
-- 生成 Quiz: quiz generation from source material.
-- 学习探索: source-grounded exploration and research.
-- 知识图解: diagram-oriented explanation and concept mapping.
-- 学习路径: practice, feedback, and review planning.
-- 改写课件 and 生成闪卡: structured learning artifact generation.
-- Humanizer: natural rewriting while preserving meaning.
-
-These are TraitTutor product modes, not inherited capability identities. Courseware, flashcards, and quizzes remain backed by the structured generation flow.
-
-## Local development
-
-Install dependencies:
-
-```bash
-pip install -e ".[dev]"
-cd web
-npm install
+```text
+Upload / paste material
+        ↓
+MaterialAnalysisSnapshot
+        ↓
+LearningPack
+        ↓
+PersonalizationContext + SLR action support
+        ↓
+Courseware / Flashcards / Quiz / Chat modes
+        ↓
+LearnerEvent
+        ↓
+BKT-style concept progress + knowledge graph + learner model
 ```
 
-Run the backend:
+Courseware completion is treated as participation evidence. Durable mastery changes come from explainable learning events such as quiz answers, flashcard reviews, and mastery attempts.
+
+## Quick start
+
+### Requirements
+
+- Python 3.11, 3.12, or 3.13
+- Node.js 20+
+- npm
+
+### Backend
 
 ```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+
 traittutor serve
 ```
 
-Run the web app:
+### Frontend
 
 ```bash
 cd web
+npm install
 npm run dev
 ```
 
-Or launch both through the local runtime:
+The app reads local runtime settings from ignored files such as `web/.env.local` and `config/models.local.yaml`. Use the example files as templates and never commit real model keys.
+
+## Configuration
+
+Model configuration is intentionally local-first:
+
+- copy `config/models.local.example.yaml` to `config/models.local.yaml`;
+- configure your provider profiles and active model;
+- keep real keys out of Git;
+- route new generation paths through the existing gateway instead of calling providers directly.
+
+## Verification
+
+Focused backend checks:
 
 ```bash
-traittutor start
-```
-
-## Useful checks
-
-Backend generation and learner-model checks:
-
-```bash
-.venv/bin/pytest \
-  tests/traittutor/test_material_resolver.py \
-  tests/traittutor/test_material_abstraction.py \
+.venv/bin/python -m pytest \
+  tests/traittutor/test_business_learning_loop.py \
+  tests/traittutor/test_learning_pack_events.py \
   tests/traittutor/test_generate_suite.py \
   tests/traittutor/test_personalization.py \
-  tests/traittutor/test_learning_knowledge_graph.py \
-  tests/traittutor/test_graph_repository.py \
+  tests/api/test_personalization_router.py \
   tests/services/test_evolution_core.py -q
 ```
 
@@ -114,8 +113,44 @@ Frontend checks:
 ```bash
 cd web
 npm run test:node
+npm run lint
+npm run build
 ```
 
-## Product boundary
+`npm run build` may need network access if Next.js fetches remote fonts during the production build.
 
-TraitTutor does not treat personality scores as a diagnosis, learning-style label, or objective ability measure. They are only used as adjustable personalization cues.
+## Repository layout
+
+```text
+traittutor/                 FastAPI backend, generation, gateway, learner model
+traittutor_cli/             Local CLI entry points
+web/                        Next.js app
+tests/                      Backend and business-loop regression tests
+web/tests/                  Frontend node-based regression tests
+config/                     Example runtime configuration
+scripts/                    Local operational helpers
+docs/source-projects/       Historical source-project notes
+```
+
+## Product safety boundary
+
+TraitTutor uses profile and memory signals as adjustable teaching context only. It does not:
+
+- diagnose personality, cognition, or ability;
+- claim objective learning gains from profile data;
+- treat browsing, saving, or courseware viewing as verified mastery;
+- expose hidden prompts or private reasoning in user-facing explanations.
+
+Why Drawer explanations should show the current goal, source evidence, weak concepts, explicit preferences, teaching actions, and degradation state—not private chain-of-thought, raw prompts, or personality judgments.
+
+## Contributing
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Keep changes inside the TraitTutor learning-product boundary, add tests for behavior changes, and preserve bilingual user-facing copy where applicable.
+
+## Security
+
+Please do not open public issues containing credentials, private URLs, model keys, or user materials. See [SECURITY.md](SECURITY.md).
+
+## License
+
+TraitTutor is licensed under the [Apache License 2.0](LICENSE).

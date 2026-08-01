@@ -628,7 +628,7 @@ def resolve_llm_runtime_config(
     service: ModelCatalogService | None = None,
     llm_selection: dict[str, Any] | LLMSelection | None = None,
 ) -> ResolvedLLMConfig:
-    """Resolve active LLM config with TutorBot-style provider matching."""
+    """Resolve active LLM config with partner-style provider matching."""
     catalog_service = service or get_model_catalog_service()
     loaded = _load_catalog(catalog)
     loaded = apply_llm_selection_to_catalog(loaded, llm_selection)
@@ -1077,7 +1077,7 @@ def resolve_search_runtime_config(
     *,
     service: ModelCatalogService | None = None,
 ) -> ResolvedSearchConfig:
-    """Resolve active web-search config with TutorBot-style fallback behavior."""
+    """Resolve active web-search config with partner-style fallback behavior."""
     catalog_service = service or get_model_catalog_service()
     loaded = _load_catalog(catalog)
     profile = catalog_service.get_active_profile(loaded, "search") or {}

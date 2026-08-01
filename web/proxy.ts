@@ -36,19 +36,6 @@ function redirectToLogin(
 export function proxy(req: NextRequest): NextResponse {
   const { pathname, search } = req.nextUrl;
 
-  // Retired workbench surfaces are deliberately unavailable in the consumer
-  // product. Redirect rather than rendering a partially functional legacy UI.
-  if (
-    ["/agents", "/partners", "/book", "/knowledge", "/co-writer", "/playground", "/notebook"].some(
-      (path) => pathname === path || pathname.startsWith(`${path}/`),
-    )
-  ) {
-    const home = req.nextUrl.clone();
-    home.pathname = "/home";
-    home.search = "";
-    return NextResponse.redirect(home);
-  }
-
   // 1. Bridge the origin gap: forward backend-relative paths to the API server.
   //    This keeps the URL knowledge in one place (the entrypoint + system.json)
   //    rather than baked into the frontend bundle.

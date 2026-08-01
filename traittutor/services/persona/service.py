@@ -4,7 +4,7 @@ PersonaService
 
 Loads user-authored PERSONA.md files from ``data/user/workspace/personas/``.
 
-A persona is a behaviour/voice preset ("teacher", "peer", …) the user picks
+A persona is a behaviour/voice preset ("learning-companion", …) the user picks
 for a conversation. Unlike capability skills (see
 :mod:`traittutor.services.skill`), a persona must shape the model's voice from
 the very first token, so the selected persona's body is injected verbatim
@@ -20,8 +20,9 @@ The file starts with a YAML frontmatter block holding ``name`` and
 block when the persona is active.
 
 Legacy migration: persona-type entries that historically lived in the skills
-workspace (``peer`` / ``teacher`` / ``research-assistant``) are moved into the
-personas root on first service access for a workspace.
+workspace are moved into the personas root on first service access for a
+workspace. Admin-seeded old built-in personas are retired during setup so the
+public preset list reflects TraitTutor's current product design.
 """
 
 from __future__ import annotations
@@ -50,6 +51,11 @@ PRESETS_DIR = Path(__file__).resolve().parent / "presets"
 # these well-known names are migrated automatically — arbitrary user skills
 # cannot be classified safely and stay where they are.
 LEGACY_PERSONA_SKILLS: tuple[str, ...] = ("peer", "teacher", "research-assistant")
+
+# Old admin-seeded personas from the inherited generic tutor preset set. These
+# are removed only by explicit admin setup refresh; user workspaces are left
+# alone unless the user deletes their own personas.
+LEGACY_BUNDLED_PERSONAS: tuple[str, ...] = LEGACY_PERSONA_SKILLS
 
 
 @dataclass(slots=True)
@@ -267,7 +273,7 @@ class PersonaService:
 
         Idempotent and non-destructive: a persona that already exists (a user
         edit or a prior seed) is never overwritten. Seeding the admin workspace
-        makes ``peer`` / ``teacher`` / ``research-assistant`` appear as
+        makes TraitTutor's current built-in learning personas appear as
         read-only presets on fresh installs (issue #659). Returns seeded names.
         """
         if not PRESETS_DIR.is_dir():
@@ -292,6 +298,25 @@ class PersonaService:
             self._persona_file(name).write_text(text, encoding="utf-8")
             seeded.append(name)
         return seeded
+
+    def retire_legacy_bundled_personas(self) -> list[str]:
+        """Remove old generic built-in personas from the current root.
+
+        This is intended for the admin preset workspace during startup. It keeps
+        the open-source/public product surface aligned with TraitTutor's own
+        design while avoiding any broad deletion outside the known old slugs.
+        """
+        retired: list[str] = []
+        for name in LEGACY_BUNDLED_PERSONAS:
+            target = self._persona_dir(name)
+            if not target.exists():
+                continue
+            try:
+                shutil.rmtree(target)
+            except OSError:
+                continue
+            retired.append(name)
+        return retired
 
     # ── legacy migration ────────────────────────────────────────────────
 
@@ -354,6 +379,7 @@ def get_persona_service() -> PersonaService:
 
 __all__ = [
     "InvalidPersonaNameError",
+    "LEGACY_BUNDLED_PERSONAS",
     "LEGACY_PERSONA_SKILLS",
     "PERSONA_FILE",
     "PersonaDetail",

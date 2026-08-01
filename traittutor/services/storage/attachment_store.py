@@ -52,7 +52,7 @@ def _coerce_filename(filename: str) -> str:
 
     * Strips any directory components (defends against ``../`` traversal).
     * Replaces filesystem-unsafe characters via the existing ``safe_filename``
-      helper (already used by the matrix tutorbot uploads).
+      helper (already used by the matrix legacy_partner uploads).
     * Falls back to ``"file"`` if the result is empty.
     """
     base = os.path.basename(filename or "")

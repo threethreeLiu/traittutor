@@ -64,9 +64,9 @@ services:
 
     volumes:
       # Everything TraitTutor persists lives under ./data — one tree to mount
-      # and back up: admin workspace + runtime settings (data/user), per-user
-      # workspaces (data/users), partners (data/partners), accounts/grants/
-      # audit (data/system), knowledge bases, memory.
+      # and back up: runtime settings (data/user), per-user workspaces
+      # (data/users), accounts/grants/audit (data/system), knowledge bases,
+      # memory, and generated learning artifacts.
       # The sandbox-runner deliberately gets only the *workspace* subtrees of
       # this volume (the mount contract below) — never data/system or
       # data/user/settings, which hold auth state and provider API keys.

@@ -148,7 +148,7 @@ class PartnerConfig:
     # Fallback model: when a turn fails outright on the primary selection
     # (LLM error, no output), the runner re-runs the turn once with this.
     backup_llm_selection: dict[str, str] | None = None
-    model: str | None = None  # legacy TutorBot model-string override
+    model: str | None = None  # legacy partner model-string override
     language: str = ""
     emoji: str = ""
     color: str = ""
@@ -244,7 +244,7 @@ class PartnerInstance:
         include_secrets: bool = False,
         mask_secrets: bool = False,
     ) -> dict[str, Any]:
-        """Serialise to a JSON-friendly dict (channel shapes as in TutorBot:
+        """Serialise to a JSON-friendly dict (channel shapes as in the legacy partner runtime:
         names-only by default, masked dict for detail views, raw only for the
         explicitly-opt-in edit form)."""
         source_channels = strip_legacy_global_delivery(self.config.channels)
@@ -362,7 +362,7 @@ class PartnerManager:
         """Persist atomically (write-temp + replace).
 
         ``auto_start`` is the persisted intent to launch on backend boot,
-        managed separately from config fields (same contract as TutorBot —
+        managed separately from config fields (same contract as the legacy partner runtime —
         ``None`` preserves the on-disk value; a brand-new partner defaults to
         ``True``)."""
         partner_dir = self._partner_dir(partner_id)
@@ -654,7 +654,7 @@ class PartnerManager:
     # ── Listing & discovery ───────────────────────────────────────
 
     def _discover_partner_ids(self) -> set[str]:
-        self._migrate_legacy_tutorbot()
+        self._migrate_legacy_partner_runtime()
         ids: set[str] = set()
         if not self._partners_dir.exists():
             return ids
@@ -927,10 +927,10 @@ class PartnerManager:
         logger.info("Partner '%s' destroyed (data deleted)", partner_id)
         return True
 
-    # ── Legacy TutorBot migration ─────────────────────────────────
+    # ── Legacy partner migration ─────────────────────────────────
 
-    def _migrate_legacy_tutorbot(self) -> None:
-        """One-shot migration of ``data/tutorbot/`` bots into partners.
+    def _migrate_legacy_partner_runtime(self) -> None:
+        """One-shot migration of ``data/legacy_partner/`` bots into partners.
 
         Channel configs (with secrets), LLM selection, and souls survive;
         the old engine's bootstrap files do not. ``persona`` becomes the
@@ -940,7 +940,7 @@ class PartnerManager:
             return
         self._migrated_legacy = True
 
-        legacy_root = self._partners_dir.parent / "tutorbot"
+        legacy_root = self._partners_dir.parent / "legacy_partner"
         if not legacy_root.is_dir():
             return
 
@@ -951,7 +951,7 @@ class PartnerManager:
                 self._partners_dir.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(legacy_souls, new_souls)
             except OSError:
-                logger.exception("Failed to migrate TutorBot souls library")
+                logger.exception("Failed to migrate Legacy Partner souls library")
 
         for entry in legacy_root.iterdir():
             if not entry.is_dir() or entry.name in _RESERVED_NAMES | {"bots"}:
@@ -970,7 +970,7 @@ class PartnerManager:
                     channels=data.get("channels", {}) or {},
                     llm_selection=data.get("llm_selection"),
                     model=data.get("model"),
-                    soul_origin={"type": "tutorbot", "id": partner_id},
+                    soul_origin={"type": "legacy_partner", "id": partner_id},
                 )
                 self._ensure_partner_dirs(partner_id)
                 persona = str(data.get("persona", "") or "").strip()
@@ -984,9 +984,9 @@ class PartnerManager:
                         target = dst / jsonl.name
                         if not target.exists():
                             shutil.copy2(jsonl, target)
-                logger.info("Migrated TutorBot '%s' to partner", partner_id)
+                logger.info("Migrated Legacy Partner '%s' to partner", partner_id)
             except Exception:
-                logger.exception("Failed to migrate TutorBot '%s'", partner_id)
+                logger.exception("Failed to migrate Legacy Partner '%s'", partner_id)
 
     # ── Soul template library ─────────────────────────────────────
 
@@ -1197,20 +1197,20 @@ the classroom.
     },
 )
 
-# Verbatim texts of retired seeds (including the TutorBot-era variants).
+# Verbatim texts of retired seeds (including the legacy partner variants).
 # A library entry that still matches one of these — or that sits on a seed
-# id and still mentions TutorBot — is an untouched old seed: safe to swap
+# id and still mentions the legacy partner — is an untouched old seed: safe to swap
 # for the current template without losing any user writing.
-_TUTORBOT_SEED = (
-    "# Soul\n\nI am TutorBot, a personal learning companion.\n\n"
+_LEGACY_PARTNER_SEED = (
+    "# Soul\n\nI am Legacy Partner, a personal learning companion.\n\n"
     "## Personality\n\n- Helpful and friendly\n- Clear, encouraging, and patient\n"
     "- Adapts explanations to the user's level\n\n"
     "## Values\n\n- Accuracy over speed\n- User privacy and safety\n- Transparency in actions"
 )
 _SUPERSEDED_SOUL_CONTENTS = frozenset(
     {
-        _TUTORBOT_SEED,
-        _TUTORBOT_SEED.replace("I am TutorBot,", "I am"),
+        _LEGACY_PARTNER_SEED,
+        _LEGACY_PARTNER_SEED.replace("I am Legacy Partner,", "I am"),
         (
             "# Soul\n\nI am a math tutor specializing in clear, step-by-step problem solving.\n\n"
             "## Personality\n\n- Patient and methodical\n- Encourages showing work\n"
@@ -1241,14 +1241,14 @@ _SUPERSEDED_SOUL_CONTENTS = frozenset(
         ),
     }
 )
-# TutorBot-era libraries shipped the default under these ids.
-_LEGACY_SOUL_ID_ALIASES = {"default-tutorbot": "companion", "default": "companion"}
+# Legacy Partner-era libraries shipped the default under these ids.
+_LEGACY_SOUL_ID_ALIASES = {"default-legacy_partner": "companion", "default": "companion"}
 
 
 def _is_stale_seed(entry: dict[str, str]) -> bool:
     content = str(entry.get("content") or "")
     return content.strip() in {c.strip() for c in _SUPERSEDED_SOUL_CONTENTS} or (
-        "tutorbot" in content.lower()
+        "legacy_partner" in content.lower()
     )
 
 
@@ -1257,7 +1257,7 @@ def _refresh_stale_default_souls(
 ) -> list[dict[str, str]] | None:
     """Upgrade untouched old-seed entries in place; ``None`` if nothing changed.
 
-    Only entries on known seed ids (or their TutorBot-era aliases) are
+    Only entries on known seed ids (or their Legacy Partner-era aliases) are
     touched, and only when their content is provably an old seed — user-
     authored and user-edited souls pass through verbatim.
     """

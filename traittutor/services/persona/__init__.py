@@ -1,6 +1,7 @@
 """Persona service — behaviour/voice presets for chat (see service.py)."""
 
 from .service import (
+    LEGACY_BUNDLED_PERSONAS,
     LEGACY_PERSONA_SKILLS,
     PERSONA_FILE,
     InvalidPersonaNameError,
@@ -14,6 +15,7 @@ from .service import (
 
 __all__ = [
     "InvalidPersonaNameError",
+    "LEGACY_BUNDLED_PERSONAS",
     "LEGACY_PERSONA_SKILLS",
     "PERSONA_FILE",
     "PersonaDetail",

@@ -179,16 +179,20 @@ def _seed_default_personas() -> None:
     """Seed the bundled persona presets into the admin workspace on first run.
 
     Fresh installs otherwise show an empty Persona list even though the docs
-    advertise peer / teacher / research-assistant presets (issue #659). Seeding
-    the admin workspace surfaces them as read-only presets for every user.
-    Best-effort — never blocks startup.
+    advertise built-in TraitTutor learning personas. Seeding the admin workspace
+    surfaces them as read-only presets for every user. Best-effort — never
+    blocks startup.
     """
     try:
         from traittutor.multi_user.paths import get_admin_path_service
         from traittutor.services.persona.service import PersonaService
 
         admin_personas = get_admin_path_service().get_workspace_dir() / "personas"
-        seeded = PersonaService(root=admin_personas).seed_presets()
+        service = PersonaService(root=admin_personas)
+        retired = service.retire_legacy_bundled_personas()
+        seeded = service.seed_presets()
+        if retired:
+            _get_setup_logger().info(f"Retired legacy personas: {', '.join(retired)}")
         if seeded:
             _get_setup_logger().info(f"Seeded default personas: {', '.join(seeded)}")
     except Exception as e:

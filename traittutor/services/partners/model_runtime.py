@@ -19,7 +19,7 @@ def resolve_partner_llm_config(partner_config: Any) -> LLMConfig:
     """Resolve the effective LLM config for a partner config object.
 
     Configs store ``llm_selection`` as a stable catalog reference. Configs
-    migrated from TutorBot may still carry a raw ``model`` string, which is
+    migrated from legacy partner may still carry a raw ``model`` string, which is
     applied as a model-only override on top of the system default provider.
     """
     selection = normalize_partner_llm_selection(getattr(partner_config, "llm_selection", None))

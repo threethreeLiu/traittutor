@@ -1,6 +1,6 @@
 """Partner agent runtime — drives the chat agent loop from IM messages.
 
-This replaces the deleted TutorBot engine. A partner has NO engine of its
+This replaces the deleted legacy partner engine. A partner has NO engine of its
 own: every inbound message becomes one chat turn executed by
 ``ChatOrchestrator`` → ``AgenticChatPipeline`` (the exact loop the product
 chat uses), run inside the partner's synthetic user scope so rag / skills /

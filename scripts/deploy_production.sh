@@ -8,7 +8,7 @@ set -euo pipefail
 #   The systemd service runs from `web/.next/standalone`, so every release must
 #   copy those assets into the standalone tree before switching `current`.
 
-SERVER="${TRAITTUTOR_DEPLOY_SERVER:-ubuntu@106.54.196.207}"
+SERVER="${TRAITTUTOR_DEPLOY_SERVER:?Set TRAITTUTOR_DEPLOY_SERVER, for example user@example.com}"
 BASE_DIR="${TRAITTUTOR_DEPLOY_BASE:-/var/www/traittutor}"
 BASE_PATH="${TRAITTUTOR_DEPLOY_BASE_PATH:-/traittutor-all-web}"
 API_PORT="${TRAITTUTOR_DEPLOY_API_PORT:-8002}"
