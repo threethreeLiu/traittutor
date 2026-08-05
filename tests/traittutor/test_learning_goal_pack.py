@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from traittutor import learning_packs
 
 
@@ -79,3 +81,32 @@ def test_component_plan_events_are_idempotent_and_do_not_change_artifacts(tmp_pa
     assert updated["component_plans"][0]["status"] == "completed"
     assert len(updated["component_progress"]["plan-1"]["events"]) == 1
     assert updated["artifacts"] == {"courseware": [], "flashcards": [], "quiz": []}
+
+
+def test_component_events_require_active_plan_and_completed_dependencies(tmp_path, monkeypatch):
+    from traittutor.services import path_service
+
+    service = path_service.get_path_service()
+    monkeypatch.setattr(service, "get_workspace_dir", lambda: tmp_path / "workspace")
+    monkeypatch.setattr(learning_packs, "get_path_service", lambda: service)
+    pack = learning_packs.create_pack(title="Math", goal="Learn slope")
+    plan = {
+        "plan_id": "plan-guarded",
+        "status": "active",
+        "components": [
+            {"component_id": "first", "status": "pending", "required": True},
+            {"component_id": "second", "status": "pending", "required": True, "dependencies": ["first"]},
+        ],
+    }
+    learning_packs.create_component_plan(pack["pack_id"], plan)
+
+    with pytest.raises(learning_packs.InvalidComponentTransition, match="prerequisite"):
+        learning_packs.record_component_event(pack["pack_id"], "plan-guarded", "second", {"action": "complete"})
+
+    learning_packs.record_component_event(pack["pack_id"], "plan-guarded", "first", {"action": "complete"})
+    learning_packs.record_component_event(pack["pack_id"], "plan-guarded", "second", {"action": "complete"})
+    replacement = {"plan_id": "plan-2", "status": "active", "components": [{"component_id": "next", "status": "pending"}]}
+    learning_packs.create_component_plan(pack["pack_id"], replacement)
+
+    with pytest.raises(learning_packs.InvalidComponentTransition, match="active learning plan"):
+        learning_packs.record_component_event(pack["pack_id"], "plan-guarded", "first", {"action": "retry"})

@@ -394,7 +394,10 @@ async def record_learning_component_event(
     event["event_id"] = request.event_id or f"component-{uuid4().hex}"
     if effective_request is not request:
         event["observation"] = effective_request.observation
-    recorded = learning_packs.record_component_event(pack_id, plan_id, component_id, event)
+    try:
+        recorded = learning_packs.record_component_event(pack_id, plan_id, component_id, event)
+    except learning_packs.InvalidComponentTransition as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     if recorded is None:
         raise HTTPException(status_code=409, detail="Learning component event could not be saved")
     updated_pack, updated_component = recorded
