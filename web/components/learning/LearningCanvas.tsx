@@ -61,6 +61,20 @@ export default function LearningCanvas({ packId, locale }: { packId: string; loc
         if (!active) return;
         setPack(loaded);
         setPlan(current);
+        // Component output is durable through its generation id. Rehydrate it
+        // before rendering so a refresh never turns completed work into a new
+        // billable generation request.
+        const restored = await Promise.all(current.components.map(async (component) => {
+          if (!component.output_ref) return null;
+          try {
+            const output = await getTraitTutorGenerationTask(component.output_ref);
+            return "result" in output ? [component.component_id, output] as const : null;
+          } catch {
+            return null;
+          }
+        }));
+        if (!active) return;
+        setOutputs(Object.fromEntries(restored.filter((entry): entry is readonly [string, GenerateSuiteResult] => entry !== null)));
         setSelectedId(current.components.find((item) => !["completed", "skipped"].includes(item.status))?.component_id ?? current.components[0]?.component_id ?? null);
       } catch (reason) {
         if (active) setError(reason instanceof Error ? reason.message : String(reason));
