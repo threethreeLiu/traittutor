@@ -81,3 +81,11 @@ test("entering a learning canvas temporarily collapses the application sidebar",
   assert.match(canvas, /setSidebarCollapsed\(true\)/);
   assert.match(canvas, /if \(readStoredSidebarCollapsed\(\)\) setSidebarCollapsed\(wasCollapsed\)/);
 });
+
+test("completed component outputs are restored from durable generation ids", () => {
+  const canvas = read("components/learning/LearningCanvas.tsx");
+
+  assert.match(canvas, /component\.output_ref/);
+  assert.match(canvas, /getTraitTutorGenerationTask\(component\.output_ref\)/);
+  assert.match(canvas, /setOutputs\(Object\.fromEntries/);
+});
