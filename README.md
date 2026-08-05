@@ -9,6 +9,10 @@
   ·
   <a href="#features">Features</a>
   ·
+  <a href="#who-it-is-for">Use cases</a>
+  ·
+  <a href="#technical-design-and-innovation">Technical design</a>
+  ·
   <a href="#quick-start">Quick start</a>
   ·
   <a href="#verification">Verification</a>
@@ -26,6 +30,10 @@
 TraitTutor turns a goal, a question, or real learning material into a continuous adaptive study path. Learners can start without uploading anything, then add a PDF, document, deck, spreadsheet, image, or text when it helps. TraitTutor combines source evidence, BKT-style concept signals, subject support actions, and material affordances to plan the next learning component—and keeps both the rationale and learning evidence visible as practice unfolds.
 
 The product is intentionally narrow: profile signals personalize support, but they are never used as diagnosis, ability labels, or learning-style claims.
+
+## Who it is for
+
+TraitTutor is built for independent learners, tutors, and learning-product teams who need more than a one-off answer. It supports three equivalent starting points: a learning goal, a question, or source material. Typical uses include turning a textbook chapter into a practice path, preparing for an exam from a real PDF, and continuing a study plan after quiz or flashcard evidence reveals a weak concept.
 
 ## Features
 
@@ -62,6 +70,28 @@ Replan only the unstarted tail → next component
 Courseware, flashcards, and quizzes are execution surfaces and historical artifacts, not homepage modes. Courseware completion is treated as participation evidence. Durable mastery changes come from explainable learning events such as quiz answers, flashcard reviews, and mastery attempts.
 
 The learning canvas is the product destination; chat remains the entry point for goals, questions, source follow-up, and second questions over saved artifacts. TraitTutor-owned UI states are bilingual, while learner-authored text and source material keep their original language.
+
+## Technical design and innovation
+
+```text
+Next.js learning workspace
+        ↓ goal / question / source
+FastAPI product API → material analysis → Learning Pack + component plan
+        ↓                                  ↓
+configured model gateway              durable learning events
+        ↓                                  ↓
+courseware / flashcards / quiz       BKT-style concept evidence + learner model
+```
+
+The core design choice is to keep the learning sequence deterministic and explainable even when a model generates content. Material evidence, concept signals, subject support actions, and explicit learner preferences determine the component plan; generated artifacts execute that plan. Graded quiz answers and flashcard reviews become auditable learner events, so only the unstarted tail of a path is replanned rather than rewriting completed learning evidence. See [ADR-001](docs/decisions/ADR-001-goal-first-learning-component-canvas.md) for the decision record.
+
+## Open-source and dependency boundary
+
+TraitTutor's repository code is released under [Apache-2.0](LICENSE). Python dependencies are declared in `pyproject.toml`, frontend dependencies in `web/package.json`, and each dependency keeps its own license. The model gateway can use locally configured commercial or open model providers, but no provider keys, model weights, private user materials, or proprietary service outputs are included in this repository. Read the full [open-source, provider, data, and attribution boundary](docs/OPEN_SOURCE_BOUNDARIES.md).
+
+## Roadmap and delivery
+
+The current release focuses on a runnable goal-to-learning-path loop, source analysis, practice evidence, and explainable next steps. Next priorities are generation-evaluation gates, durable TTS assets, and browser smoke coverage for the full material-to-follow-up journey. The product scope, non-goals, acceptance criteria, and detailed roadmap are maintained in the [PRD](docs/PRD.md).
 
 ## Quick start
 
