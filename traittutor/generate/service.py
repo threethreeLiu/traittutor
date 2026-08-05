@@ -51,6 +51,7 @@ SUPPORTED_GENERATION_TYPES: tuple[GenerationType, ...] = (
     "flashcards",
     "quiz",
 )
+MAX_STRUCTURED_BATCHES_PER_GENERATION = 4
 
 PROMPT_ASSETS: dict[GenerationType, str] = {
     "courseware": "prompts/courseware/sg-full-note.md",
@@ -680,7 +681,7 @@ async def generate_traittutor_content_async(
         "component_id": str(learning_component.get("component_id") or ""),
     }
     image_task = (
-        asyncio.create_task(generate_learning_visual(visual_seed, generation_id=generation_id, max_attempts=2))
+        asyncio.create_task(generate_learning_visual(visual_seed, generation_id=generation_id, max_attempts=1))
         if visual_decision["should_generate"]
         else None
     )
@@ -741,6 +742,10 @@ async def generate_traittutor_content_async(
         else:
             is_flashcards = request.generation_type == "flashcards"
             plans = plan_flashcard_batches(grounding_chunks) if is_flashcards else _quiz_plans(grounding_chunks, request.options)
+            if len(plans) > MAX_STRUCTURED_BATCHES_PER_GENERATION:
+                raise ValueError(
+                    "This source needs too many generation batches. Split the material before generating."
+                )
             items: list[dict[str, Any]] = []
             trace: list[dict[str, Any]] = []
             prompt_path = "flashcards/km-card-note.md" if is_flashcards else "quiz/km-question-note.md"
