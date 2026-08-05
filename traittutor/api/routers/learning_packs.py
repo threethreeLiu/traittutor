@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from typing import Any, Literal
+from urllib.parse import unquote
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException
@@ -13,6 +14,7 @@ from starlette.responses import StreamingResponse
 
 from traittutor import learning_packs
 from traittutor.generate.tasks import get_generation_task_manager
+from traittutor.services.path_service import get_path_service
 from traittutor.learning_components import (
     LearningComponentPlan,
     build_learning_component_plan,
@@ -68,6 +70,34 @@ class ComponentInteractionRequest(BaseModel):
     feedback: str | None = Field(default=None, max_length=600)
     occurred_at: str | None = Field(default=None, max_length=80)
     replan: bool = True
+
+
+def _trusted_audio_media_url(
+    component: dict[str, Any], request: ComponentInteractionRequest
+) -> str | None:
+    """Accept only the audio file emitted by this user's generation workspace.
+
+    ``media_url`` is supplied by the browser after it receives the TTS response,
+    but it must never be persisted as an arbitrary external link.
+    """
+    if request.media_url is None:
+        return None
+    if component.get("executor") != "audio" or not request.output_ref:
+        raise HTTPException(status_code=422, detail="Audio media requires an audio generation output")
+    prefix = "/api/outputs/"
+    if not request.media_url.startswith(prefix):
+        raise HTTPException(status_code=422, detail="Audio media URL is not a TraitTutor output")
+    service = get_path_service()
+    root = service.get_public_outputs_root().resolve()
+    candidate = (root / unquote(request.media_url[len(prefix):])).resolve()
+    expected_dir = service.get_task_workspace("chat", f"traittutor-{request.output_ref}") / "media"
+    if (
+        candidate.parent != expected_dir.resolve()
+        or not candidate.name.startswith("learning-audio.")
+        or not service.is_public_output_path(candidate)
+    ):
+        raise HTTPException(status_code=422, detail="Audio media is not owned by this generation")
+    return request.media_url
 
 
 def _checked_quiz_indexes(values: Any) -> set[int] | None:
@@ -384,6 +414,7 @@ async def record_learning_component_event(
     component = next((item for item in plan.get("components", []) if item.get("component_id") == component_id), None)
     if component is None:
         raise HTTPException(status_code=404, detail="Learning component not found")
+    trusted_media_url = _trusted_audio_media_url(component, request)
     effective_request = request
     if component.get("component_type") in {"diagnostic_check", "guided_practice", "transfer_challenge"}:
         if request.observation is not None or request.action in {"feedback", "complete"}:
@@ -391,7 +422,9 @@ async def record_learning_component_event(
             if verified_observation is None:
                 raise HTTPException(status_code=422, detail="A verified assessment answer is required")
             effective_request = request.model_copy(update={"observation": verified_observation})
-    event = request.model_dump(exclude_none=True)
+    event = request.model_dump(exclude_none=True, exclude={"media_url"})
+    if trusted_media_url:
+        event["media_url"] = trusted_media_url
     event["event_id"] = request.event_id or f"component-{uuid4().hex}"
     if effective_request is not request:
         event["observation"] = effective_request.observation

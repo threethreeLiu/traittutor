@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import io
 import logging
-from pathlib import Path
 import re
 import wave
 
@@ -23,6 +22,7 @@ from traittutor.services.voice import (
     transcribe_audio,
 )
 from traittutor.services.path_service import get_path_service
+from traittutor.generate.tasks import get_generation_task_manager
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,10 @@ _PCM16_SAMPLE_WIDTH = 2
 class TTSRequest(BaseModel):
     """Text-to-speech request body."""
 
-    text: str = Field(..., min_length=1)
+    # The learning canvas intentionally sends at most 4,000 characters. Keep
+    # the public API at the same bound so a direct caller cannot create an
+    # unbounded provider bill.
+    text: str = Field(..., min_length=1, max_length=4000)
     voice: str | None = None
     format: str | None = None
     generation_id: str | None = Field(default=None, max_length=128)
@@ -82,6 +85,13 @@ def _pcm16_to_wav(audio: bytes, *, sample_rate: int, channels: int) -> bytes:
 @router.post("/tts")
 async def text_to_speech(payload: TTSRequest) -> Response:
     """Synthesize ``text`` to audio using the active TTS provider."""
+    generation_id = payload.generation_id
+    if generation_id and not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", generation_id):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid generation id")
+    if generation_id and get_generation_task_manager().get(generation_id) is None:
+        # Do this before calling the provider: generated media must belong to a
+        # generation task the current user is allowed to read.
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Generation task not found")
     try:
         audio, content_type = await synthesize_speech(
             payload.text,
@@ -99,12 +109,10 @@ async def text_to_speech(payload: TTSRequest) -> Response:
         audio = _pcm16_to_wav(audio, sample_rate=sample_rate, channels=channels)
         content_type = "audio/wav"
     headers = {"Cache-Control": "no-store"}
-    if payload.generation_id:
-        if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", payload.generation_id):
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid generation id")
+    if generation_id:
         suffix = {"audio/mpeg": "mp3", "audio/wav": "wav", "audio/ogg": "ogg"}.get(content_type.split(";", 1)[0], "bin")
         service = get_path_service()
-        path = service.get_task_workspace("chat", f"traittutor-{payload.generation_id}") / "media" / f"learning-audio.{suffix}"
+        path = service.get_task_workspace("chat", f"traittutor-{generation_id}") / "media" / f"learning-audio.{suffix}"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(audio)
         relative = path.resolve().relative_to(service.get_public_outputs_root().resolve()).as_posix()
