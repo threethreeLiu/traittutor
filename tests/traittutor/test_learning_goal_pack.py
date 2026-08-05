@@ -50,6 +50,16 @@ def test_goal_pack_can_add_material_without_replacing_goal(tmp_path, monkeypatch
     assert updated["sources"][-1]["title"] == "lesson.pdf"
 
 
+@pytest.mark.parametrize("payload", ['{}', '[{"pack_id": "valid"}, "invalid"]'])
+def test_learning_pack_store_rejects_invalid_root_without_hiding_data(tmp_path, monkeypatch, payload):
+    path = tmp_path / "learning-packs.json"
+    path.write_text(payload, encoding="utf-8")
+    monkeypatch.setattr(learning_packs, "_path", lambda: path)
+
+    with pytest.raises(learning_packs.LearningPackStoreError, match="invalid format"):
+        learning_packs.list_packs()
+
+
 def test_component_plan_events_are_idempotent_and_do_not_change_artifacts(tmp_path, monkeypatch):
     from traittutor.services import path_service
 
