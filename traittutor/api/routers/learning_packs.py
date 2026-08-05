@@ -64,6 +64,7 @@ class ComponentInteractionRequest(BaseModel):
     concept_id: str | None = Field(default=None, max_length=160)
     concept_label: str | None = Field(default=None, max_length=160)
     output_ref: str | None = Field(default=None, max_length=240)
+    media_url: str | None = Field(default=None, max_length=500)
     feedback: str | None = Field(default=None, max_length=600)
     occurred_at: str | None = Field(default=None, max_length=80)
     replan: bool = True

@@ -292,6 +292,8 @@ def record_component_event(
             events.append(payload)
             if payload.get("output_ref"):
                 component["output_ref"] = str(payload["output_ref"])
+            if payload.get("media_url"):
+                component["media_url"] = str(payload["media_url"])
             timestamp = _now()
             progress[component_id] = {
                 "status": component.get("status"),
