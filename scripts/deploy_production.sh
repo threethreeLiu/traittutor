@@ -234,6 +234,12 @@ echo "deploy ok: ${RELEASE_DIR}"
 REMOTE_DEPLOY
 
   echo "Deployment completed: ${release}"
+
+  # The cleanup trap needs the function-local archive path. Remove it before
+  # returning so that `set -u` does not evaluate an out-of-scope variable at
+  # the script's final EXIT trap.
+  trap - EXIT
+  rm -f "$archive"
 }
 
 status() {
