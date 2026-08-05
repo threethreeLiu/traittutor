@@ -68,7 +68,11 @@ export default function LearningCanvas({ packId, locale }: { packId: string; loc
           if (!component.output_ref) return null;
           try {
             const output = await getTraitTutorGenerationTask(component.output_ref);
-            return "result" in output ? [component.component_id, output] as const : null;
+            if (!("result" in output)) return null;
+            if (component.executor === "audio" && component.media_url) {
+              return [component.component_id, { audioUrl: component.media_url, transcript: outputText(output) }] as const;
+            }
+            return [component.component_id, output] as const;
           } catch {
             return null;
           }
@@ -151,10 +155,10 @@ export default function LearningCanvas({ packId, locale }: { packId: string; loc
         const transcript = outputText(result) || plan?.goal || pack.title;
         try {
           const response = await apiFetch(apiUrl("/api/v1/voice/tts"), {
-            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: transcript.slice(0, 4000) }),
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: transcript.slice(0, 4000), generation_id: result.generation_id }),
           });
           if (!response.ok) throw new Error("tts unavailable");
-          output = { audioUrl: URL.createObjectURL(await response.blob()), transcript };
+          output = { audioUrl: response.headers.get("X-TraitTutor-Audio-Url") || URL.createObjectURL(await response.blob()), transcript };
         } catch {
           mediaDegraded = true;
           output = result;
@@ -162,7 +166,7 @@ export default function LearningCanvas({ packId, locale }: { packId: string; loc
       }
       setOutputs((current) => ({ ...current, [component.component_id]: output }));
       if (component.executor === "lesson" || component.executor === "image" || component.executor === "audio") {
-        await applyComponentEvent(component, { action: mediaDegraded ? "degrade" : "complete", output_ref: result.generation_id, replan: false });
+        await applyComponentEvent(component, { action: mediaDegraded ? "degrade" : "complete", output_ref: result.generation_id, media_url: "audioUrl" in output ? output.audioUrl : undefined, replan: false });
       }
     } catch (reason) {
       setError(generationErrorMessage(reason, zh));

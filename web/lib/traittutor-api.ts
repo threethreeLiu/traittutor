@@ -226,6 +226,7 @@ export interface LearningComponent {
   completion_event: string;
   status: "pending" | "active" | "completed" | "skipped" | "degraded";
   output_ref?: string | null;
+  media_url?: string | null;
 }
 
 export interface LearningComponentPlan {
@@ -320,6 +321,7 @@ export async function recordLearningComponentEvent(
     concept_id?: string;
     concept_label?: string;
     output_ref?: string;
+    media_url?: string;
     feedback?: string;
     replan?: boolean;
   },

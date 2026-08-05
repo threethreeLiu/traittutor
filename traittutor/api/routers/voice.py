@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import io
 import logging
+from pathlib import Path
+import re
 import wave
 
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile, status
@@ -20,6 +22,7 @@ from traittutor.services.voice import (
     synthesize_speech,
     transcribe_audio,
 )
+from traittutor.services.path_service import get_path_service
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +41,7 @@ class TTSRequest(BaseModel):
     text: str = Field(..., min_length=1)
     voice: str | None = None
     format: str | None = None
+    generation_id: str | None = Field(default=None, max_length=128)
 
 
 def _parse_pcm_content_type(content_type: str) -> tuple[int, int] | None:
@@ -94,10 +98,21 @@ async def text_to_speech(payload: TTSRequest) -> Response:
         sample_rate, channels = pcm_info
         audio = _pcm16_to_wav(audio, sample_rate=sample_rate, channels=channels)
         content_type = "audio/wav"
+    headers = {"Cache-Control": "no-store"}
+    if payload.generation_id:
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", payload.generation_id):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid generation id")
+        suffix = {"audio/mpeg": "mp3", "audio/wav": "wav", "audio/ogg": "ogg"}.get(content_type.split(";", 1)[0], "bin")
+        service = get_path_service()
+        path = service.get_task_workspace("chat", f"traittutor-{payload.generation_id}") / "media" / f"learning-audio.{suffix}"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(audio)
+        relative = path.resolve().relative_to(service.get_public_outputs_root().resolve()).as_posix()
+        headers["X-TraitTutor-Audio-Url"] = f"/api/outputs/{relative}"
     return Response(
         content=audio,
         media_type=content_type,
-        headers={"Cache-Control": "no-store"},
+        headers=headers,
     )
 
 
