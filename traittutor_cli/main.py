@@ -13,6 +13,7 @@ from .chat import register as register_chat
 from .common import build_turn_request, console, maybe_run
 from .config_cmd import register as register_config
 from .init_cmd import register as register_init
+from .generation_benchmark import register as register_generation_benchmark
 from .kb import register as register_kb
 from .memory import register as register_memory
 from .models_cmd import register as register_models
@@ -53,6 +54,7 @@ register_config(config_app)
 register_session(session_app)
 register_notebook(notebook_app)
 register_init(app)
+register_generation_benchmark(app)
 
 
 @app.command("run")
