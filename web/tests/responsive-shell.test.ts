@@ -18,11 +18,11 @@ test("app shells keep a mobile navigation and a scrollable content region", () =
   assert.match(mobileNavigation, /overflow-x-auto/);
 });
 
-test("legacy mastery route redirects into the current learner profile", () => {
+test("learning route is a product surface and contains no legacy mastery identity", () => {
   const spaceMain = read("components", "space", "SpaceMain.tsx");
   const legacyLearning = read("app", "(utility)", "space", "learning", "page.tsx");
 
   assert.match(spaceMain, /overflow-y-auto/);
-  assert.match(legacyLearning, /redirect\("\/space\/traittutor"\)/);
+  assert.match(legacyLearning, /LearningPlansHome/);
   assert.doesNotMatch(legacyLearning, /Mastery Path|精通之路/);
 });

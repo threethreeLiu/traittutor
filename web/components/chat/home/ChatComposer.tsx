@@ -631,7 +631,7 @@ export default memo(function ChatComposer({
   return (
     <div
       ref={composerRef}
-      className={`relative z-20 mx-auto w-full shrink-0 px-6 pb-5 ${hasMessages ? "pt-1 max-w-[960px]" : "max-w-[768px]"}`}
+      className={`relative z-20 mx-auto w-full shrink-0 px-6 pb-5 ${hasMessages ? "pt-1 max-w-[960px]" : "max-w-[768px] pt-3"}`}
       style={{
         transition: "max-width 650ms cubic-bezier(0.16, 1, 0.3, 1)",
       }}

@@ -18,26 +18,31 @@ What is already merged on `main` and what is the next feature slice — keep thi
 
 - **Rebrand** (`chore(brand)`, `docs: rewire HKUDS links`): HKUDS attribution removed from READMEs, badges, source. API title is `TraitTutor API`. Brand mark shipped via `web/components/brand/TraitTutorIcon*` with transparent asset fix.
 - **Package rename** (`refactor/package-rename-traittutor`): `traittutor/` + `traittutor_cli/`, CLI entry `traittutor`, SDK facade `TraitTutorApp`, server target `traittutor.api.main:app`. No `traittutor` compatibility import.
-- **Onboarding + accounts** (`feat: add consumer accounts and modal onboarding`, `feat: move Big Five assessment into onboarding`, `feat: complete consumer login and registration flow`): invite-only registration, bootstrap admin, modal onboarding funnel.
+- **Onboarding + accounts** (`feat: add consumer accounts and modal onboarding`, `feat: move Big Five assessment into onboarding`, `feat: complete consumer login and registration flow`): invite-only registration, bootstrap admin, and optional Big Five support setup that can be deferred until after first learning value.
 - **Big Five profile** (`feature/big-five-profile`, `feature/big-five-onboarding`): `traittutor_profile` router, `traittutor/assessment/big_five.py` (TIPI constants + scoring), `GET /api/traittutor_profile/questions`, profile list/create/delete.
 - **Learning profile signal UI** (`feat: redesign learning profile signal interface`, `feat: add initial SLR learning profile graphs`): trait signal cards + profile maps render inside the workbench.
 - **Config-driven model selector** (`feat: redesign config-driven chat model selector`, `feat(models): code-defined LLM models synced from CC Switch`): runtime config + code-defined catalog, no hard-coded provider list.
 - **Generate suite v1** (`feature/generate-suite`, `feature/generate-suite-streaming`, `feature/material-resolution`, `feature/courseware-prompt-fusion`, `feature/flashcard-quiz-fusion`, `feature/generate-workbench-integration`): `traittutor_generate` router + `traittutor/generate/{runner,tasks,service,materials,material_analysis,courseware,flashcards,quiz,visuals,catalog,grounding,evaluation,benchmark}` with sync + 202-async paths and `/tasks/{id}/events` stream.
 - **Release demo learning loop** (`fix: close learning-pack event loop`): material analysis snapshots now carry subject, bilingual grade band, difficulty, concept candidates, page evidence, and augmentation decision; Learning Packs can reuse the same material snapshot across courseware/flashcards/quiz; quiz answers and flashcard reviews write `LearnerEvent` records and update BKT-facing personalization state.
+- **Learning-component orchestration** (`codex/learning-component-orchestrator`): the home page creates a real Learning Pack and deterministic component plan from a goal or analyzed source. `/space/learning/{packId}` renders one learning path; courseware, flashcards, quiz, image, and TTS remain executors/history rather than user-selected modes. Graded component events update subject BKT and replan only the unstarted tail.
 - **Prompt catalog & runner** (`feature/prompt-catalog-and-runner`, `feature/toc-agent-product`): `traittutor/services/prompt/markdown.py` parser, unified `generate/runner.py` chokepoint, prompt catalog exposed to chat.
 - **Security remediation** (`security(auth)`, `security(api)`, `feat(gateway)`): invite-only registration, session revocation, authenticated artifact downloads, `admin` control-plane, `outputs` authenticated gateway, structured prompt routing with usage audit through `traittutor/gateway/`.
 - **i18n polish** (`fix: translate personas workspace page`, `fix/chinese-persona-i18n`, `fix/personas-page-chinese`): zh/en parity for personas workspace.
-- **Frontend workbench** (`feature/frontend-traittutor-workbench`, `feature/learning-space-modules`, `feature/traittutor-brand-icon`, `fix/transparent-brand-favicon`, `fix/brand-mark-import`, `fix/remove-sidebar-release-chrome`): `(utility)/profile` + `(utility)/space` workbench path, `SpaceDashboard` → `StudyToolWorkbench`, transparent brand mark, sidebar cleanup.
+- **Frontend workbench** (`feature/frontend-traittutor-workbench`, `feature/learning-space-modules`, `feature/traittutor-brand-icon`, `fix/transparent-brand-favicon`, `fix/brand-mark-import`, `fix/remove-sidebar-release-chrome`): `(utility)/profile` + `(utility)/space` workbench path, `SpaceDashboard` → `StudyToolWorkbench`, transparent brand mark, sidebar cleanup, full-screen learning canvas with auto-collapsed workspace navigation.
+- **Bilingual product surface**: core learning canvas, learner model, navigation, settings, onboarding, loading/error/empty states, and Why Drawer are covered by the shared zh/en locale contract; source and user-authored content is not translated by the UI layer.
 
 Next expected slices (not yet on `main`, see `docs/PRD.md` for acceptance):
 
 - Generation eval benchmark (offline/online gating).
+- Persist generated TTS assets beyond the browser blob lifecycle.
 - Browser smoke for the complete demo path: upload real PDF → analyze → generate quiz → answer → inspect BKT/graph/profile → regenerate flashcards/courseware from weak concepts → open Why Drawer → delete evidence and rebuild.
 
 ## MVP Scope
 
 Implement only:
 
+- Goal-first learning journeys that can begin without uploaded material and accumulate sources over time.
+- BKT + subject SLR + material-affordance learning-component selection with an explainable unified canvas.
 - Big Five profile assessment using the BFI-10/TIPI items and O/C/E/A/N scoring.
 - Trait-aware generation for courseware, flashcards, and quiz.
 - Integration with the existing product surfaces: Space, Knowledge, Notebook, Question Bank, Chat, and Settings.
@@ -113,6 +118,6 @@ Minimum checks by scope (run before committing the slice they belong to):
 - Generate suite: mock model tests for courseware, flashcards, quiz, first progress event, schema validation, batch failure, prompt fusion (`tests/traittutor/test_generate_suite.py`, `test_flashcard_prompt_fusion.py`, `test_quiz_prompt_fusion.py`, `test_generation_tasks.py`, `test_prompt_runner.py`).
 - Prompt format: `tests/core/test_prompt_manager.py`, `tests/core/test_prompt_parity.py` (every prompt must round-trip through `markdown.py`).
 - Security/admin: `tests/agent_runtime/test_graph.py`, `tests/api/test_unified_ws_turn_runtime.py`, `tests/capabilities/test_status_i18n_consistency.py`, `tests/services/test_media_gen.py` — keep these green when touching auth, gateway, or i18n.
-- Frontend: `npm run test:node`, `npm run lint`, and a Playwright smoke path for profile → material → type → generate → save → chat.
+- Frontend: `npm run test:node`, `npm run lint`, `web/tests/i18n-surface-regression.test.ts`, and a Playwright smoke path for goal/source → component plan → full-screen canvas → event/replan → artifact follow-up.
 
 Use `rg` for source searches. Avoid broad refactors unrelated to the active branch.

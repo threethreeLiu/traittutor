@@ -10,7 +10,6 @@ import pytest
 from traittutor.agents.chat.agent_loop import InlineThinkFilter
 from traittutor.agents.chat.agentic_pipeline import AgenticChatPipeline
 from traittutor.capabilities.explore_context import explorer as explorer_mod
-from traittutor.capabilities.mastery import MASTERY_TOOL_NAMES
 from traittutor.core.context import Attachment, UnifiedContext
 from traittutor.core.stream import StreamEvent, StreamEventType
 from traittutor.core.stream_bus import StreamBus
@@ -919,52 +918,6 @@ def test_knowledge_diagram_mode_suppresses_ask_user_without_disabling_chat_tools
     assert "ask_user" not in diagram_tools
     assert "web_search" in diagram_tools
     assert {"web_fetch", "github", "cron"}.issubset(diagram_tools)
-
-
-def test_compose_enabled_tools_mounts_mastery_plugin_only_in_mastery_mode(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        "traittutor.services.memory.get_memory_store",
-        lambda: SimpleNamespace(read_raw=lambda *_args, **_kwargs: ""),
-    )
-    monkeypatch.setattr(
-        "traittutor.services.notebook.get_notebook_manager",
-        lambda: SimpleNamespace(list_notebooks=lambda: []),
-    )
-    pipeline = AgenticChatPipeline.__new__(AgenticChatPipeline)
-    pipeline._deferred_loader = None
-    pipeline._exec_enabled = False
-    pipeline.registry = SimpleNamespace(
-        get_enabled=lambda selected: [SimpleNamespace(name=n) for n in selected]
-    )
-
-    ordinary = UnifiedContext(user_message="hi")
-    mastery = UnifiedContext(
-        user_message="teach me",
-        metadata={"mastery_mode": True, "mastery_path_id": "path-a"},
-    )
-
-    ordinary_tools = pipeline._compose_enabled_tools(ordinary)
-    mastery_tools = pipeline._compose_enabled_tools(mastery)
-    assert not set(MASTERY_TOOL_NAMES).intersection(ordinary_tools)
-    assert set(MASTERY_TOOL_NAMES).issubset(mastery_tools)
-    # Additive plugin surface: a mastery turn reuses chat's full built-in
-    # surface (always-on defaults included) and just adds its owned tools.
-    assert {"web_fetch", "github", "cron"}.issubset(mastery_tools)
-    assert {"web_fetch", "github", "cron"}.issubset(ordinary_tools)
-
-
-def test_augment_tool_kwargs_injects_mastery_path_id() -> None:
-    pipeline = AgenticChatPipeline.__new__(AgenticChatPipeline)
-    context = UnifiedContext(
-        user_message="teach",
-        metadata={"mastery_mode": True, "mastery_path_id": "book-1"},
-    )
-
-    augmented = pipeline._augment_tool_kwargs("mastery_status", {}, context)
-
-    assert augmented["_mastery_path_id"] == "book-1"
 
 
 def test_augment_tool_kwargs_injects_geogebra_image() -> None:

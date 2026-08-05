@@ -23,13 +23,15 @@
   <img alt="License" src="https://img.shields.io/badge/License-Apache--2.0-blue">
 </p>
 
-TraitTutor 用来把真实学习材料变成可用的学习产物。你可以上传 PDF、Word、PPT、Excel、图片或文本；系统会分析材料，识别学科、年级、难度、概念和页码证据，再生成课件、闪卡、测验，并在练习后更新学习画像。
+TraitTutor 用来把一个学习目标、一道问题或真实学习材料变成会根据证据调整的学习路径。用户可以不上传材料直接开始，也可以稍后加入 PDF、Word、PPT、Excel、图片或文本；系统会分析已有来源，结合 BKT 风格概念证据、学科支持动作和材料 affordance 自动选择学习组件，并在练习后更新学习画像。
 
 产品边界很明确：人格 / 偏好信号只用于调整讲解方式，不用于诊断、能力标签或学习风格判定。
 
 ## 核心功能
 
 - **基于材料的分析快照**：保存学科、年级段、难度、语言、候选概念、页码证据和是否需要外部补足。
+- **目标驱动的学习路径**：从目标、材料或问题创建一个 Learning Pack 和确定性组件计划，不要求用户先选择生成器。
+- **全屏学习画布**：同时展示学习路径、当前组件和“为什么这一步”的学习依据；进入学习后工作区侧栏自动收起。
 - **一个材料，多种产物**：课件、闪卡、Quiz 可以共用同一个 Learning Pack，不需要重复上传和重复分析。
 - **学习事件回流**：Quiz 作答、闪卡复习会写入可审计的 LearnerEvent，并更新 BKT 风格的概念掌握进度。
 - **可解释学习画像**：Reflection / Compass 记忆治理把显式偏好、推断支持、概念进度、证据和删除后重建分开管理。
@@ -40,22 +42,26 @@ TraitTutor 用来把真实学习材料变成可用的学习产物。你可以上
 ## 工作流
 
 ```text
-上传 / 粘贴材料
+学习目标 / 材料 / 问题
         ↓
-MaterialAnalysisSnapshot
+LearningPack + MaterialAnalysisSnapshot（有材料时）
         ↓
-LearningPack
+BKT 概念证据 + 学科 SLR 支持 + 材料 affordance
         ↓
-PersonalizationContext + SLR 支持动作
+LearningComponentPlan
         ↓
-课件 / 闪卡 / Quiz / 聊天模式
+全屏学习画布
         ↓
-LearnerEvent
+讲解 / 评估 / 主动回忆 / 图解 / 语音执行器
         ↓
-BKT 风格概念进度 + 知识图谱 + 学习画像
+LearnerEvent → BKT / 知识图谱 / 学习画像
+        ↓
+只重规划未开始的路径尾部 → 下一学习组件
 ```
 
-课件完成只作为参与证据。长期掌握度只由可解释的学习事件更新，例如 Quiz 作答、闪卡复习和掌握练习。
+课件、闪卡和 Quiz 是组件执行器与历史产物，不是主页上的模式选择。课件完成只作为参与证据。长期掌握度只由可解释的学习事件更新，例如 Quiz 作答、闪卡复习和掌握练习。
+
+学习画布才是真正的学习目的地；聊天负责接收目标、问题、材料追问，以及围绕已保存产物的二次问询。TraitTutor 自有 UI 状态支持中英文切换，用户输入和材料原文保持原始语言。
 
 ## 快速开始
 
@@ -84,6 +90,8 @@ npm run dev
 ```
 
 本地运行配置来自 `web/.env.local`、`config/models.local.yaml` 等已忽略文件。请根据示例文件创建本地配置，不要提交真实模型密钥。
+
+单机 Ubuntu 线上部署请阅读 [DEPLOYMENT.md](DEPLOYMENT.md)。首次运行 `bootstrap_production_server.sh`，之后每个已提交版本使用 `deploy_production.sh deploy`；同一脚本还提供状态检查、日志查看和回滚命令。
 
 ## 配置模型
 

@@ -3,50 +3,16 @@
 from __future__ import annotations
 
 import asyncio
-import sys
-import types
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 from traittutor.agents.chat.capability import ChatCapability
-from traittutor.agents.question.capability import DeepQuestionCapability
 from traittutor.agents.research.capability import DeepResearchCapability
-from traittutor.agents.visualize.capability import VisualizeCapability
-import traittutor.agents.visualize.pipeline as visualize_pipeline
-from traittutor.capabilities.solve.capability import DeepSolveCapability
 from traittutor.core.context import Attachment, UnifiedContext
 from traittutor.core.stream import StreamEvent, StreamEventType
 from traittutor.core.stream_bus import StreamBus
 from traittutor.runtime.bootstrap.builtin_capabilities import BUILTIN_CAPABILITY_CLASSES
-
-
-def _install_module(
-    monkeypatch: pytest.MonkeyPatch, fullname: str, **attrs: Any
-) -> types.ModuleType:
-    parts = fullname.split(".")
-    for idx in range(1, len(parts)):
-        pkg_name = ".".join(parts[:idx])
-        if pkg_name not in sys.modules:
-            pkg = types.ModuleType(pkg_name)
-            pkg.__path__ = []  # type: ignore[attr-defined]
-            monkeypatch.setitem(sys.modules, pkg_name, pkg)
-            if idx > 1:
-                parent = sys.modules[".".join(parts[: idx - 1])]
-                # monkeypatch (not raw setattr) so the parent package's
-                # attribute is restored on teardown and never leaks a fake
-                # submodule into later tests.
-                monkeypatch.setattr(parent, parts[idx - 1], pkg, raising=False)
-
-    module = types.ModuleType(fullname)
-    for key, value in attrs.items():
-        setattr(module, key, value)
-    monkeypatch.setitem(sys.modules, fullname, module)
-    if len(parts) > 1:
-        parent = sys.modules[".".join(parts[:-1])]
-        monkeypatch.setattr(parent, parts[-1], module, raising=False)
-    return module
 
 
 async def _collect_events(run_coro) -> list[StreamEvent]:
@@ -69,12 +35,7 @@ async def _collect_events(run_coro) -> list[StreamEvent]:
 def test_builtin_capability_registry_covers_documented_capabilities() -> None:
     assert set(BUILTIN_CAPABILITY_CLASSES) == {
         "chat",
-        "deep_solve",
-        "deep_question",
         "deep_research",
-        "math_animator",
-        "visualize",
-        "mastery_path",
     }
 
 
@@ -129,145 +90,6 @@ async def test_chat_capability_streams_content_and_geogebra_context(
         for event in events
     )
     assert "GGB commands" in captured["process"]["message"]
-
-
-@pytest.mark.asyncio
-async def test_deep_solve_capability_runs_chat_loop_in_solve_mode(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The deep_solve capability is a thin shim: it marks the turn
-    ``solve_mode`` and resolves a session id, then runs the standard agentic
-    chat pipeline. The solve loop capability supplies the tools + playbook."""
-    captured: dict[str, Any] = {}
-
-    class FakePipeline:
-        def __init__(self, *, language: str = "en", **_kwargs: Any) -> None:
-            captured["language"] = language
-
-        async def run(self, context: UnifiedContext, stream: StreamBus) -> None:
-            captured["solve_mode"] = context.metadata.get("solve_mode")
-            captured["solve_session_id"] = context.metadata.get("solve_session_id")
-            captured["attachments"] = list(context.attachments or [])
-            await stream.content("final solution", source="chat", stage="responding")
-
-    monkeypatch.setattr("traittutor.capabilities.solve.capability.AgenticChatPipeline", FakePipeline)
-
-    context = UnifiedContext(
-        user_message="solve x^2=4",
-        language="en",
-        metadata={"turn_id": "turn-xyz"},
-        attachments=[Attachment(type="image", base64="ZmFrZQ==", filename="graph.png")],
-    )
-    capability = DeepSolveCapability()
-    events = await _collect_events(lambda bus: capability.run(context, bus))
-
-    assert captured["solve_mode"] is True
-    assert captured["solve_session_id"] == "turn-xyz"
-    # Attachments flow through unmodified for the loop's multimodal handling.
-    assert captured["attachments"][0].filename == "graph.png"
-    assert any(
-        event.type == StreamEventType.CONTENT and "final solution" in event.content
-        for event in events
-    )
-
-
-# Legacy tests for the AgentCoordinator-based custom + mimic paths were
-# removed when those code paths were deleted in the Phase A → C quiz
-# refactor. New-pipeline coverage lives in
-# ``tests/agents/question/test_pipeline.py`` (plan parsing, payload
-# normalization, templates_override / mimic flow, structured emission,
-# tool wiring, history loader, etc.).
-
-
-@pytest.mark.asyncio
-async def test_deep_question_capability_uses_single_call_followup_agent(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    captured: dict[str, Any] = {}
-
-    class FakeCoordinator:
-        def __init__(self, **_kwargs: Any) -> None:
-            raise AssertionError("Coordinator should not be constructed for follow-up mode")
-
-    class FakeFollowupAgent:
-        def __init__(self, **kwargs: Any) -> None:
-            captured["init"] = kwargs
-            self._trace_callback = None
-
-        def set_trace_callback(self, callback) -> None:
-            self._trace_callback = callback
-
-        async def process(self, **kwargs: Any) -> str:
-            captured["process"] = kwargs
-            assert self._trace_callback is not None
-            await self._trace_callback(
-                {
-                    "event": "llm_call",
-                    "state": "running",
-                    "label": "Answer follow-up for Question 3",
-                    "phase": "generation",
-                    "call_id": "quiz-followup-q_3",
-                }
-            )
-            await self._trace_callback(
-                {
-                    "event": "llm_call",
-                    "state": "complete",
-                    "response": "You missed the key distinction between density and coverage.",
-                    "phase": "generation",
-                    "call_id": "quiz-followup-q_3",
-                }
-            )
-            return "You missed the key distinction between density and coverage."
-
-    _install_module(
-        monkeypatch,
-        "traittutor.agents.question.coordinator",
-        AgentCoordinator=FakeCoordinator,
-    )
-    _install_module(
-        monkeypatch,
-        "traittutor.agents.question.agents.followup_agent",
-        FollowupAgent=FakeFollowupAgent,
-    )
-    _install_module(
-        monkeypatch,
-        "traittutor.services.llm.config",
-        get_llm_config=lambda: SimpleNamespace(api_key="k", base_url="u", api_version="v1"),
-    )
-
-    context = UnifiedContext(
-        user_message="Why was my answer wrong?",
-        language="en",
-        metadata={
-            "conversation_context_text": "User previously asked for a simpler explanation.",
-            "question_followup_context": {
-                "question_id": "q_3",
-                "question": "What does density mean in win-rate comparison?",
-                "question_type": "written",
-                "user_answer": "coverage",
-                "correct_answer": "relevant information without redundancy",
-                "is_correct": False,
-                "explanation": "Density is about relevant content without redundancy.",
-            },
-        },
-    )
-    capability = DeepQuestionCapability()
-    events = await _collect_events(lambda bus: capability.run(context, bus))
-
-    assert captured["process"]["user_message"] == "Why was my answer wrong?"
-    assert (
-        captured["process"]["history_context"] == "User previously asked for a simpler explanation."
-    )
-    assert captured["process"]["question_context"]["question_id"] == "q_3"
-    assert any(
-        event.type == StreamEventType.CONTENT
-        and "key distinction between density and coverage" in event.content
-        for event in events
-    )
-    result_event = next(event for event in events if event.type == StreamEventType.RESULT)
-    assert result_event.metadata["mode"] == "followup"
-    assert result_event.metadata["question_id"] == "q_3"
 
 
 @pytest.mark.asyncio
@@ -365,62 +187,3 @@ async def test_deep_research_capability_delegates_to_pipeline(
     # Attachments are forwarded verbatim so the rephrase / decompose
     # prompts can see image evidence.
     assert run_kwargs["attachments"][0].filename == "brief.png"
-
-
-@pytest.mark.asyncio
-async def test_visualize_capability_passes_attachments_to_analysis_agent(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    captured: dict[str, Any] = {}
-
-    class FakeAnalysis:
-        render_type = "svg"
-        description = "A diagram"
-        data_description = "diagram data"
-
-        def model_dump(self) -> dict[str, Any]:
-            return {
-                "render_type": self.render_type,
-                "description": self.description,
-                "data_description": self.data_description,
-            }
-
-    class FakeVisualizePipeline:
-        def __init__(self, **kwargs: Any) -> None:
-            captured["init"] = kwargs
-
-        async def run_analysis(self, **kwargs: Any) -> FakeAnalysis:
-            captured["analysis"] = kwargs
-            return FakeAnalysis()
-
-        async def run_code_generation(self, **kwargs: Any) -> str:
-            captured["code_generation"] = kwargs
-            # Valid per validate_visualization (well-formed XML + camelCase
-            # viewBox), so the capability takes the no-repair path.
-            return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"></svg>'
-
-    monkeypatch.setattr(
-        visualize_pipeline,
-        "VisualizePipeline",
-        FakeVisualizePipeline,
-    )
-    _install_module(
-        monkeypatch,
-        "traittutor.services.llm.config",
-        get_llm_config=lambda: SimpleNamespace(api_key="k", base_url="u", api_version="v1"),
-    )
-
-    context = UnifiedContext(
-        user_message="make a figure",
-        active_capability="visualize",
-        config_overrides={"render_mode": "svg"},
-        language="en",
-        attachments=[Attachment(type="image", base64="ZmFrZQ==", filename="figure.png")],
-    )
-
-    capability = VisualizeCapability()
-    events = await _collect_events(lambda bus: capability.run(context, bus))
-
-    assert captured["analysis"]["attachments"][0].filename == "figure.png"
-    result_event = next(event for event in events if event.type == StreamEventType.RESULT)
-    assert result_event.metadata["render_type"] == "svg"

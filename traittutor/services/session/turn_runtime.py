@@ -720,6 +720,8 @@ class TurnRuntimeManager:
             # validation; it must never be sent to a strict chat/capability
             # request schema as though it were a tool option.
             "product_mode",
+            "learning_pack_id",
+            "learning_plan_id",
             # TraitTutor generation shortcuts (courseware / flashcards / quiz
             # / exploration / diagrams) are handled by the chat runtime after
             # strict public config validation. Keep the selected mode in the
@@ -1271,6 +1273,8 @@ class TurnRuntimeManager:
             # request models (e.g. visual/math tools) causes Pydantic to
             # reject an otherwise valid chat turn as an unknown field.
             product_mode = str(request_config.pop("product_mode", "") or "").strip()
+            learning_pack_id = str(request_config.pop("learning_pack_id", "") or "").strip() or None
+            learning_plan_id = str(request_config.pop("learning_plan_id", "") or "").strip() or None
             followup_question_context = _extract_followup_question_context(request_config)
             persist_user_message = _extract_persist_user_message(request_config)
             is_regenerate = _extract_regenerate_flag(request_config)
@@ -1774,6 +1778,8 @@ class TurnRuntimeManager:
                             for item in attachments
                             if isinstance(item, dict) and item.get("extracted_text")
                         ],
+                        learning_pack_id=learning_pack_id,
+                        learning_plan_id=learning_plan_id,
                     )
                 )
                 policy_event = StreamEvent(
@@ -1788,7 +1794,11 @@ class TurnRuntimeManager:
                     type=StreamEventType.CONTENT,
                     source="traittutor_agent",
                     content=agent_result.content,
-                    metadata={"gateway_request_id": agent_result.gateway_request_id, "intent": agent_result.intent.value},
+                    metadata={
+                        "gateway_request_id": agent_result.gateway_request_id,
+                        "intent": agent_result.intent.value,
+                        "product_action": agent_result.product_action,
+                    },
                 )
                 payload_event = await self._publish_live_event(execution, content_event)
                 assistant_events.append(payload_event)

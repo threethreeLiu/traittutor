@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import shlex
+import sys
+
 import asyncio
 
 import pytest
@@ -149,7 +152,7 @@ def test_runner_server_executes_and_truncates_output() -> None:
 
     result = server.execute(
         {
-            "command": "python -c \"print('x' * 200)\"",
+            "command": f"{shlex.quote(sys.executable)} -c \"print('x' * 200)\"",
             "limits": {"timeout_s": 5, "max_output_chars": 40},
         }
     )

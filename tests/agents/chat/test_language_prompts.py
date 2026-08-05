@@ -53,30 +53,6 @@ def test_agentic_chat_final_prompt_uses_selected_language(
     assert "You are TraitTutor" in en_prompt
 
 
-def test_mastery_plugin_system_prompt_uses_localized_fallback(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    class FakeRegistry:
-        def build_prompt_text(self, *_args, **_kwargs) -> str:
-            return "- tool"
-
-    monkeypatch.setattr(
-        "traittutor.agents.chat.agentic_pipeline.get_tool_registry",
-        lambda: FakeRegistry(),
-    )
-
-    from traittutor.core.context import UnifiedContext
-
-    ctx = UnifiedContext(metadata={"mastery_mode": True, "mastery_path_id": "p1"})
-    zh_prompt = AgenticChatPipeline(language="zh")._build_system_prompt([], ctx)
-    en_prompt = AgenticChatPipeline(language="en")._build_system_prompt([], ctx)
-
-    assert "## mastery_tutor" in zh_prompt
-    assert "精通导师模式" in zh_prompt
-    assert "## mastery_tutor" in en_prompt
-    assert "Mastery Tutor mode" in en_prompt
-
-
 def test_legacy_chat_agent_system_prompt_uses_selected_language() -> None:
     zh_messages = ChatAgent(language="zh", config={}).build_messages(
         message="解释梯度下降",

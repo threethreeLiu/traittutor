@@ -26,6 +26,8 @@ class AgentRunRequest(BaseModel):
     user_id: str | None = None
     materials: list[str] = Field(default_factory=list)
     profile_id: str | None = None
+    learning_pack_id: str | None = None
+    learning_plan_id: str | None = None
     # UI language is a reply-language preference, not merely a display hint.
     language: str = "en"
 
@@ -43,3 +45,4 @@ class AgentRunResult(BaseModel):
     content: str
     gateway_request_id: str
     policy: list[ToolPolicyDecision] = Field(default_factory=list)
+    product_action: dict[str, object] | None = None

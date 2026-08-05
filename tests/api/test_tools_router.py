@@ -65,7 +65,8 @@ async def test_list_builtin_tools_marks_toggleable_set(
 async def test_list_builtin_tools_marks_capability_owned_tools(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    """Capability-owned tools (solve_*, mastery_*) report their owning
+    """Current capability-owned tools report their owner and legacy mastery
+    tools stay absent from the public settings inventory.
     capability so the /settings/tools UI groups them below the built-ins;
     plain system built-ins report ``capability=None``."""
     settings_file = tmp_path / "interface.json"
@@ -75,7 +76,7 @@ async def test_list_builtin_tools_marks_capability_owned_tools(
     by_name = {tool.name: tool for tool in response.tools}
 
     assert by_name["solve_plan"].capability == "solve"
-    assert by_name["mastery_status"].capability == "mastery"
+    assert "mastery_status" not in by_name
     assert by_name["web_fetch"].capability is None
     # Capability tools stay locked-on (not user-toggleable).
     assert by_name["solve_plan"].toggleable is False

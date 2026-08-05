@@ -7,16 +7,18 @@ const root = process.cwd();
 const onboarding = fs.readFileSync(path.join(root, "components", "onboarding", "OnboardingProvider.tsx"), "utf8");
 const profile = fs.readFileSync(path.join(root, "app", "(utility)", "space", "traittutor", "page.tsx"), "utf8");
 
-test("onboarding completes the Big Five assessment before entering the product", () => {
+test("onboarding can create an optional Big Five support profile", () => {
   assert.match(onboarding, /fetchTraitQuestions\(\)/);
   assert.match(onboarding, /createTraitProfile\(answers\)/);
   assert.match(onboarding, /Object\.keys\(answers\)\.length !== questions\.questions\.length/);
   assert.match(onboarding, /onComplete\(\)/);
 });
 
-test("new learners see a blocking modal instead of a route redirect", () => {
+test("new learners may defer the assessment instead of being blocked", () => {
   assert.match(onboarding, /listTraitProfiles\(\)/);
   assert.match(onboarding, /role="dialog"/);
+  assert.match(onboarding, /onSkip/);
+  assert.match(onboarding, /ONBOARDING_DISMISSED_KEY/);
   assert.doesNotMatch(onboarding, /router\.replace/);
 });
 

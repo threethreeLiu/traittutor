@@ -38,10 +38,18 @@ interface NavEntry {
 const PRIMARY_NAV: NavEntry[] = [
   {
     href: "/home",
-    label: "Home",
+    label: "Learn",
     icon: House,
     traitTutorIcon: "home",
     tooltipKey: "Home tooltip",
+    exact: true,
+    requires: "llm",
+  },
+  {
+    href: "/assist",
+    label: "Assistant",
+    icon: House,
+    traitTutorIcon: "chat",
     exact: true,
     requires: "llm",
   },
@@ -70,7 +78,7 @@ function isNavEntryActive(pathname: string | null, item: NavEntry): boolean {
 }
 
 function sessionIdFromPath(pathname: string | null): string | null {
-  const match = (pathname || "").match(/^\/home\/([^/?#]+)/);
+  const match = (pathname || "").match(/^\/(?:home|assist)\/([^/?#]+)/);
   return match?.[1] ? decodeURIComponent(match[1]) : null;
 }
 
@@ -138,7 +146,7 @@ export function SidebarShell({
     });
   };
 
-  const handleHomeClick = (event: React.MouseEvent) => {
+  const handleChatEntryClick = (event: React.MouseEvent, href: string) => {
     // Always reset to a fresh session (mirrors the old "New Chat" affordance);
     // let modifier-clicks fall through to default Link behavior so middle-click
     // open-in-new-tab still works.
@@ -146,7 +154,7 @@ export function SidebarShell({
       return;
     event.preventDefault();
     onNewChat?.();
-    router.push("/home");
+    router.push(href);
   };
 
   /* ---- Collapsed state ---- */
@@ -214,7 +222,7 @@ export function SidebarShell({
               >
                 <Link
                   href={item.href}
-                  onClick={item.href === "/home" ? handleHomeClick : undefined}
+                  onClick={["/home", "/assist"].includes(item.href) ? (event) => handleChatEntryClick(event, item.href) : undefined}
                   aria-label={t(item.label)}
                   className={`relative flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-150 ${
                     active
@@ -305,7 +313,7 @@ export function SidebarShell({
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={item.href === "/home" ? handleHomeClick : undefined}
+                onClick={["/home", "/assist"].includes(item.href) ? (event) => handleChatEntryClick(event, item.href) : undefined}
                 className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] transition-colors ${
                   active
                     ? "bg-[var(--accent)] font-medium text-[var(--foreground)]"

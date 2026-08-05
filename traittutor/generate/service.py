@@ -648,6 +648,25 @@ async def generate_traittutor_content_async(
         learning_targets=learning_targets,
         generation_type=request.generation_type,
     )
+    learning_component = dict((request.options or {}).get("learning_component") or {})
+    if learning_component.get("component_type") == "visual_map":
+        visual_decision = {
+            **visual_decision,
+            "should_generate": True,
+            "reason": "selected_learning_component",
+            "visual_targets": visual_decision.get("visual_targets") or [
+                {
+                    "concept_id": concept_id,
+                    "label": concept_id,
+                    "evidence_refs": [],
+                }
+                for concept_id in list(learning_component.get("concept_refs") or [])[:2]
+            ] or [{"concept_id": "learning-goal", "label": resolved.title, "evidence_refs": []}],
+            "support_reasons": list(dict.fromkeys([
+                *list(visual_decision.get("support_reasons") or []),
+                "learning_component_plan",
+            ])),
+        }
     # Image generation is gated by SLR/visual-target need.  When needed, it
     # starts beside structured text generation and is merged later, so image
     # latency never serializes courseware/card/quiz generation.
@@ -658,6 +677,7 @@ async def generate_traittutor_content_async(
         "items": [{"back": chunks[0]["text"]}] if request.generation_type != "courseware" and chunks else [],
         "visual_targets": visual_decision["visual_targets"],
         "slr_visual_reason": ", ".join(visual_decision["support_reasons"]),
+        "component_id": str(learning_component.get("component_id") or ""),
     }
     image_task = (
         asyncio.create_task(generate_learning_visual(visual_seed, generation_id=generation_id, max_attempts=2))

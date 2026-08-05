@@ -130,3 +130,18 @@ async def test_learning_visual_retries_failed_provider(monkeypatch: pytest.Monke
     assert trace["status"] == "failed"
     assert len(trace["attempts"]) == 2
     assert trace["attempts"][0]["status"] == "failed"
+
+
+def test_component_visual_is_assembled_by_component_id_not_first_section() -> None:
+    result = {"kind": "courseware", "sections": [{"section_title": "Unrelated first section"}]}
+    asset = {
+        "url": "/api/outputs/visual.png",
+        "alt": "Slope relationship",
+        "placement": "section",
+        "component_id": "cmp-visual",
+    }
+
+    visuals.merge_learning_visual(result, asset)
+
+    assert result["component_media"]["cmp-visual"] == [asset]
+    assert "images" not in result["sections"][0]

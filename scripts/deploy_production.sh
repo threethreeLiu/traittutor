@@ -1,70 +1,164 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
-# Deploy the current git HEAD to the single-host TraitTutor production server.
+# TraitTutor single-host deployment helper.
 #
-# The important Next.js standalone footgun:
-#   `.next/standalone` does not include `.next/static` or `public`.
-#   The systemd service runs from `web/.next/standalone`, so every release must
-#   copy those assets into the standalone tree before switching `current`.
+# The script deploys a committed HEAD to an Ubuntu server that already has:
+#   - /var/www/traittutor/venv
+#   - systemd units: traittutor-api.service and traittutor-web.service
+#   - /var/lib/traittutor/config/models.local.yaml (private, mode 600)
+#
+# It creates an immutable release directory, builds the frontend inside that
+# release, switches the `current` symlink atomically, checks API + web + CSS,
+# and rolls back the symlink if the post-restart checks fail.
+#
+# Usage:
+#   TRAITTUTOR_DEPLOY_SERVER=ubuntu@example.com \
+#     ./scripts/deploy_production.sh deploy
+#   TRAITTUTOR_DEPLOY_SERVER=ubuntu@example.com \
+#     ./scripts/deploy_production.sh status
+#   TRAITTUTOR_DEPLOY_SERVER=ubuntu@example.com \
+#     ./scripts/deploy_production.sh logs
+#   TRAITTUTOR_DEPLOY_SERVER=ubuntu@example.com \
+#     ./scripts/deploy_production.sh rollback [release-directory]
+#
+# The script deliberately deploys `git archive HEAD`, not the dirty working
+# tree. Commit and push the intended release before deploying.
 
-SERVER="${TRAITTUTOR_DEPLOY_SERVER:?Set TRAITTUTOR_DEPLOY_SERVER, for example user@example.com}"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ACTION="${1:-deploy}"
+
+SERVER="${TRAITTUTOR_DEPLOY_SERVER:-}"
 BASE_DIR="${TRAITTUTOR_DEPLOY_BASE:-/var/www/traittutor}"
 BASE_PATH="${TRAITTUTOR_DEPLOY_BASE_PATH:-/traittutor-all-web}"
 API_PORT="${TRAITTUTOR_DEPLOY_API_PORT:-8002}"
 WEB_PORT="${TRAITTUTOR_DEPLOY_WEB_PORT:-4091}"
+REMOTE_VENV="${TRAITTUTOR_DEPLOY_VENV:-${BASE_DIR}/venv}"
+TRAITTUTOR_HOME_REMOTE="${TRAITTUTOR_DEPLOY_HOME:-/var/lib/traittutor}"
+ALLOW_DIRTY="${TRAITTUTOR_DEPLOY_ALLOW_DIRTY:-0}"
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SHA="$(git -C "$ROOT_DIR" rev-parse --short=7 HEAD)"
-STAMP="$(date +%Y%m%d-%H%M%S)"
-RELEASE="traittutor-${STAMP}-${SHA}"
-ARCHIVE="/tmp/${RELEASE}.tar.gz"
+# Optional SSH options, for example:
+#   TRAITTUTOR_DEPLOY_SSH_OPTS='-i ~/.ssh/traittutor -o BatchMode=yes'
+read -r -a SSH_OPTS <<< "${TRAITTUTOR_DEPLOY_SSH_OPTS:-}"
 
-echo "Deploying ${SHA} to ${SERVER}:${BASE_DIR}/releases/${RELEASE}"
+usage() {
+  cat <<'USAGE'
+Usage: scripts/deploy_production.sh <deploy|status|logs|rollback> [release]
 
-if [[ -n "$(git -C "$ROOT_DIR" status --porcelain)" ]]; then
-  echo "Refusing to deploy: local git worktree has uncommitted changes." >&2
+Required for all remote actions:
+  TRAITTUTOR_DEPLOY_SERVER=user@host
+
+Optional environment:
+  TRAITTUTOR_DEPLOY_BASE=/var/www/traittutor
+  TRAITTUTOR_DEPLOY_BASE_PATH=/traittutor-all-web
+  TRAITTUTOR_DEPLOY_API_PORT=8002
+  TRAITTUTOR_DEPLOY_WEB_PORT=4091
+  TRAITTUTOR_DEPLOY_VENV=/var/www/traittutor/venv
+  TRAITTUTOR_DEPLOY_HOME=/var/lib/traittutor
+  TRAITTUTOR_DEPLOY_SSH_OPTS='-i ~/.ssh/key -o BatchMode=yes'
+  TRAITTUTOR_DEPLOY_ALLOW_DIRTY=1  # unsafe; deploys committed HEAD only
+
+Examples:
+  TRAITTUTOR_DEPLOY_SERVER=ubuntu@example.com ./scripts/deploy_production.sh deploy
+  TRAITTUTOR_DEPLOY_SERVER=ubuntu@example.com ./scripts/deploy_production.sh status
+  TRAITTUTOR_DEPLOY_SERVER=ubuntu@example.com ./scripts/deploy_production.sh logs
+  TRAITTUTOR_DEPLOY_SERVER=ubuntu@example.com ./scripts/deploy_production.sh rollback
+USAGE
+}
+
+die() {
+  echo "deploy: $*" >&2
   exit 1
-fi
+}
 
-git -C "$ROOT_DIR" archive --format=tar --prefix="${RELEASE}/" HEAD | gzip > "$ARCHIVE"
-scp "$ARCHIVE" "${SERVER}:/tmp/${RELEASE}.tar.gz"
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
+}
 
-ssh "$SERVER" "bash -s" -- \
-  "$BASE_DIR" "$BASE_PATH" "$API_PORT" "$WEB_PORT" "$RELEASE" <<'REMOTE'
-set -euo pipefail
+require_remote_config() {
+  [[ -n "$SERVER" ]] || die "set TRAITTUTOR_DEPLOY_SERVER, for example ubuntu@example.com"
+  require_command ssh
+}
+
+remote() {
+  ssh "${SSH_OPTS[@]}" "$SERVER" "$@"
+}
+
+local_git_clean_check() {
+  [[ "$ALLOW_DIRTY" == "1" ]] && {
+    echo "WARNING: deploying committed HEAD while the local worktree is dirty" >&2
+    return
+  }
+
+  if [[ -n "$(git -C "$ROOT_DIR" status --porcelain)" ]]; then
+    die "local git worktree is dirty; commit the release first or set TRAITTUTOR_DEPLOY_ALLOW_DIRTY=1"
+  fi
+}
+
+release_name() {
+  local sha stamp
+  sha="$(git -C "$ROOT_DIR" rev-parse --short=7 HEAD)"
+  stamp="$(date +%Y%m%d-%H%M%S)"
+  printf 'traittutor-%s-%s\n' "$stamp" "$sha"
+}
+
+deploy() {
+  require_remote_config
+  require_command scp
+  require_command git
+  require_command gzip
+  require_command tar
+  local_git_clean_check
+
+  local release archive
+  release="$(release_name)"
+  archive="$(mktemp -t "${release}.XXXXXX.tar.gz")"
+  previous=""
+  trap 'rm -f "$archive"' EXIT
+
+  echo "Preflight: ${SERVER}"
+  remote "set -euo pipefail; test -x '${REMOTE_VENV}/bin/python'; command -v npm >/dev/null; command -v curl >/dev/null; test -d '${BASE_DIR}/releases'; test -d '${TRAITTUTOR_HOME_REMOTE}'"
+
+  echo "Packaging committed HEAD as ${release}"
+  git -C "$ROOT_DIR" archive --format=tar --prefix="${release}/" HEAD | gzip > "$archive"
+  scp "${SSH_OPTS[@]}" "$archive" "${SERVER}:/tmp/${release}.tar.gz"
+
+  echo "Installing ${release} on ${SERVER}"
+  ssh "${SSH_OPTS[@]}" "$SERVER" "bash -s" -- \
+    "$BASE_DIR" "$BASE_PATH" "$API_PORT" "$WEB_PORT" "$REMOTE_VENV" "$TRAITTUTOR_HOME_REMOTE" "$release" <<'REMOTE_DEPLOY'
+set -Eeuo pipefail
 
 BASE_DIR="$1"
 BASE_PATH="$2"
 API_PORT="$3"
 WEB_PORT="$4"
-RELEASE="$5"
+REMOTE_VENV="$5"
+TRAITTUTOR_HOME_REMOTE="$6"
+RELEASE="$7"
 RELEASE_DIR="${BASE_DIR}/releases/${RELEASE}"
 ARCHIVE="/tmp/${RELEASE}.tar.gz"
 PREVIOUS="$(readlink -f "${BASE_DIR}/current" 2>/dev/null || true)"
-export TRAITTUTOR_HOME="${TRAITTUTOR_HOME:-/var/lib/traittutor}"
+export TRAITTUTOR_HOME="${TRAITTUTOR_HOME_REMOTE}"
 export PYTHONPATH="$RELEASE_DIR"
 
-if [[ -e "$RELEASE_DIR" ]]; then
-  echo "Refusing to deploy: release directory already exists: $RELEASE_DIR" >&2
-  exit 1
-fi
+cleanup() { rm -f "$ARCHIVE"; }
+trap cleanup EXIT
 
-mkdir -p "$RELEASE_DIR" "${BASE_DIR}/backups"
+[[ ! -e "$RELEASE_DIR" ]] || { echo "release already exists: $RELEASE_DIR" >&2; exit 1; }
+mkdir -p "$RELEASE_DIR" "${BASE_DIR}/backups" "${TRAITTUTOR_HOME}/config"
 tar -xzf "$ARCHIVE" -C "$RELEASE_DIR" --strip-components=1
 
-# Keep private model routes/keys out of git-tracked release directories.
-# If an older manual release still has the file, migrate it once into the
-# persistent runtime home before the new release starts.
-mkdir -p "${TRAITTUTOR_HOME}/config"
+# Keep provider credentials out of release directories. Migrate from one old
+# manually-managed release only when the persistent runtime config is absent.
 if [[ ! -f "${TRAITTUTOR_HOME}/config/models.local.yaml" && -n "$PREVIOUS" && -f "${PREVIOUS}/config/models.local.yaml" ]]; then
   install -m 600 "${PREVIOUS}/config/models.local.yaml" "${TRAITTUTOR_HOME}/config/models.local.yaml"
 fi
 
 cd "$RELEASE_DIR"
-"${BASE_DIR}/venv/bin/python" -m pip install -e .
-"${BASE_DIR}/venv/bin/python" -c "import traittutor; import traittutor.api.main; print('python import ok')"
-"${BASE_DIR}/venv/bin/python" - <<'PY'
+"${REMOTE_VENV}/bin/python" -m pip install -e .
+PYTHONPATH="$RELEASE_DIR" "${REMOTE_VENV}/bin/python" -c \
+  "import traittutor; import traittutor.api.main; print('python import ok')"
+PYTHONPATH="$RELEASE_DIR" "${REMOTE_VENV}/bin/python" - <<'PY'
 from traittutor.services.config import get_model_catalog_service
 
 catalog = get_model_catalog_service().load()
@@ -72,66 +166,142 @@ llm = (catalog.get("services") or {}).get("llm") or {}
 profiles = llm.get("profiles") or []
 if not llm.get("active_profile_id") or not llm.get("active_model_id") or not profiles:
     raise SystemExit(
-        "Refusing to deploy: no active LLM profile loaded. "
-        "Put models.local.yaml under $TRAITTUTOR_HOME/config/."
+        "no active LLM profile loaded; configure "
+        "$TRAITTUTOR_HOME/config/models.local.yaml"
     )
 print("model catalog ok")
 PY
 
 cd "$RELEASE_DIR/web"
-NEXT_PUBLIC_BASE_PATH="$BASE_PATH" \
-NEXT_PUBLIC_AUTH_ENABLED=true \
-NEXT_PUBLIC_API_BASE=/api \
-  npm ci
+export NEXT_PUBLIC_BASE_PATH="$BASE_PATH"
+export NEXT_PUBLIC_AUTH_ENABLED=true
+export NEXT_PUBLIC_API_BASE=/api
+npm ci
+npm run build
 
-NEXT_PUBLIC_BASE_PATH="$BASE_PATH" \
-NEXT_PUBLIC_AUTH_ENABLED=true \
-NEXT_PUBLIC_API_BASE=/api \
-  npm run build
-
-# Required by Next.js standalone deployments. Without these, production may
-# serve unstyled HTML and oversized raw SVG/icon shapes.
+# Next standalone output does not include these directories by default.
+# Missing either one causes the deployed page to be unstyled or icon-less.
 rm -rf .next/standalone/.next/static .next/standalone/public
 cp -R .next/static .next/standalone/.next/static
 cp -R public .next/standalone/public
-
 test -f .next/standalone/server.js
 test -d .next/standalone/.next/static
 test -d .next/standalone/public
-find .next/standalone/.next/static -name '*.css' -type f | grep -q .
+find .next/standalone/.next/static -type f -name '*.css' | grep -q .
 
-echo "$PREVIOUS" > "${BASE_DIR}/backups/previous-release-before-${RELEASE}.txt"
+printf '%s\n' "$PREVIOUS" > "${BASE_DIR}/backups/previous-release-before-${RELEASE}.txt"
 ln -sfn "$RELEASE_DIR" "${BASE_DIR}/current"
 
-rollback() {
+rollback_on_error() {
   if [[ -n "$PREVIOUS" && -d "$PREVIOUS" ]]; then
     echo "Health check failed; rolling back to $PREVIOUS" >&2
     ln -sfn "$PREVIOUS" "${BASE_DIR}/current"
-    sudo systemctl restart traittutor-api traittutor-web
+    sudo systemctl restart traittutor-api.service traittutor-web.service
   fi
 }
-trap rollback ERR
+trap rollback_on_error ERR
 
-sudo systemctl restart traittutor-api traittutor-web
+sudo systemctl restart traittutor-api.service traittutor-web.service
 
-for _ in {1..20}; do
-  if curl -fsS "http://127.0.0.1:${API_PORT}/api/v1/auth/status" >/dev/null; then
-    break
-  fi
-  sleep 1
-done
+check_url() {
+  local url="$1"
+  local label="$2"
+  for _ in {1..30}; do
+    if curl --fail --silent --show-error "$url" >/dev/null; then
+      echo "health ok: $label"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "health failed: $label ($url)" >&2
+  return 1
+}
 
-curl -fsS "http://127.0.0.1:${API_PORT}/api/v1/auth/status" >/dev/null
-curl -fsSI "http://127.0.0.1:${WEB_PORT}${BASE_PATH}/login" >/dev/null
-
-CSS_PATH="$(find "${RELEASE_DIR}/web/.next/static" -name '*.css' -type f | head -1 | sed "s#^${RELEASE_DIR}/web/.next/static#${BASE_PATH}/_next/static#")"
-test -n "$CSS_PATH"
-curl -fsSI "http://127.0.0.1:${WEB_PORT}${CSS_PATH}" >/dev/null
+check_url "http://127.0.0.1:${API_PORT}/api/v1/auth/status" "api"
+curl --fail --silent --show-error --head "http://127.0.0.1:${WEB_PORT}${BASE_PATH}/login" >/dev/null
+echo "health ok: web"
+CSS_PATH="$(find "${RELEASE_DIR}/web/.next/static" -type f -name '*.css' | head -1 | sed "s#^${RELEASE_DIR}/web/.next/static#${BASE_PATH}/_next/static#")"
+[[ -n "$CSS_PATH" ]] || { echo "health failed: no built CSS" >&2; exit 1; }
+curl --fail --silent --show-error --head "http://127.0.0.1:${WEB_PORT}${CSS_PATH}" >/dev/null
+echo "health ok: css ${CSS_PATH}"
+sudo systemctl is-active --quiet traittutor-api.service
+sudo systemctl is-active --quiet traittutor-web.service
+echo "health ok: systemd"
 
 trap - ERR
-systemctl is-active traittutor-api traittutor-web >/dev/null
-readlink -f "${BASE_DIR}/current"
-echo "Deploy ok: ${RELEASE_DIR}"
-REMOTE
+echo "active release: $(readlink -f "${BASE_DIR}/current")"
+echo "deploy ok: ${RELEASE_DIR}"
+REMOTE_DEPLOY
 
-echo "Done."
+  echo "Deployment completed: ${release}"
+}
+
+status() {
+  require_remote_config
+  ssh "${SSH_OPTS[@]}" "$SERVER" "bash -s" -- \
+    "$BASE_DIR" "$BASE_PATH" "$API_PORT" "$WEB_PORT" "$TRAITTUTOR_HOME_REMOTE" <<'REMOTE_STATUS'
+set -euo pipefail
+BASE_DIR="$1"
+BASE_PATH="$2"
+API_PORT="$3"
+WEB_PORT="$4"
+TRAITTUTOR_HOME_REMOTE="$5"
+CURRENT="$(readlink -f "${BASE_DIR}/current" 2>/dev/null || true)"
+echo "server: $(hostname)"
+echo "current: ${CURRENT:-none}"
+sudo systemctl --no-pager --full status traittutor-api.service traittutor-web.service | sed -n '1,30p'
+curl --fail --silent --show-error "http://127.0.0.1:${API_PORT}/api/v1/auth/status" >/dev/null && echo "api: healthy"
+curl --fail --silent --show-error --head "http://127.0.0.1:${WEB_PORT}${BASE_PATH}/login" >/dev/null && echo "web: healthy"
+if [[ -f "${TRAITTUTOR_HOME_REMOTE}/config/models.local.yaml" ]]; then
+  echo "model config: present"
+else
+  echo "model config: missing (generation will be unavailable)"
+fi
+REMOTE_STATUS
+}
+
+logs() {
+  require_remote_config
+  remote "sudo journalctl -u traittutor-api.service -u traittutor-web.service -n 150 --no-pager"
+}
+
+rollback() {
+  require_remote_config
+  local target="${2:-}"
+  ssh "${SSH_OPTS[@]}" "$SERVER" "bash -s" -- \
+    "$BASE_DIR" "$BASE_PATH" "$API_PORT" "$WEB_PORT" "$target" <<'REMOTE_ROLLBACK'
+set -Eeuo pipefail
+BASE_DIR="$1"
+BASE_PATH="$2"
+API_PORT="$3"
+WEB_PORT="$4"
+REQUESTED="$5"
+
+if [[ -n "$REQUESTED" ]]; then
+  TARGET="${BASE_DIR}/releases/${REQUESTED}"
+else
+  MARKER="$(find "${BASE_DIR}/backups" -maxdepth 1 -type f -name 'previous-release-before-*.txt' -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2-)"
+  [[ -n "$MARKER" && -f "$MARKER" ]] || { echo "no rollback marker found" >&2; exit 1; }
+  TARGET="$(cat "$MARKER")"
+fi
+
+[[ -d "$TARGET" ]] || { echo "release not found: $TARGET" >&2; exit 1; }
+echo "rolling back to $TARGET"
+ln -sfn "$TARGET" "${BASE_DIR}/current"
+sudo systemctl restart traittutor-api.service traittutor-web.service
+curl --fail --silent --show-error "http://127.0.0.1:${API_PORT}/api/v1/auth/status" >/dev/null
+curl --fail --silent --show-error --head "http://127.0.0.1:${WEB_PORT}${BASE_PATH}/login" >/dev/null
+sudo systemctl is-active --quiet traittutor-api.service
+sudo systemctl is-active --quiet traittutor-web.service
+echo "rollback ok: $(readlink -f "${BASE_DIR}/current")"
+REMOTE_ROLLBACK
+}
+
+case "$ACTION" in
+  deploy) deploy ;;
+  status) status ;;
+  logs) logs ;;
+  rollback) rollback ;;
+  -h|--help|help) usage ;;
+  *) usage >&2; exit 2 ;;
+esac

@@ -31,7 +31,8 @@ test("learner model exposes governed reflection controls", () => {
   assert.match(source, /REFLECTION GOVERNANCE/);
   assert.match(source, /哪些记忆会影响下一次生成/);
   assert.match(source, /已进入 Compass/);
-  assert.match(source, /候选 \{reflections\.filter/);
+  assert.match(source, /Candidates/);
+  assert.match(source, /reflections\.filter\(\(item\) => item\.status === "candidate"\)\.length/);
   assert.match(source, /确认使用/);
   assert.match(source, /拒绝/);
 });

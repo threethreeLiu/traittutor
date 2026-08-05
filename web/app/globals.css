@@ -244,6 +244,230 @@
   .muted-chip {
     @apply rounded-full bg-[var(--muted)] px-3 py-1 text-xs text-[var(--muted-foreground)];
   }
+
+  /* Learning canvas
+     The adaptive path is a product surface, not a separate visual theme.
+     These classes deliberately consume the same global theme tokens as the
+     sidebar, chat, settings, and learning-model pages. */
+  .learning-canvas {
+    @apply flex h-full min-h-0 w-full flex-col overflow-hidden;
+    --learning-panel: var(--card);
+    --learning-panel-subtle: color-mix(in srgb, var(--card) 76%, var(--secondary));
+    --learning-panel-active: color-mix(in srgb, var(--primary) 11%, var(--card));
+    --learning-border-active: color-mix(in srgb, var(--primary) 45%, var(--border));
+    --learning-error-bg: color-mix(in srgb, var(--destructive) 10%, var(--card));
+    --learning-error-border: color-mix(in srgb, var(--destructive) 35%, var(--border));
+    background: var(--background);
+    color: var(--foreground);
+  }
+
+  .learning-canvas__header {
+    @apply shrink-0 border-b px-4 py-3 md:px-6;
+    border-color: var(--border);
+    background: color-mix(in srgb, var(--background) 90%, var(--card));
+  }
+
+  .learning-canvas__toolbar {
+    @apply flex w-full items-center justify-between gap-4;
+  }
+
+  .learning-canvas__layout {
+    @apply grid min-h-0 w-full flex-1 lg:grid-cols-[252px_minmax(0,1fr)] xl:grid-cols-[252px_minmax(0,1fr)_292px];
+  }
+
+  .learning-canvas__path-panel {
+    @apply shrink-0 border-b p-4 lg:min-h-0 lg:overflow-y-auto lg:border-r lg:border-b-0 lg:p-5;
+    border-color: var(--border);
+    background: var(--learning-panel-subtle);
+  }
+
+  .learning-canvas__content {
+    @apply flex min-h-0 min-w-0 flex-col overflow-y-auto p-4 md:p-6 xl:p-8;
+    background: var(--background);
+  }
+
+  .learning-canvas__rationale {
+    @apply hidden min-h-0 overflow-y-auto border-l p-6 xl:block;
+    border-color: var(--border);
+    background: var(--learning-panel-subtle);
+  }
+
+  .learning-canvas__section-heading,
+  .learning-action-bar {
+    border-color: var(--border);
+  }
+
+  .learning-eyebrow {
+    @apply font-mono text-[9px] uppercase tracking-[0.2em];
+    color: var(--primary);
+  }
+
+  .learning-meta {
+    @apply font-mono text-[9px] uppercase tracking-[0.18em];
+    color: var(--muted-foreground);
+  }
+
+  .learning-copy-muted {
+    color: var(--muted-foreground);
+  }
+
+  .learning-accent {
+    color: var(--primary);
+  }
+
+  .learning-icon-button {
+    @apply grid h-9 w-9 shrink-0 place-items-center rounded-full border transition;
+    border-color: var(--border);
+    color: var(--muted-foreground);
+    background: var(--card);
+  }
+
+  .learning-icon-button:hover {
+    border-color: var(--learning-border-active);
+    color: var(--foreground);
+    background: var(--accent);
+  }
+
+  .learning-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border px-4 py-2.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40;
+    border-color: var(--border);
+  }
+
+  .learning-button--primary {
+    border-color: transparent;
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  .learning-button--primary:hover:not(:disabled) {
+    filter: brightness(1.06);
+  }
+
+  .learning-button--secondary {
+    background: var(--card);
+    color: var(--foreground);
+  }
+
+  .learning-button--secondary:hover:not(:disabled) {
+    border-color: var(--learning-border-active);
+    background: var(--accent);
+  }
+
+  .learning-status-pill {
+    @apply rounded-md border px-2.5 py-1 font-mono text-[9px] uppercase;
+    border-color: var(--border);
+    color: var(--muted-foreground);
+    background: var(--muted);
+  }
+
+  .learning-notice {
+    @apply border-b px-4 py-2 text-center text-xs;
+    border-color: var(--learning-border-active);
+    background: var(--learning-panel-active);
+    color: var(--foreground);
+  }
+
+  .learning-step {
+    @apply flex w-full items-center gap-3 rounded-md border border-transparent px-3 py-3 text-left transition;
+    color: var(--muted-foreground);
+  }
+
+  .learning-step:hover {
+    background: var(--accent);
+    color: var(--foreground);
+  }
+
+  .learning-step--active {
+    border-color: var(--learning-border-active);
+    background: var(--learning-panel-active);
+    color: var(--foreground);
+  }
+
+  .learning-card {
+    @apply rounded-lg border p-5;
+    border-color: var(--border);
+    background: var(--learning-panel);
+    color: var(--card-foreground);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 5%, transparent);
+  }
+
+  .learning-card--large {
+    @apply rounded-xl p-6 md:p-8;
+  }
+
+  .learning-component-stage {
+    @apply flex min-h-[420px] flex-1 flex-col border-y py-8 md:min-h-[500px] md:py-10;
+    border-color: var(--border);
+  }
+
+  .learning-component-stage__intro {
+    @apply flex-1;
+  }
+
+  .learning-component-stage__action {
+    @apply mt-12 flex flex-col items-start justify-between gap-5 border-t pt-6 sm:flex-row sm:items-center;
+    border-color: var(--border);
+  }
+
+  .learning-choice {
+    @apply flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 text-sm transition;
+    border-color: var(--border);
+    background: var(--card);
+    color: var(--foreground);
+  }
+
+  .learning-choice:hover,
+  .learning-choice--selected {
+    border-color: var(--learning-border-active);
+    background: var(--learning-panel-active);
+  }
+
+  .learning-alert--error {
+    @apply mt-4 rounded-xl border px-4 py-3 text-xs;
+    border-color: var(--learning-error-border);
+    background: var(--learning-error-bg);
+    color: var(--destructive);
+  }
+
+  .learning-success {
+    color: var(--primary);
+  }
+
+  .learning-drawer-backdrop {
+    @apply fixed inset-0 z-50;
+    background: var(--overlay);
+  }
+
+  .learning-drawer {
+    @apply absolute right-0 top-0 h-full w-full max-w-md overflow-y-auto border-l p-6;
+    border-color: var(--border);
+    background: var(--popover);
+    color: var(--popover-foreground);
+    box-shadow: -20px 0 50px color-mix(in srgb, var(--foreground) 12%, transparent);
+  }
+
+  .learning-full-state {
+    @apply grid h-full min-h-0 place-items-center;
+    background: var(--background);
+    color: var(--foreground);
+  }
+
+  .learning-status-dot {
+    @apply grid h-4 w-4 place-items-center rounded-full border;
+    border-color: var(--primary);
+  }
+
+  .learning-status-dot::after {
+    content: "";
+    @apply h-1.5 w-1.5 rounded-full;
+    background: var(--primary);
+  }
+
+  .learning-icon-badge {
+    @apply grid h-10 w-10 place-items-center rounded-full;
+    background: var(--learning-panel-active);
+    color: var(--primary);
+  }
 }
 
 @layer utilities {
@@ -274,6 +498,37 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--muted-foreground);
+}
+
+/* Chat and learning launch surfaces keep the scrollbar quiet until it is
+   useful. This avoids a bright vertical rail competing with the centered
+   editorial panel while preserving an obvious affordance on hover. */
+.traittutor-scroll-area {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted-foreground) 28%, transparent) transparent;
+}
+
+.traittutor-scroll-area::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.traittutor-scroll-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.traittutor-scroll-area::-webkit-scrollbar-thumb {
+  min-height: 40px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.traittutor-scroll-area:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted-foreground) 28%, transparent);
+}
+
+.traittutor-scroll-area::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--muted-foreground) 52%, transparent);
 }
 
 /* ─── Streaming surfaces ───

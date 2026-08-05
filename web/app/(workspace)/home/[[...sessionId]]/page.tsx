@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 
 import {
   Clapperboard,
@@ -20,7 +20,6 @@ import {
   Globe,
   Image as ImageIcon,
   Lightbulb,
-  GraduationCap,
   PenLine,
   Sparkles,
   type LucideIcon,
@@ -33,8 +32,11 @@ import type { SelectedLearningArtifactReference } from "@/components/chat/Learni
 import ChatComposer from "@/components/chat/home/ChatComposer";
 import { ChatMessageList } from "@/components/chat/home/ChatMessages";
 import SessionLoadingView from "@/components/chat/home/SessionLoadingView";
-import { TraitTutorMark } from "@/components/brand/TraitTutorMark";
 import { type TraitTutorIconName } from "@/components/brand/TraitTutorIcon";
+import LearningHomeIntro from "@/components/chat/home/LearningHomeIntro";
+import AssistHomeIntro from "@/components/chat/home/AssistHomeIntro";
+import type { HomePendingAttachment } from "@/components/chat/home/HomeAttachmentTray";
+import type { LearningJourneyState } from "@/components/chat/home/LearningJourneyLaunch";
 // Imported eagerly so the drawer shell is always mounted off-screen —
 // clicking a chip becomes a single CSS class flip, no chunk fetch + double
 // render. The heavy renderers inside still load lazily.
@@ -78,6 +80,15 @@ import {
   selectedBooksToPayload,
   type SelectedBookReference,
 } from "@/lib/book-references";
+import {
+  analyzeTraitTutorMaterial,
+  createLearningComponentPlan,
+  createLearningPack,
+  prepareTraitTutorMaterial,
+  updateLearningPack,
+  type LearningComponentPlan,
+} from "@/lib/traittutor-api";
+import { isLearningGoalMessage, normalizeLearningGoal } from "@/lib/learning-goal";
 
 const NotebookRecordPicker = dynamic(
   () => import("@/components/notebook/NotebookRecordPicker"),
@@ -200,14 +211,13 @@ type ChatGenerationKind =
   | "knowledge_diagram"
   | "humanizer";
 
-interface PendingAttachment {
-  type: string;
-  filename: string;
-  base64?: string;
-  previewUrl?: string;
-  size?: number;
-  mimeType?: string;
-}
+type PendingAttachment = HomePendingAttachment;
+
+type LearningPlanTarget = {
+  goal: string;
+  packId: string;
+  plan: LearningComponentPlan;
+};
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
@@ -217,15 +227,40 @@ function getCapability(value: string | null): CapabilityDef {
   return CAPABILITIES.find((c) => c.value === (value || "")) ?? CAPABILITIES[0];
 }
 
+function attachmentIdentity(attachment: Pick<PendingAttachment, "filename" | "size" | "mimeType">): string {
+  return `${attachment.filename}:${attachment.size ?? 0}:${attachment.mimeType ?? ""}`;
+}
+
+function fileIdentity(file: File): string {
+  return `${file.name}:${file.size}:${file.type}`;
+}
+
+function mergeUniqueAttachments(
+  current: PendingAttachment[],
+  incoming: PendingAttachment[],
+): PendingAttachment[] {
+  const seen = new Set(current.map(attachmentIdentity));
+  const uniqueIncoming = incoming.filter((attachment) => {
+    const key = attachmentIdentity(attachment);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return [...current, ...uniqueIncoming];
+}
+
 /* ------------------------------------------------------------------ */
 /*  Chat page                                                         */
 /* ------------------------------------------------------------------ */
 
 export default function ChatPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const params = useParams<{ sessionId?: string[] }>();
   const { t } = useTranslation();
   const sessionIdParam = params.sessionId?.[0] ?? null;
+  const isAssistPage = pathname.startsWith("/assist");
+  const chatRoot = isAssistPage ? "/assist" : "/home";
   const { setActiveSessionId, language: appLanguage } = useAppShell();
 
   const {
@@ -301,7 +336,15 @@ export default function ChatPage() {
   // Product-level intent: this is deliberately separate from the legacy
   // capability picker. The backend routes it through TraitTutor's internal
   // LangGraph agents instead of external CLI/Partner connections.
-  const [productMode, setProductMode] = useState<"learn" | "assist">("assist");
+  const [productMode, setProductMode] = useState<"learn" | "assist">(isAssistPage ? "assist" : "learn");
+  const [learningJourney, setLearningJourney] = useState<LearningJourneyState | null>(null);
+  const activeLearningPlanRef = useRef<{ packId: string; planId: string } | null>(null);
+  const latestLearningPlanRef = useRef<LearningPlanTarget | null>(null);
+  const pendingLearningPlanRef = useRef<Promise<LearningPlanTarget> | null>(null);
+  const learningPlanEpochRef = useRef(0);
+  const learningLaunchRef = useRef<Promise<void> | null>(null);
+  const [learningLaunchPending, setLearningLaunchPending] = useState(false);
+  const [attachmentReceipt, setAttachmentReceipt] = useState<{ filenames: string[] } | null>(null);
   const [spaceMenuOpen, setSpaceMenuOpen] = useState(false);
   const [selectedNotebookRecords, setSelectedNotebookRecords] = useState<
     SelectedRecord[]
@@ -350,42 +393,7 @@ export default function ChatPage() {
   const isResearchMode = state.activeCapability === "deep_research";
 
   const hasMessages = state.messages.length > 0;
-  // Time-of-day greeting: seeded once on mount from the user's local clock so
-  // the heading stays stable while they're on the page. State (not useMemo)
-  // because the random pick would otherwise mismatch SSR ↔ client hydration.
-  const [welcomeGreeting, setWelcomeGreeting] = useState<string>(
-    "What would you like to learn?",
-  );
-  useEffect(() => {
-    const hour = new Date().getHours();
-    let bucket: string[];
-    if (hour >= 5 && hour < 12) {
-      bucket = [
-        "Good morning.",
-        "Morning — let's learn something.",
-        "What would you like to learn?",
-      ];
-    } else if (hour >= 12 && hour < 17) {
-      bucket = [
-        "Good afternoon.",
-        "Afternoon — what's on your mind?",
-        "What would you like to learn?",
-      ];
-    } else if (hour >= 17 && hour < 22) {
-      bucket = [
-        "Good evening.",
-        "Evening — what shall we explore?",
-        "What would you like to learn?",
-      ];
-    } else {
-      bucket = [
-        "It's late today.",
-        "Burning the midnight oil?",
-        "What would you like to learn?",
-      ];
-    }
-    setWelcomeGreeting(bucket[Math.floor(Math.random() * bucket.length)]);
-  }, []);
+  const isZh = (appLanguage || state.language || "en").toLowerCase().startsWith("zh");
   const firstUserTitle = useMemo(
     () =>
       state.messages
@@ -568,8 +576,8 @@ export default function ChatPage() {
   /* ---- URL-driven session loading ---- */
 
   const navigateToHome = useCallback(() => {
-    router.replace("/home", { scroll: false });
-  }, [router]);
+    router.replace(chatRoot, { scroll: false });
+  }, [chatRoot, router]);
 
   /** Abort in-flight load + navigate home. */
   const cancelSessionLoad = useCallback(() => {
@@ -640,8 +648,18 @@ export default function ChatPage() {
         setSessionLoading(false);
         return;
       }
+      activeLearningPlanRef.current = null;
+      latestLearningPlanRef.current = null;
+      pendingLearningPlanRef.current = null;
+      learningPlanEpochRef.current += 1;
+      setLearningJourney(null);
       startSessionLoad(sessionIdParam);
     } else {
+      activeLearningPlanRef.current = null;
+      latestLearningPlanRef.current = null;
+      pendingLearningPlanRef.current = null;
+      learningPlanEpochRef.current += 1;
+      setLearningJourney(null);
       newSession();
       setSessionLoading(false);
     }
@@ -650,9 +668,20 @@ export default function ChatPage() {
   // When a new session_id is assigned by the server, update the URL
   useEffect(() => {
     if (state.sessionId && !sessionIdParam) {
-      router.replace(`/home/${state.sessionId}`, { scroll: false });
+      router.replace(`${chatRoot}/${state.sessionId}`, { scroll: false });
     }
-  }, [state.sessionId, sessionIdParam, router]);
+  }, [chatRoot, state.sessionId, sessionIdParam, router]);
+
+  useEffect(() => {
+    setProductMode(isAssistPage ? "assist" : "learn");
+    if (isAssistPage) {
+      activeLearningPlanRef.current = null;
+      latestLearningPlanRef.current = null;
+      pendingLearningPlanRef.current = null;
+      learningPlanEpochRef.current += 1;
+      setLearningJourney(null);
+    }
+  }, [isAssistPage]);
 
   useEffect(() => {
     setActiveSessionId(state.sessionId || sessionIdParam || null);
@@ -866,11 +895,17 @@ export default function ChatPage() {
     (files: File[]): File[] => {
       let runningTotal = attachments.reduce((s, a) => s + (a.size ?? 0), 0);
       const accepted: File[] = [];
+      const seen = new Set(attachments.map(attachmentIdentity));
       const rejected: {
         name: string;
-        reason: "unsupported" | "too_large" | "quota";
+        reason: "unsupported" | "too_large" | "quota" | "duplicate";
       }[] = [];
       for (const f of files) {
+        const key = fileIdentity(f);
+        if (seen.has(key)) {
+          rejected.push({ name: f.name, reason: "duplicate" });
+          continue;
+        }
         const kind = classifyFile(f);
         if (!kind) {
           rejected.push({ name: f.name, reason: "unsupported" });
@@ -885,6 +920,7 @@ export default function ChatPage() {
           break;
         }
         runningTotal += f.size;
+        seen.add(key);
         accepted.push(f);
       }
       if (rejected.length) {
@@ -894,6 +930,8 @@ export default function ChatPage() {
           msg = t("File too large: {{name}}", { name: first.name });
         } else if (first.reason === "quota") {
           msg = t("Too many files, skipped some");
+        } else if (first.reason === "duplicate") {
+          msg = isZh ? `文件已添加：${first.name}` : `File already attached: ${first.name}`;
         } else {
           msg = t("Unsupported file type: {{name}}", { name: first.name });
         }
@@ -901,28 +939,20 @@ export default function ChatPage() {
       }
       return accepted;
     },
-    [attachments, attachmentLimits, showAttachmentError, t],
-  );
-
-  const handlePaste = useCallback(
-    async (event: React.ClipboardEvent) => {
-      const items = Array.from(event.clipboardData.items);
-      const files = items
-        .filter((item) => item.kind === "file")
-        .map((item) => item.getAsFile())
-        .filter((f): f is File => f !== null);
-      const accepted = filterAndReportFiles(files);
-      if (!accepted.length) return;
-      event.preventDefault();
-      const next = await Promise.all(accepted.map(fileToAttachment));
-      setAttachments((prev) => [...prev, ...next]);
-    },
-    [fileToAttachment, filterAndReportFiles],
+    [attachments, attachmentLimits, isZh, showAttachmentError, t],
   );
 
   const removeAttachment = useCallback((index: number) => {
-    setAttachments((prev) => prev.filter((_, i) => i !== index));
-  }, []);
+    setAttachments((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
+    if (attachments.length === 1) {
+      learningPlanEpochRef.current += 1;
+      pendingLearningPlanRef.current = null;
+      latestLearningPlanRef.current = null;
+      activeLearningPlanRef.current = null;
+      setAttachmentReceipt(null);
+      setLearningJourney(null);
+    }
+  }, [attachments.length]);
 
   const handlePreviewPendingAttachment = useCallback(
     (index: number) => {
@@ -975,28 +1005,146 @@ export default function ChatPage() {
     e.stopPropagation();
   }, []);
 
-  const handleDrop = useCallback(
-    async (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setDragging(false);
-      dragCounter.current = 0;
-      const accepted = filterAndReportFiles(Array.from(e.dataTransfer.files));
-      if (!accepted.length) return;
-      const next = await Promise.all(accepted.map(fileToAttachment));
-      setAttachments((prev) => [...prev, ...next]);
-    },
-    [fileToAttachment, filterAndReportFiles],
-  );
-
   const handleAddFiles = useCallback(
     async (files: File[]) => {
       const accepted = filterAndReportFiles(files);
       if (!accepted.length) return;
+      setAttachmentReceipt({ filenames: accepted.map((file) => file.name) });
       const next = await Promise.all(accepted.map(fileToAttachment));
-      setAttachments((prev) => [...prev, ...next]);
+      setAttachments((prev) => mergeUniqueAttachments(prev, next));
+      if (isAssistPage) return;
+      const first = accepted[0];
+      const goal = isZh ? `学习并掌握 ${first.name}` : `Learn and understand ${first.name}`;
+      const planEpoch = ++learningPlanEpochRef.current;
+      setLearningJourney({ goal, status: "creating", packId: null, plan: null });
+      const planTask = (async (): Promise<LearningPlanTarget> => {
+        const prepared = await prepareTraitTutorMaterial(first);
+        const analysis = await analyzeTraitTutorMaterial({
+          session_id: state.sessionId || `home-${crypto.randomUUID()}`,
+          material: prepared,
+        });
+        const material = {
+          ...prepared,
+          metadata: { ...prepared.metadata, learner_analysis: analysis },
+        };
+        const pack = await createLearningPack({
+          title: first.name,
+          goal: { text: goal, status: "active", origin: "home_upload" },
+          material,
+          sources: accepted.map((file) => ({ source_type: "upload", title: file.name, role: "material" })),
+        });
+        const plan = await createLearningComponentPlan(pack.pack_id, { instruction: goal });
+        return { goal, packId: pack.pack_id, plan };
+      })();
+      pendingLearningPlanRef.current = planTask;
+      void planTask
+        .then((target) => {
+          if (learningPlanEpochRef.current !== planEpoch) return;
+          latestLearningPlanRef.current = target;
+          activeLearningPlanRef.current = { packId: target.packId, planId: target.plan.plan_id };
+          setLearningJourney({ goal: target.goal, packId: target.packId, plan: target.plan, status: "ready" });
+        })
+        .catch(() => {
+          if (learningPlanEpochRef.current !== planEpoch) return;
+          setLearningJourney((current) => current?.goal === goal ? { ...current, status: "error" } : current);
+        })
+        .finally(() => {
+          if (learningPlanEpochRef.current === planEpoch && pendingLearningPlanRef.current === planTask) {
+            pendingLearningPlanRef.current = null;
+          }
+        });
     },
-    [fileToAttachment, filterAndReportFiles],
+    [fileToAttachment, filterAndReportFiles, isAssistPage, isZh, state.sessionId],
+  );
+
+  const handlePaste = useCallback(
+    async (event: React.ClipboardEvent) => {
+      const items = Array.from(event.clipboardData.items);
+      const files = items
+        .filter((item) => item.kind === "file")
+        .map((item) => item.getAsFile())
+        .filter((file): file is File => file !== null);
+      if (!files.length) return;
+      event.preventDefault();
+      await handleAddFiles(files);
+    },
+    [handleAddFiles],
+  );
+
+  const handleDrop = useCallback(
+    async (event: React.DragEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setDragging(false);
+      dragCounter.current = 0;
+      await handleAddFiles(Array.from(event.dataTransfer.files));
+    },
+    [handleAddFiles],
+  );
+
+  const handleStartLearning = useCallback(
+    async (input: string) => {
+      if (isAssistPage || learningLaunchRef.current) return;
+      const requestedGoal = normalizeLearningGoal(input);
+      const launch = (async () => {
+        setLearningLaunchPending(true);
+        let resolvedGoal = requestedGoal || latestLearningPlanRef.current?.goal || (isZh ? "学习当前材料" : "Learn the current source");
+        try {
+          let target: LearningPlanTarget | null = null;
+          if (attachments.length) {
+            const pending = pendingLearningPlanRef.current;
+            target = pending ? await pending : latestLearningPlanRef.current;
+            if (!target) throw new Error("learning material plan unavailable");
+            resolvedGoal = requestedGoal || target.goal;
+            if (requestedGoal && requestedGoal !== target.goal) {
+              await updateLearningPack(target.packId, {
+                goal: { text: requestedGoal, status: "active", origin: "home_upload" },
+              });
+              const plan = await createLearningComponentPlan(target.packId, { instruction: requestedGoal });
+              target = { goal: requestedGoal, packId: target.packId, plan };
+            }
+          } else {
+            if (!requestedGoal) return;
+            setLearningJourney({ goal: requestedGoal, status: "creating", packId: null, plan: null });
+            const goalMaterial = {
+              source_type: "paste",
+              title: requestedGoal,
+              text: requestedGoal,
+              metadata: {
+                source_kind: "learning_goal",
+                grounding_status: "starter_plan",
+                session_id: state.sessionId,
+              },
+            };
+            const pack = await createLearningPack({
+              title: requestedGoal,
+              goal: { text: requestedGoal, status: "active", origin: "home_goal" },
+              material: goalMaterial,
+              sources: [{ source_type: "user_goal", title: requestedGoal, role: "learning_goal" }],
+            });
+            const plan = await createLearningComponentPlan(pack.pack_id, { instruction: requestedGoal });
+            target = { goal: requestedGoal, packId: pack.pack_id, plan };
+          }
+          latestLearningPlanRef.current = target;
+          activeLearningPlanRef.current = { packId: target.packId, planId: target.plan.plan_id };
+          setLearningJourney({ goal: target.goal, packId: target.packId, plan: target.plan, status: "ready" });
+          router.push(target.plan.start_url ?? `/space/learning/${target.packId}`);
+        } catch {
+          setLearningJourney((current) => current
+            ? { ...current, status: "error" }
+            : { goal: resolvedGoal, status: "error", packId: null, plan: null });
+        } finally {
+          setLearningLaunchPending(false);
+        }
+      })();
+      learningLaunchRef.current = launch;
+      try {
+        await launch;
+      } finally {
+        if (learningLaunchRef.current === launch) learningLaunchRef.current = null;
+      }
+    },
+    [attachments.length, isAssistPage, isZh, router, state.sessionId],
   );
 
   // Connected subagents are stored as ``type: subagent`` KBs. Derive the
@@ -1039,6 +1187,11 @@ export default function ChatPage() {
       )
         return;
 
+      if (!isAssistPage && !chatGenerationKind && isLearningGoalMessage(content)) {
+        await handleStartLearning(content);
+        return;
+      }
+
       let extraAttachments = attachments.map((a) => ({
         type: a.type,
         filename: a.filename,
@@ -1060,6 +1213,13 @@ export default function ChatPage() {
         product_mode: productMode,
         ...(chatGenerationKind ? { traittutor_mode: chatGenerationKind } : {}),
       };
+      if (activeLearningPlanRef.current) {
+        config = {
+          ...config,
+          learning_pack_id: activeLearningPlanRef.current.packId,
+          learning_plan_id: activeLearningPlanRef.current.planId,
+        };
+      }
 
       const memoryPayload = [...memoryReferencesPayload];
       const modeInstruction =
@@ -1087,6 +1247,11 @@ export default function ChatPage() {
         (attachments.some((a) => a.type === "image")
           ? t("Please analyze the attached image(s).")
           : "") || generationInstruction;
+      if (attachments.length) {
+        setAttachmentReceipt({ filenames: attachments.map((attachment) => attachment.filename) });
+      } else {
+        setAttachmentReceipt(null);
+      }
       // Persona is NOT passed per-call here: it is a session-level
       // preference (state.personaSelection) that sendMessage resolves and
       // sends with every turn.
@@ -1123,7 +1288,9 @@ export default function ChatPage() {
       attachments,
       bookReferencesPayload,
       historyReferencesPayload,
+      handleStartLearning,
       isResearchMode,
+      isAssistPage,
       memoryReferencesPayload,
       notebookReferencesPayload,
       productMode,
@@ -1139,6 +1306,7 @@ export default function ChatPage() {
       sendMessage,
       shouldAutoScrollRef,
       state.language,
+      state.sessionId,
       state.isStreaming,
       subagentBudget,
       t,
@@ -1352,7 +1520,7 @@ export default function ChatPage() {
           data-preview-open={previewSource ? "true" : "false"}
           className="chat-preview-shell flex h-full flex-col overflow-hidden bg-[var(--background)]"
         >
-          <div className="mx-auto flex w-full max-w-[960px] flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-6 pt-3 pb-0">
+          {(hasMessages || sessionLoading) ? <div className="mx-auto flex w-full max-w-[960px] flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-6 pt-3 pb-0">
             <div className="group/title min-w-0 flex flex-1 items-center gap-2">
               {sessionTitleEditing ? (
                 <input
@@ -1404,7 +1572,7 @@ export default function ChatPage() {
                 title={t("Download chat history as Markdown")}
               />
             </div>
-          </div>
+          </div> : null}
           <div className="flex w-full flex-1 min-h-0 flex-col">
             {sessionLoading ? (
               <div className="flex w-full flex-1 min-h-0 justify-center px-6">
@@ -1413,12 +1581,29 @@ export default function ChatPage() {
                 </div>
               </div>
             ) : !hasMessages ? (
-              <div className="flex w-full flex-1 min-h-0 items-end justify-center pb-14 animate-fade-in px-6">
-                <div className="w-full max-w-[960px] flex items-center justify-center gap-4">
-                  <TraitTutorMark className="h-10 w-10 shrink-0 select-none" />
-                  <h1 className="font-serif text-[40px] font-medium leading-[1.1] tracking-[-0.015em] text-[var(--foreground)]">
-                    {t(welcomeGreeting)}
-                  </h1>
+              <div className="traittutor-scroll-area w-full flex-1 min-h-0 overflow-y-auto px-5 [scrollbar-gutter:stable] sm:px-6">
+                <div className="flex min-h-full w-full items-center justify-center py-7 animate-fade-in sm:py-10">
+                  {isAssistPage ? (
+                    <AssistHomeIntro
+                      zh={isZh}
+                      onStart={(prompt) => void handleSend(prompt)}
+                      onFiles={(files) => void handleAddFiles(files)}
+                      attachments={attachments}
+                      attachmentError={attachmentError}
+                      onRemoveAttachment={removeAttachment}
+                    />
+                  ) : (
+                    <LearningHomeIntro
+                      zh={isZh}
+                      onStart={(goal) => void handleStartLearning(goal)}
+                      onFiles={(files) => void handleAddFiles(files)}
+                      attachments={attachments}
+                      attachmentError={attachmentError}
+                      onRemoveAttachment={removeAttachment}
+                      starting={learningLaunchPending}
+                      pathStatus={learningJourney?.status ?? null}
+                    />
+                  )}
                 </div>
               </div>
             ) : (
@@ -1431,7 +1616,7 @@ export default function ChatPage() {
                 // header and composer (siblings outside this scrollport) on
                 // classic-scrollbar platforms; plain `stable` would shift it
                 // ~half a scrollbar-width left of them.
-                className={`w-full flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable_both-edges] ${hasMessages ? "pt-6" : "pt-2 pb-6"}`}
+                className={`traittutor-scroll-area w-full flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable_both-edges] ${hasMessages ? "pt-6" : "pt-2 pb-6"}`}
                 style={
                   hasMessages
                     ? (() => {
@@ -1468,12 +1653,26 @@ export default function ChatPage() {
                     onSwitchBranch={switchBranch}
                     onSubmitUserReply={submitUserReply}
                   />
+                  {attachmentReceipt ? (
+                    <section role="status" className="rounded-2xl border border-sky-500/25 bg-sky-500/[0.06] px-4 py-3 text-[12px] leading-5 text-[var(--muted-foreground)]">
+                      <span className="font-semibold text-[var(--foreground)]">
+                        {isAssistPage
+                          ? (isZh ? "附件已提交给 TraitTutor" : "Files submitted to TraitTutor")
+                          : (isZh ? "材料已提交给学习助手" : "Source submitted to the learning coach")}
+                      </span>
+                      <span className="ml-2">
+                        {attachmentReceipt.filenames.join("、")} · {isAssistPage
+                          ? (isZh ? "正在读取内容并结合当前任务处理。" : "Reading the content and applying it to this task.")
+                          : (isZh ? "正在读取内容，本轮回复会给出主题、难度、核心概念和下一步建议。" : "This turn will identify the topic, level, core concepts, and next action.")}
+                      </span>
+                    </section>
+                  ) : null}
                   <div ref={messagesEndRef} className="h-px w-full shrink-0" />
                 </div>
               </div>
             )}
 
-            <ChatComposer
+            {(hasMessages || state.isStreaming) ? <ChatComposer
               composerRef={composerRef}
               capMenuRef={capMenuRef}
               capBtnRef={capBtnRef}
@@ -1562,35 +1761,16 @@ export default function ChatPage() {
               }
               onCancelStreaming={cancelStreamingTurn}
               prefillInputRef={prefillInputRef}
-            />
-            {!hasMessages && (
-              <div className="mx-auto mt-3 flex w-full max-w-[960px] items-center justify-center gap-1" role="group" aria-label="TraitTutor mode">
-                <button
-                  type="button"
-                  onClick={() => setProductMode("learn")}
-                  className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[12.5px] transition-colors ${productMode === "learn" ? "bg-teal-500/15 text-teal-700 dark:text-teal-300" : "text-[var(--muted-foreground)] hover:bg-[var(--accent)]"}`}
-                >
-                  <GraduationCap size={14} />
-                  {t("学习")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setProductMode("assist")}
-                  className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[12.5px] transition-colors ${productMode === "assist" ? "bg-[var(--primary)]/10 text-[var(--primary)]" : "text-[var(--muted-foreground)] hover:bg-[var(--accent)]"}`}
-                >
-                  <Sparkles size={14} />
-                  {t("让 TraitTutor 帮我做事")}
-                </button>
-              </div>
-            )}
-            <div
-              aria-hidden="true"
-              className="shrink-0"
-              style={{
-                flexGrow: hasMessages ? 0 : 1.4,
-                transition: "flex-grow 650ms cubic-bezier(0.16, 1, 0.3, 1)",
-              }}
-            />
+            /> : null}
+            {(hasMessages || state.isStreaming) ? (
+              <div
+                aria-hidden="true"
+                className="shrink-0 grow-0"
+                style={{
+                  transition: "flex-grow 650ms cubic-bezier(0.16, 1, 0.3, 1)",
+                }}
+              />
+            ) : null}
           </div>
           <NotebookRecordPicker
             open={showNotebookPicker}

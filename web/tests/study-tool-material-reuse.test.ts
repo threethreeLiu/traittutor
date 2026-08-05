@@ -19,7 +19,20 @@ test("study tools can reuse an existing learning-pack material across courseware
   assert.match(workbench, /const analysisSessionId = resolvedAnalysis\.session_id \|\| materialSessionId\.current/);
   assert.match(workbench, /session_id: analysisSessionId/);
   assert.match(workbench, /updateLearningPack\(packIdForTask, \{ generation_id: loaded\.generation_id \}\)/);
-  assert.match(workbench, /复用已有材料/);
+  assert.match(workbench, /复用已有学习包/);
   assert.match(workbench, /已复用学习包材料/);
-  assert.match(workbench, /Flashcard 和 Quiz 会挂回同一个学习包/);
+  assert.match(workbench, /同一目标可以持续追加材料/);
+});
+
+test("goal links prefill all study tools and keep the same learning pack", () => {
+  const workbench = read("components/space/StudyToolWorkbench.tsx");
+
+  assert.match(workbench, /new URLSearchParams\(window\.location\.search\)/);
+  assert.match(workbench, /params\.get\("goal"\)/);
+  assert.match(workbench, /params\.get\("pack"\)/);
+  assert.match(workbench, /setQuizMode\("objective"\)/);
+  assert.match(workbench, /autoStartRequestedRef/);
+  assert.match(workbench, /void generate\(\)/);
+  assert.match(workbench, /goal: isGoalSource/);
+  assert.match(workbench, /source_type: "user_goal"/);
 });

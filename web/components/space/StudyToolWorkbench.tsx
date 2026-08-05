@@ -7,6 +7,7 @@ import { Bot, FileUp, Loader2, RotateCcw, Sparkles, Square } from "lucide-react"
 import { TraitTutorIcon, type TraitTutorIconName } from "@/components/brand/TraitTutorIcon";
 import { GenerationSourceSummary, MaterialAnalysisSummary } from "@/components/traittutor/MaterialAnalysisSummary";
 import { WhyThisGeneration } from "@/components/personalization/WhyThisGeneration";
+import { isLearningGoalMessage, normalizeLearningGoal } from "@/lib/learning-goal";
 
 import {
   createLearningPack,
@@ -43,9 +44,9 @@ const MATERIAL_MAX_BYTES = 200 * 1024 * 1024;
 const MATERIAL_ACCEPT = ".pdf,.doc,.docx,.rtf,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.odp,.txt,.md,.csv,.html,.htm";
 
 const CONFIG: Record<ToolKind, { title: string; description: string; icon: TraitTutorIconName }> = {
-  courseware: { title: "课件", description: "将材料转为可逐节学习的课件。", icon: "courseware" },
-  flashcards: { title: "Flashcard 学习", description: "从材料创建主动回忆卡组。", icon: "standard" },
-  quiz: { title: "Quiz 测验", description: "生成、作答并复盘练习题。", icon: "measurement" },
+  courseware: { title: "课件", description: "从学习目标或材料开始一节结构化课程。", icon: "courseware" },
+  flashcards: { title: "Flashcard 学习", description: "把目标或材料中的核心概念变成主动回忆。", icon: "standard" },
+  quiz: { title: "Quiz 测验", description: "诊断起点、练习作答并把结果写回学习画像。", icon: "measurement" },
 };
 
 type StudyMaterial = {
@@ -80,9 +81,11 @@ export default function StudyToolWorkbench({ kind }: { kind: ToolKind }) {
   const config = CONFIG[kind];
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
+  const [goalText, setGoalText] = useState("");
   const [uploadedMaterial, setUploadedMaterial] = useState<Awaited<ReturnType<typeof prepareTraitTutorMaterial>> | null>(null);
   const [analysis, setAnalysis] = useState<MaterialAnalysis | null>(null);
   const [learningPacks, setLearningPacks] = useState<LearningPack[]>([]);
+  const [packsLoaded, setPacksLoaded] = useState(false);
   const [selectedPackId, setSelectedPackId] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadStage, setUploadStage] = useState<"pdf" | "convert" | null>(null);
@@ -108,14 +111,39 @@ export default function StudyToolWorkbench({ kind }: { kind: ToolKind }) {
   const [submitted, setSubmitted] = useState(false);
   const cleanupGenerationRef = useRef(new Map<string, () => void>());
   const materialSessionId = useRef(`space-${crypto.randomUUID()}`);
+  const requestedPackIdRef = useRef("");
+  const autoStartRequestedRef = useRef(false);
+  const initialGoalAppliedRef = useRef(false);
   const taskScope = `space:${kind}`;
+
+  useEffect(() => {
+    if (initialGoalAppliedRef.current) return;
+    initialGoalAppliedRef.current = true;
+    const params = new URLSearchParams(window.location.search);
+    const goal = (params.get("goal") || "").trim().slice(0, 240);
+    const requestedPack = (params.get("pack") || "").trim();
+    autoStartRequestedRef.current = params.get("autostart") === "1";
+    if (goal) {
+      setGoalText(goal);
+      setText(goal);
+      setTitle(goal);
+    }
+    if (requestedPack) requestedPackIdRef.current = requestedPack;
+    if (kind === "quiz" && params.get("mode") === "objective") setQuizMode("objective");
+    if (kind === "quiz" && ["3", "5", "8", "12"].includes(params.get("questions") || "")) {
+      setQuestionCount(params.get("questions") || "3");
+    }
+  }, [kind]);
 
   useEffect(() => {
     listTraitProfiles().then((profiles) => setProfile(profiles[0] ?? null)).catch(() => undefined);
   }, []);
 
   useEffect(() => {
-    listLearningPacks().then(setLearningPacks).catch(() => undefined);
+    listLearningPacks()
+      .then(setLearningPacks)
+      .catch(() => undefined)
+      .finally(() => setPacksLoaded(true));
   }, []);
 
   useEffect(() => () => cleanupGenerationRef.current.forEach((cleanup) => cleanup()), []);
@@ -228,11 +256,31 @@ export default function StudyToolWorkbench({ kind }: { kind: ToolKind }) {
     setAnalysis(learnerAnalysis && typeof learnerAnalysis === "object" ? learnerAnalysis as MaterialAnalysis : null);
   }, [reusablePacks]);
 
+  useEffect(() => {
+    const requestedPackId = requestedPackIdRef.current;
+    if (!requestedPackId || !packsLoaded) return;
+    if (reusablePacks.some((pack) => pack.pack_id === requestedPackId)) {
+      if (selectedPackId === requestedPackId) {
+        requestedPackIdRef.current = "";
+      } else {
+        chooseLearningPack(requestedPackId);
+      }
+      return;
+    }
+    requestedPackIdRef.current = "";
+  }, [chooseLearningPack, packsLoaded, reusablePacks, selectedPackId]);
+
   const generate = useCallback(async () => {
     if (!text.trim() && !uploadedMaterial && !selectedPackMaterial) return;
     setBusy(true); setError(""); setResult(null); setFlashcardsComplete(false); setStage(selectedPack ? (zh ? "正在复用学习包材料" : "Reusing learning-pack material") : (zh ? "正在创建学习包" : "Creating learning pack"));
     try {
-      const material = selectedPackMaterial ?? uploadedMaterial ?? { source_type: "paste" as const, title: title.trim() || config.title, text };
+      const isGoalSource = Boolean(goalText.trim() && !uploadedMaterial && !selectedPackMaterial);
+      const material = selectedPackMaterial ?? uploadedMaterial ?? {
+        source_type: "paste" as const,
+        title: title.trim() || config.title,
+        text,
+        metadata: isGoalSource ? { source_kind: "learning_goal", grounding_status: "starter_plan" } : {},
+      };
       const resolvedAnalysis = analysis ?? await analyzeTraitTutorMaterial({ session_id: materialSessionId.current, material });
       setAnalysis(resolvedAnalysis);
       const materialWithAnalysis = {
@@ -240,7 +288,13 @@ export default function StudyToolWorkbench({ kind }: { kind: ToolKind }) {
         metadata: { ...(material.metadata ?? {}), learner_analysis: resolvedAnalysis },
       };
       const analysisSessionId = resolvedAnalysis.session_id || materialSessionId.current;
-      const pack = selectedPack ?? await createLearningPack({ title: material.title, material: materialWithAnalysis, profile_id: profile?.profile_id });
+      const pack = selectedPack ?? await createLearningPack({
+        title: material.title,
+        material: materialWithAnalysis,
+        profile_id: profile?.profile_id,
+        goal: isGoalSource ? { text: goalText.trim(), status: "active", origin: "study_tool" } : undefined,
+        sources: isGoalSource ? [{ source_type: "user_goal", title: goalText.trim(), role: "learning_goal" }] : undefined,
+      });
       const packWithSnapshot = selectedPack ? await updateLearningPack(pack.pack_id, { material: materialWithAnalysis }) : pack;
       setLearningPacks((packs) => upsertLearningPack(packs, packWithSnapshot));
       setPackId(packWithSnapshot.pack_id);
@@ -254,7 +308,14 @@ export default function StudyToolWorkbench({ kind }: { kind: ToolKind }) {
     } catch (cause) {
       setBusy(false); setError(generationErrorMessage(cause, Boolean(zh)));
     }
-  }, [analysis, config.title, difficulty, kind, profile, questionCount, quizMode, selectedPack, selectedPackMaterial, text, title, uploadedMaterial, watchTask, zh]);
+  }, [analysis, config.title, difficulty, goalText, kind, profile, questionCount, quizMode, selectedPack, selectedPackMaterial, text, title, uploadedMaterial, watchTask, zh]);
+
+  useEffect(() => {
+    if (!autoStartRequestedRef.current || !packsLoaded || requestedPackIdRef.current) return;
+    if (busy || result || (!text.trim() && !selectedPackMaterial)) return;
+    autoStartRequestedRef.current = false;
+    void generate();
+  }, [busy, generate, packsLoaded, result, selectedPackMaterial, text]);
 
   const cancelTask = useCallback(async () => {
     if (!activeTaskId) return;
@@ -352,10 +413,10 @@ export default function StudyToolWorkbench({ kind }: { kind: ToolKind }) {
       </header>
 
       {!result ? <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4 space-y-4">
-        {reusablePacks.length ? <label className="block text-[12px] text-[var(--muted-foreground)]">{zh ? "复用已有材料" : "Reuse existing material"}<select value={selectedPackId} disabled={busy || uploading} onChange={(event) => chooseLearningPack(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-[13px]"><option value="">{zh ? "不复用，使用下方上传或粘贴" : "Do not reuse; upload or paste below"}</option>{reusablePacks.map((pack) => { const material = materialFromPack(pack); const counts = pack.artifacts ?? { courseware: [], flashcards: [], quiz: [] }; return <option key={pack.pack_id} value={pack.pack_id}>{pack.title || material?.title} · {counts.courseware?.length ?? 0}/{counts.flashcards?.length ?? 0}/{counts.quiz?.length ?? 0}</option>; })}</select><span className="mt-1 block text-[11px] text-[var(--muted-foreground)]">{zh ? "选择生成过课件的材料后，Flashcard 和 Quiz 会挂回同一个学习包。" : "Choose a previous material; flashcards and quiz will attach to the same learning pack."}</span></label> : null}
-        {kind === "quiz" ? <div className="grid gap-3 sm:grid-cols-3"><label className="text-[12px] text-[var(--muted-foreground)]">{zh ? "生成模式" : "Mode"}<select value={quizMode} onChange={(e) => setQuizMode(e.target.value)} className="mt-1 h-9 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-[13px]"><option value="material">{zh ? "基于材料" : "Material"}</option><option value="variation">{zh ? "题目变式" : "Question variation"}</option><option value="objective">{zh ? "学习目标" : "Objective"}</option></select></label><label className="text-[12px] text-[var(--muted-foreground)]">{zh ? "题量" : "Questions"}<select value={questionCount} onChange={(e) => setQuestionCount(e.target.value)} className="mt-1 h-9 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-[13px]"><option value="5">5</option><option value="8">8</option><option value="12">12</option></select></label><label className="text-[12px] text-[var(--muted-foreground)]">{zh ? "难度" : "Difficulty"}<select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className="mt-1 h-9 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-[13px]"><option value="easy">{zh ? "基础" : "Easy"}</option><option value="mixed">{zh ? "混合" : "Mixed"}</option><option value="hard">{zh ? "挑战" : "Hard"}</option></select></label></div> : null}
+        {reusablePacks.length ? <label className="block text-[12px] text-[var(--muted-foreground)]">{zh ? "复用已有学习包" : "Reuse a learning pack"}<select value={selectedPackId} disabled={busy || uploading} onChange={(event) => chooseLearningPack(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-[13px]"><option value="">{zh ? "新建：输入目标、粘贴内容或上传材料" : "New: enter a goal, paste content, or upload a source"}</option>{reusablePacks.map((pack) => { const material = materialFromPack(pack); const counts = pack.artifacts ?? { courseware: [], flashcards: [], quiz: [] }; return <option key={pack.pack_id} value={pack.pack_id}>{pack.title || material?.title} · {counts.courseware?.length ?? 0}/{counts.flashcards?.length ?? 0}/{counts.quiz?.length ?? 0}</option>; })}</select><span className="mt-1 block text-[11px] text-[var(--muted-foreground)]">{zh ? "同一目标可以持续追加材料，并共享课件、闪卡和 Quiz。" : "One goal can collect more sources and share courseware, flashcards, and quizzes."}</span></label> : null}
+        {kind === "quiz" ? <div className="grid gap-3 sm:grid-cols-3"><label className="text-[12px] text-[var(--muted-foreground)]">{zh ? "生成模式" : "Mode"}<select value={quizMode} onChange={(e) => setQuizMode(e.target.value)} className="mt-1 h-9 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-[13px]"><option value="material">{zh ? "基于材料" : "Material"}</option><option value="variation">{zh ? "题目变式" : "Question variation"}</option><option value="objective">{zh ? "学习目标" : "Objective"}</option></select></label><label className="text-[12px] text-[var(--muted-foreground)]">{zh ? "题量" : "Questions"}<select value={questionCount} onChange={(e) => setQuestionCount(e.target.value)} className="mt-1 h-9 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-[13px]"><option value="3">3</option><option value="5">5</option><option value="8">8</option><option value="12">12</option></select></label><label className="text-[12px] text-[var(--muted-foreground)]">{zh ? "难度" : "Difficulty"}<select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className="mt-1 h-9 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-[13px]"><option value="easy">{zh ? "基础" : "Easy"}</option><option value="mixed">{zh ? "混合" : "Mixed"}</option><option value="hard">{zh ? "挑战" : "Hard"}</option></select></label></div> : null}
         <label className="block text-[12px] text-[var(--muted-foreground)]">{zh ? "学习包名称" : "Learning pack name"}<input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={zh ? "例如：细胞生物学第一章" : "e.g. Cell biology chapter 1"} className="mt-1 h-9 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 text-[13px]" /></label>
-        <label className="block text-[12px] text-[var(--muted-foreground)]">{quizMode === "objective" ? (zh ? "学习目标" : "Learning objective") : (zh ? "材料或已有题目" : "Material or existing question")}<textarea value={text} disabled={Boolean(uploadedMaterial || selectedPackMaterial)} onChange={(e) => { setText(e.target.value); setAnalysis(null); setSelectedPackId(""); }} placeholder={selectedPackMaterial ? (zh ? "已复用已有材料，无需重新粘贴。" : "Reusing existing material; no need to paste again.") : (zh ? "粘贴材料、题目或学习目标。" : "Paste material, questions, or a learning objective.")} className="mt-1 min-h-52 w-full rounded-md border border-[var(--border)] bg-[var(--background)] p-3 text-[13px] leading-relaxed disabled:opacity-50" /></label>
+        <label className="block text-[12px] text-[var(--muted-foreground)]">{zh ? "学习目标或材料" : "Learning goal or source"}<textarea value={text} disabled={Boolean(uploadedMaterial || selectedPackMaterial)} onChange={(e) => { const value = e.target.value; setText(value); setGoalText(quizMode === "objective" || isLearningGoalMessage(value) ? normalizeLearningGoal(value) : ""); setAnalysis(null); setSelectedPackId(""); }} placeholder={selectedPackMaterial ? (zh ? "已复用学习包，无需重新输入。" : "Reusing a learning pack; no need to enter it again.") : (zh ? "例如：我想用 7 天入门个人理财；也可以粘贴材料或已有题目。" : "For example: I want to learn personal finance in 7 days; or paste a source or question.")} className="mt-1 min-h-52 w-full rounded-md border border-[var(--border)] bg-[var(--background)] p-3 text-[13px] leading-relaxed disabled:opacity-50" /></label>
         <label className={`inline-flex h-9 items-center gap-2 rounded-md border border-[var(--border)] px-3 text-[13px] ${selectedPackMaterial ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-[var(--accent)]"}`}><FileUp size={15} />{uploading ? (uploadStage === "pdf" ? (zh ? "正在解析 PDF…" : "Parsing PDF…") : (zh ? "正在准备材料…" : "Preparing material…")) : (zh ? "上传 PDF / Word / PPT / Excel" : "Upload PDF / Word / PPT / Excel")}<input type="file" disabled={Boolean(selectedPackMaterial)} className="sr-only" accept={MATERIAL_ACCEPT} onChange={(event) => void chooseMaterial(event.target.files?.[0] ?? null)} /></label>
         {selectedPackMaterial ? <p className="text-[12px] text-teal-700 dark:text-teal-300">{zh ? `已复用学习包材料：${selectedPack?.title || selectedPackMaterial.title}` : `Reusing learning-pack material: ${selectedPack?.title || selectedPackMaterial.title}`}</p> : null}
         {uploadedMaterial ? <p className="text-[12px] text-teal-700 dark:text-teal-300">{zh ? `已准备 ${uploadedMaterial.title}（${String(uploadedMaterial.metadata.page_count ?? 0)} 页${uploadedMaterial.metadata.converted_to_pdf ? "，已转换为 PDF" : ""}）` : `${uploadedMaterial.title} is ready (${String(uploadedMaterial.metadata.page_count ?? 0)} pages${uploadedMaterial.metadata.converted_to_pdf ? ", converted to PDF" : ""})`}</p> : null}
