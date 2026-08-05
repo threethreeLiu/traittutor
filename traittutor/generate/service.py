@@ -644,6 +644,20 @@ async def generate_traittutor_content_async(
         for chunk in generation_chunks
     ]
     generation_id = generation_id or uuid4().hex
+    # Refuse oversized structured work before any optional image task starts.
+    # Otherwise a rejected request can still consume an image-model call.
+    is_flashcards = request.generation_type == "flashcards"
+    batch_plans: list[Any] | tuple[Any, ...] | None = None
+    if request.generation_type != "courseware":
+        batch_plans = (
+            plan_flashcard_batches(grounding_chunks)
+            if is_flashcards
+            else _quiz_plans(grounding_chunks, request.options)
+        )
+        if len(batch_plans) > MAX_STRUCTURED_BATCHES_PER_GENERATION:
+            raise ValueError(
+                "This source needs too many generation batches. Split the material before generating."
+            )
     visual_decision = should_generate_learning_visual(
         slr_support=strategy["slr_support"],
         learning_targets=learning_targets,
@@ -740,12 +754,7 @@ async def generate_traittutor_content_async(
             }
             prompt_asset = "prompts/courseware/traittutor-courseware.md"
         else:
-            is_flashcards = request.generation_type == "flashcards"
-            plans = plan_flashcard_batches(grounding_chunks) if is_flashcards else _quiz_plans(grounding_chunks, request.options)
-            if len(plans) > MAX_STRUCTURED_BATCHES_PER_GENERATION:
-                raise ValueError(
-                    "This source needs too many generation batches. Split the material before generating."
-                )
+            plans = batch_plans or ()
             items: list[dict[str, Any]] = []
             trace: list[dict[str, Any]] = []
             prompt_path = "flashcards/km-card-note.md" if is_flashcards else "quiz/km-question-note.md"
@@ -792,6 +801,14 @@ async def generate_traittutor_content_async(
     except GenerationConfigurationError:
         # The product must never label a deterministic fallback as an AI result.
         # The API turns this into a user-facing model-configuration message.
+        raise
+    except BaseException:
+        if image_task is not None and not image_task.done():
+            image_task.cancel()
+            try:
+                await image_task
+            except asyncio.CancelledError:
+                pass
         raise
 
     # The only way external material can reach a completed result is by a
