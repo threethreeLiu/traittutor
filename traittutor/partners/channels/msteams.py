@@ -471,15 +471,15 @@ class MSTeamsChannel(BaseChannel):
 
     async def _validate_inbound_auth(self, auth_header: str, activity: dict[str, Any]) -> None:
         """Validate inbound Bot Framework bearer token."""
-        if not MSTEAMS_AVAILABLE:
-            raise RuntimeError(MSTEAMS_DEPS_HINT)
-
         if not auth_header.lower().startswith("bearer "):
             raise ValueError("missing bearer token")
 
         token = auth_header.split(" ", 1)[1].strip()
         if not token:
             raise ValueError("empty bearer token")
+
+        if not MSTEAMS_AVAILABLE:
+            raise RuntimeError(MSTEAMS_DEPS_HINT)
 
         header = jwt.get_unverified_header(token)
         kid = str(header.get("kid") or "").strip()

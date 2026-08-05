@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import LearningPlansHome from "@/components/learning/LearningPlansHome";
 
-export default function LegacyLearningRoute() {
-  redirect("/space/traittutor");
+export default function LearningRoute() {
+  return <LearningPlansHome />;
 }

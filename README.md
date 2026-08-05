@@ -23,13 +23,15 @@
   <img alt="License" src="https://img.shields.io/badge/License-Apache--2.0-blue">
 </p>
 
-TraitTutor helps learners turn real materials into usable study artifacts. Upload a PDF, document, deck, spreadsheet, image, or text; TraitTutor analyzes the source, identifies subject and grade context, generates learning artifacts, and keeps the evidence trail visible as the learner practices.
+TraitTutor helps learners turn a goal, a question, or real learning material into an adaptive study path. A learner can start without uploading anything, or add a PDF, document, deck, spreadsheet, image, or text later. TraitTutor analyzes available sources, selects learning components using BKT-style concept evidence, subject support actions, and material affordances, then keeps the evidence trail visible as the learner practices.
 
 The product is intentionally narrow: profile signals personalize support, but they are never used as diagnosis, ability labels, or learning-style claims.
 
 ## Features
 
 - **Source-grounded material analysis**: subject, grade band, difficulty, language, concept candidates, page evidence, and augmentation decisions are stored as a reusable material snapshot.
+- **Goal-first learning paths**: a goal, source, or problem creates one Learning Pack and a deterministic component plan instead of forcing the learner to choose a generator.
+- **Full-screen learning canvas**: the path, current component, and “why this step” evidence are shown together; the workspace sidebar collapses when learning begins.
 - **One material, many artifacts**: courseware, flashcards, and quizzes can share the same Learning Pack instead of requiring repeated uploads.
 - **Learning-event feedback loop**: quiz answers and flashcard reviews write auditable learner events that update BKT-style concept progress.
 - **Explainable learner model**: Reflection / Compass memory governance separates explicit preferences, inferred support needs, concept progress, evidence, and deletion/rebuild behavior.
@@ -40,22 +42,26 @@ The product is intentionally narrow: profile signals personalize support, but th
 ## How it works
 
 ```text
-Upload / paste material
+Goal / source / problem
         ↓
-MaterialAnalysisSnapshot
+LearningPack + MaterialAnalysisSnapshot (when a source exists)
         ↓
-LearningPack
+BKT concept evidence + subject SLR support + material affordances
         ↓
-PersonalizationContext + SLR action support
+LearningComponentPlan
         ↓
-Courseware / Flashcards / Quiz / Chat modes
+Full-screen Learning Canvas
         ↓
-LearnerEvent
+Lesson / assessment / retrieval / visual / audio executors
         ↓
-BKT-style concept progress + knowledge graph + learner model
+LearnerEvent → BKT / knowledge graph / learner model
+        ↓
+Replan only the unstarted tail → next component
 ```
 
-Courseware completion is treated as participation evidence. Durable mastery changes come from explainable learning events such as quiz answers, flashcard reviews, and mastery attempts.
+Courseware, flashcards, and quizzes are execution surfaces and historical artifacts, not homepage modes. Courseware completion is treated as participation evidence. Durable mastery changes come from explainable learning events such as quiz answers, flashcard reviews, and mastery attempts.
+
+The learning canvas is the product destination; chat remains the entry point for goals, questions, source follow-up, and second questions over saved artifacts. TraitTutor-owned UI states are bilingual, while learner-authored text and source material keep their original language.
 
 ## Quick start
 
@@ -84,6 +90,8 @@ npm run dev
 ```
 
 The app reads local runtime settings from ignored files such as `web/.env.local` and `config/models.local.yaml`. Use the example files as templates and never commit real model keys.
+
+For a single-host Ubuntu deployment, follow [DEPLOYMENT.md](DEPLOYMENT.md). The repeatable flow is `bootstrap_production_server.sh` once, then `deploy_production.sh deploy` for each committed release; the same script also provides status, logs, and rollback commands.
 
 ## Configuration
 

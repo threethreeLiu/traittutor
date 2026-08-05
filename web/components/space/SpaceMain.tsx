@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 // Sections that own their full height + scroll. They must NOT be squeezed into
 // the centered, padded document
 // container the list-style sections use.
-const FULL_BLEED: string[] = [];
+const FULL_BLEED: string[] = ["/space/learning"];
 
 function isFullBleed(pathname: string): boolean {
   return FULL_BLEED.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -43,10 +43,7 @@ export default function SpaceMain({
   if (isFullBleed(pathname)) {
     return (
       <div className="flex h-full min-h-0 flex-col bg-[var(--background)]">
-        <div className="shrink-0 border-b border-[var(--border)] px-5 py-2.5">
-          <BackToHub />
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto md:overflow-hidden">{children}</div>
+        <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
       </div>
     );
   }

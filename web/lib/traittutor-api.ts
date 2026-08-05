@@ -8,6 +8,11 @@ import {
 
 export type TraitKey = "O" | "C" | "E" | "A" | "N";
 export type GenerateKind = "courseware" | "flashcards" | "quiz";
+export type LearningComponentType =
+  | "goal_map" | "concept_explanation" | "worked_example" | "visual_map"
+  | "audio_explanation" | "diagnostic_check" | "guided_practice"
+  | "retrieval_card" | "progress_checkpoint" | "reflection_prompt"
+  | "transfer_challenge" | "review_queue";
 
 export interface TraitQuestion {
   id: number;
@@ -183,14 +188,65 @@ export interface GenerationProgressEvent {
 export interface LearningPack {
   pack_id: string;
   title: string;
+  goal?: {
+    goal_id?: string;
+    text: string;
+    status?: "active" | "paused" | "completed";
+    created_at?: string;
+    [key: string]: unknown;
+  } | null;
+  sources?: Array<Record<string, unknown>>;
   material: Record<string, unknown>;
   profile_id?: string | null;
   persona?: string | null;
   artifacts: Record<GenerateKind, Array<Record<string, unknown>>>;
   flashcard_progress: Record<string, string>;
   quiz_attempts: Array<Record<string, unknown>>;
+  component_plans?: LearningComponentPlan[];
+  active_plan_id?: string | null;
+  component_progress?: Record<string, Record<string, unknown>>;
   created_at: string;
   updated_at: string;
+}
+
+export interface LearningComponent {
+  component_id: string;
+  component_type: LearningComponentType;
+  executor: "deterministic" | "lesson" | "retrieval" | "assessment" | "image" | "audio";
+  label_zh: string;
+  label_en: string;
+  concept_refs: string[];
+  support_dimensions: string[];
+  bkt_stage: "unobserved" | "needs_support" | "developing" | "supported";
+  modality: "text" | "interactive" | "visual" | "audio";
+  dependencies: string[];
+  required: boolean;
+  reason: string;
+  evidence_refs: string[];
+  completion_event: string;
+  status: "pending" | "active" | "completed" | "skipped" | "degraded";
+  output_ref?: string | null;
+}
+
+export interface LearningComponentPlan {
+  plan_id: string;
+  pack_id: string;
+  version: number;
+  goal: string;
+  subject_ref?: { subject_id?: string; label?: string; [key: string]: unknown } | null;
+  analysis_id?: string | null;
+  support_state_snapshot: {
+    subject_id?: string | null;
+    source: "initial_profile" | "subject_evidence" | "default";
+    dimensions: Record<string, Record<string, unknown>>;
+    boundary: string;
+  };
+  components: LearningComponent[];
+  status: "active" | "completed" | "superseded";
+  supersedes_plan_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  start_url?: string;
 }
 
 async function expectJson<T>(response: Response): Promise<T> {
@@ -209,8 +265,10 @@ async function expectJson<T>(response: Response): Promise<T> {
 
 export async function createLearningPack(input: {
   title: string;
-  material: Record<string, unknown>;
+  material?: Record<string, unknown>;
   profile_id?: string;
+  goal?: Record<string, unknown> | string;
+  sources?: Array<Record<string, unknown>>;
 }): Promise<LearningPack> {
   const response = await apiFetch(apiUrl("/api/v1/learning-packs"), {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input),
@@ -222,6 +280,56 @@ export async function listLearningPacks(): Promise<LearningPack[]> {
   const response = await apiFetch(apiUrl("/api/v1/learning-packs"), { cache: "no-store" });
   const data = await expectJson<{ packs: LearningPack[] }>(response);
   return data.packs ?? [];
+}
+
+export async function getLearningPack(packId: string): Promise<LearningPack> {
+  const response = await apiFetch(apiUrl(`/api/v1/learning-packs/${encodeURIComponent(packId)}`), { cache: "no-store" });
+  return expectJson<LearningPack>(response);
+}
+
+export async function createLearningComponentPlan(
+  packId: string,
+  input: {
+    instruction?: string;
+    preferred_modalities?: Array<"text" | "visual" | "audio" | "interactive">;
+    accessibility?: Record<string, unknown>;
+    supersedes_plan_id?: string;
+  } = {},
+): Promise<LearningComponentPlan> {
+  const response = await apiFetch(apiUrl(`/api/v1/learning-packs/${encodeURIComponent(packId)}/plans`), {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input),
+  });
+  return expectJson<LearningComponentPlan>(response);
+}
+
+export async function getLearningComponentPlan(packId: string, planId: string): Promise<LearningComponentPlan> {
+  const response = await apiFetch(apiUrl(`/api/v1/learning-packs/${encodeURIComponent(packId)}/plans/${encodeURIComponent(planId)}`), { cache: "no-store" });
+  return expectJson<LearningComponentPlan>(response);
+}
+
+export async function recordLearningComponentEvent(
+  packId: string,
+  planId: string,
+  componentId: string,
+  event: {
+    event_id?: string;
+    action: "start" | "complete" | "skip" | "retry" | "degrade" | "feedback";
+    observation?: "correct" | "incorrect" | "known" | "uncertain" | "unknown";
+    question_id?: string;
+    answer?: string;
+    concept_id?: string;
+    concept_label?: string;
+    output_ref?: string;
+    feedback?: string;
+    replan?: boolean;
+  },
+): Promise<{ component: LearningComponent; learner_state_updated: boolean; replanned_plan?: LearningComponentPlan | null }> {
+  const response = await apiFetch(apiUrl(
+    `/api/v1/learning-packs/${encodeURIComponent(packId)}/plans/${encodeURIComponent(planId)}/components/${encodeURIComponent(componentId)}/events`,
+  ), {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(event),
+  });
+  return expectJson<{ component: LearningComponent; learner_state_updated: boolean; replanned_plan?: LearningComponentPlan | null }>(response);
 }
 
 export async function updateLearningPack(packId: string, patch: Record<string, unknown>): Promise<LearningPack> {
@@ -316,6 +424,7 @@ export type MaterialAnalysis = {
   augmentation_needed: boolean;
   augmentation_reason: string;
   augmentation_decision?: { needed?: boolean; reason?: string };
+  component_affordances?: Record<string, { suitable?: boolean; confidence?: number; reasons?: string[] }>;
   created_at: string;
   trace: Record<string, unknown>;
 };

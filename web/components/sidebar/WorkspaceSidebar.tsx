@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { SidebarShell } from "@/components/sidebar/SidebarShell";
 import { LogoutButton } from "@/components/auth/LogoutButton";
@@ -16,6 +16,8 @@ import {
 export default function WorkspaceSidebar() {
   const { t } = useTranslation();
   const router = useRouter();
+  const pathname = usePathname();
+  const chatRoot = pathname.startsWith("/assist") ? "/assist" : "/home";
   const {
     newSession,
     cancelStreamingTurn,
@@ -77,14 +79,13 @@ export default function WorkspaceSidebar() {
   const handleNewChat = useCallback(() => {
     cancelStreamingTurn();
     newSession();
-    router.push("/home");
-  }, [cancelStreamingTurn, newSession, router]);
+  }, [cancelStreamingTurn, newSession]);
 
   const handleSelectSession = useCallback(
     async (sessionId: string) => {
-      router.push(`/home/${sessionId}`);
+      router.push(`${chatRoot}/${sessionId}`);
     },
-    [router],
+    [chatRoot, router],
   );
 
   const handleRenameSession = useCallback(
@@ -115,10 +116,10 @@ export default function WorkspaceSidebar() {
       if (selectedSessionId === sessionId) {
         cancelStreamingTurn();
         newSession();
-        router.push("/home");
+        router.push(chatRoot);
       }
     },
-    [cancelStreamingTurn, newSession, router, selectedSessionId, t],
+    [cancelStreamingTurn, chatRoot, newSession, router, selectedSessionId, t],
   );
 
   return (

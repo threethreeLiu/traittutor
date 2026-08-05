@@ -13,6 +13,7 @@ from typing import Any, Mapping
 from uuid import uuid4
 
 from traittutor.multi_user.context import get_current_user
+from traittutor.learning_components import infer_material_affordances
 from traittutor.personalization.models import SubjectRef
 from traittutor.personalization.knowledge_graph import schedule_learning_knowledge_graph
 from traittutor.services.path_service import get_path_service
@@ -96,6 +97,7 @@ class MaterialAnalysis:
     concept_candidates: list[dict[str, Any]] | None = None
     page_evidence: list[dict[str, Any]] | None = None
     augmentation_decision: dict[str, Any] | None = None
+    component_affordances: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         value = asdict(self)
@@ -109,6 +111,9 @@ class MaterialAnalysis:
             "needed": self.augmentation_needed,
             "reason": self.augmentation_reason,
         }
+        value["component_affordances"] = self.component_affordances or infer_material_affordances(
+            value,
+        ).model_dump()
         return value
 
 
@@ -301,6 +306,11 @@ async def analyze_material(material: Any, *, session_id: str, resolver: Material
         concept_candidates=concept_candidates,
         page_evidence=page_evidence,
         augmentation_decision={"needed": bool(payload["augmentation_needed"]), "reason": str(payload["augmentation_reason"])[:400]},
+        component_affordances=infer_material_affordances(
+            payload,
+            title=str(getattr(resolved, "title", "") or ""),
+            text=" ".join(str(chunk.get("text") or "") for chunk in chunks[:12]),
+        ).model_dump(),
     )
     save_material_analysis(analysis)
     if analysis.confidence >= 0.65:

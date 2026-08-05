@@ -79,6 +79,12 @@ def _prompt(result: Mapping[str, Any]) -> str:
 
 def merge_learning_visual(result: dict[str, Any], visual: dict[str, Any]) -> None:
     result.setdefault("images", []).append(visual)
+    component_id = str(visual.get("component_id") or "")
+    if component_id:
+        result.setdefault("component_media", {}).setdefault(component_id, []).append(visual)
+        # Component-mode generation is rendered inside its own canvas slot.
+        # Do not also pin the image onto an unrelated first section/item.
+        return
     if result.get("kind") == "courseware":
         sections = result.get("sections")
         if isinstance(sections, list) and sections and isinstance(sections[0], dict):
@@ -124,6 +130,7 @@ async def generate_learning_visual(
                 "placement": trace["placement"],
                 "provider": "configured_imagegen",
                 "content_type": content_type,
+                "component_id": _clean(prompt_source.get("component_id"), limit=160) or None,
             }
             trace["attempts"].append({"attempt": attempt, "status": "completed"})
             trace.update({"status": "completed", "asset": visual})
