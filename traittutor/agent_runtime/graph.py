@@ -107,10 +107,15 @@ async def _route(state: AgentState) -> AgentState:
                     "components": plan.get("components", []),
                     "start_url": f"/space/learning/{pack['pack_id']}",
                 }
-        except Exception:
-            # Learning conversation remains available; deterministic planning
-            # can be retried from My Learning without fabricating an action.
-            pass
+        except Exception as exc:
+            # Keep the chat answer available, but never silently pretend that
+            # the deterministic product action was created.
+            routed["product_action"] = {
+                "type": "learning_plan_unavailable",
+                "retryable": True,
+                "message": "The learning path could not be prepared. Please retry from My Learning.",
+                "error_type": type(exc).__name__,
+            }
     return routed
 
 
@@ -133,12 +138,10 @@ async def _respond(state: AgentState) -> AgentState:
     learning_contract = ""
     if is_learning:
         learning_contract = (
-            " This is a learning launch, not ordinary question answering. Do not stop at a generic explanation. "
-            "Return a compact first learning cycle with these visible sections: 学习目标/Goal, 学习路径/Path (3-5 ordered steps), "
-            "现在开始/Start now (one useful micro-lesson), and 诊断练习/Diagnostic practice (exactly 3 answerable questions). "
-            "The interface has already arranged a structured component path. Refer to that path and invite the learner to start its first step; "
-            "do not ask them to choose between Quiz, courseware, or flashcards. "
-            "If no source is supplied, clearly mark the path as a starter plan that should be grounded with verified sources as learning continues."
+            " This is a learning launch, not ordinary question answering. The interface has already arranged "
+            "the authoritative structured component path. Do not invent a second path, a separate diagnostic, "
+            "or generator choices. Briefly acknowledge the goal and invite the learner to start the first step. "
+            "If no source is supplied, say that the existing starter plan will become more grounded as sources are added."
         )
     product_contract = ""
     if state["agent"] == "product_guide":

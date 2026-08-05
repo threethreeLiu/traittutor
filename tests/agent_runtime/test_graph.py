@@ -46,7 +46,8 @@ async def test_learn_mode_routes_to_learning_coach(monkeypatch):
             assert request.reasoning_effort == "high"
             assert "请严格使用中文（简体）" in request.system_prompt
             assert "learning launch" in request.system_prompt
-            assert "Diagnostic practice" in request.system_prompt
+            assert "authoritative structured component path" in request.system_prompt
+            assert "Do not invent a second path" in request.system_prompt
             return FakeResponse()
 
     monkeypatch.setattr("traittutor.agent_runtime.graph.get_gateway", lambda: FakeGateway())
