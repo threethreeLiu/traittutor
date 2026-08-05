@@ -23,19 +23,21 @@ export default function HomeAttachmentTray({
   error,
   onRemove,
   zh,
-  accent = "teal",
+  accent = "theme",
 }: {
   attachments: HomePendingAttachment[];
   error: string | null;
   onRemove: (index: number) => void;
   zh: boolean;
-  accent?: "teal" | "violet";
+  accent?: "theme" | "teal" | "violet";
 }) {
   if (!attachments.length && !error) return null;
 
-  const accentClasses = accent === "teal"
-    ? "border-teal-500/20 bg-teal-500/[0.06]"
-    : "border-violet-500/20 bg-violet-500/[0.06]";
+  const accentClasses = accent === "theme"
+    ? "home-attachment--theme"
+    : accent === "teal"
+      ? "border-teal-500/20 bg-teal-500/[0.06]"
+      : "border-violet-500/20 bg-violet-500/[0.06]";
 
   return (
     <div className="mb-2 space-y-2 px-1" aria-live="polite">
@@ -57,7 +59,7 @@ export default function HomeAttachmentTray({
                   type="button"
                   onClick={() => onRemove(index)}
                   aria-label={zh ? `移除 ${attachment.filename}` : `Remove ${attachment.filename}`}
-                  className="ml-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[var(--muted-foreground)] transition hover:bg-white/10 hover:text-[var(--foreground)]"
+                  className="ml-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[var(--muted-foreground)] transition hover:text-[var(--foreground)]"
                 >
                   <X size={13} />
                 </button>

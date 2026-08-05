@@ -38,6 +38,17 @@ test("mobile navigation translates both visible and accessibility labels", () =>
   }
 });
 
+test("persona selection and detail views use the localized preset presentation", () => {
+  const picker = read("components/chat/PersonaPicker.tsx");
+  const personas = read("components/space/PersonasSection.tsx");
+
+  assert.match(picker, /const selectedDisplay = selected/);
+  assert.match(picker, /name: selectedDisplay\?\.name/);
+  assert.match(personas, /const viewerDisplay = viewer/);
+  assert.match(personas, /\{viewerDisplay\?\.name\}/);
+  assert.match(personas, /\{viewerDisplay\.description\}/);
+});
+
 test("onboarding uses the global language and translates assessment content", () => {
   const onboarding = read("components/onboarding/OnboardingProvider.tsx");
 

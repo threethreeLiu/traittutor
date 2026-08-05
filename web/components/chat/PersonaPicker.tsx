@@ -66,6 +66,17 @@ export default function PersonaPicker({
     onApply(selected);
     onClose();
   };
+  const selectedDisplay = selected
+    ? presentPersona(
+        personas.find((persona) => persona.name === selected) ?? {
+          name: selected,
+          description: "",
+          source: "user",
+          read_only: false,
+        },
+        i18n.language,
+      )
+    : null;
 
   return (
     <PickerShell
@@ -189,7 +200,7 @@ export default function PersonaPicker({
           <div className="mt-4 flex items-center justify-between gap-3">
             <div className="text-[12px] text-[var(--muted-foreground)]">
               {selected
-                ? t("Persona: {{name}}", { name: selected })
+                ? t("Persona: {{name}}", { name: selectedDisplay?.name })
                 : t("No persona selected")}
             </div>
             <button

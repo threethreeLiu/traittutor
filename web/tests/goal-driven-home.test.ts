@@ -60,6 +60,19 @@ test("home explains the product and starts goal-driven learning by default", () 
   assert.match(canvas, /为什么这一步/);
 });
 
+test("learning home consumes the shared theme palette instead of a teal-only palette", () => {
+  const intro = read("components/chat/home/LearningHomeIntro.tsx");
+  const tray = read("components/chat/home/HomeAttachmentTray.tsx");
+  const globals = read("app/globals.css");
+
+  assert.match(intro, /learning-home-card/);
+  assert.match(intro, /learning-home-submit/);
+  assert.doesNotMatch(intro, /teal-|#0d9488|rgba\(45,212,191/);
+  assert.match(tray, /accent = "theme"/);
+  assert.match(globals, /\.learning-home-card\s*\{/);
+  assert.match(globals, /var\(--primary\)/);
+});
+
 test("empty-state attachments stay inside one launch surface", () => {
   const page = read("app/(workspace)/home/[[...sessionId]]/page.tsx");
   const tray = read("components/chat/home/HomeAttachmentTray.tsx");
