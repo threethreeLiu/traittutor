@@ -21,6 +21,12 @@ from .catalog import PromptDefinition
 CompletionFn = Callable[..., Awaitable[str]]
 logger = logging.getLogger(__name__)
 
+# A generation request may already fan out into validated batches.  Keep the
+# fallback fan-out deliberately small so one click cannot multiply provider
+# spend across every configured model in Settings.
+MAX_GENERATION_ROUTES = 2
+MAX_ATTEMPTS_PER_ROUTE = 2
+
 
 class GenerationConfigurationError(RuntimeError):
     """Raised when real generation is requested with no configured LLM."""
@@ -131,10 +137,10 @@ async def run_structured_prompt(
 
     current_user = get_current_user()
     failures: list[str] = []
-    for route_index, route in enumerate(_generation_route_configs(config), start=1):
+    for route_index, route in enumerate(_generation_route_configs(config)[:MAX_GENERATION_ROUTES], start=1):
         # The underlying provider client has its own bounded retry. This retry
         # is a generation-level safety net for a transient final failure.
-        for attempt in range(2):
+        for attempt in range(MAX_ATTEMPTS_PER_ROUTE):
             try:
                 response = await get_gateway().complete(
                     GatewayRequest(

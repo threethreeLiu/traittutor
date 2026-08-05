@@ -104,7 +104,9 @@ async def generate_learning_visual(
     """Generate a visual from a source-bounded seed without mutating an artifact."""
     prompt = _prompt(prompt_source)
     ratio = "16:9" if prompt_source.get("kind") == "courseware" else "1:1"
-    size = "2K" if prompt_source.get("kind") == "courseware" else "1K"
+    # Educational illustrations are supporting artifacts.  The lower-cost
+    # default is sufficient for the in-app canvas and avoids a surprise spend.
+    size = "1K"
     attempts = max(1, int(max_attempts or 1))
     trace: dict[str, Any] = {
         "status": "unavailable",
