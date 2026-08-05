@@ -1,7 +1,7 @@
 # TraitTutor
 
 <p align="center">
-  <strong>A learner-centered AI study workspace for source-grounded courseware, flashcards, quizzes, and explainable learner memory.</strong>
+  <strong>A goal-first AI learning coach that turns questions and real materials into adaptive, evidence-aware study paths.</strong>
 </p>
 
 <p align="center">
@@ -23,7 +23,7 @@
   <img alt="License" src="https://img.shields.io/badge/License-Apache--2.0-blue">
 </p>
 
-TraitTutor helps learners turn a goal, a question, or real learning material into an adaptive study path. A learner can start without uploading anything, or add a PDF, document, deck, spreadsheet, image, or text later. TraitTutor analyzes available sources, selects learning components using BKT-style concept evidence, subject support actions, and material affordances, then keeps the evidence trail visible as the learner practices.
+TraitTutor turns a goal, a question, or real learning material into a continuous adaptive study path. Learners can start without uploading anything, then add a PDF, document, deck, spreadsheet, image, or text when it helps. TraitTutor combines source evidence, BKT-style concept signals, subject support actions, and material affordances to plan the next learning component—and keeps both the rationale and learning evidence visible as practice unfolds.
 
 The product is intentionally narrow: profile signals personalize support, but they are never used as diagnosis, ability labels, or learning-style claims.
 

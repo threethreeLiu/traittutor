@@ -1,7 +1,7 @@
 # TraitTutor
 
 <p align="center">
-  <strong>面向学习者的 AI 学习工作台：基于真实材料生成课件、闪卡、测验，并沉淀可解释的学习记忆。</strong>
+  <strong>目标驱动的 AI 学习教练：把问题和真实材料转化为可自适应、可追溯证据的学习路径。</strong>
 </p>
 
 <p align="center">
@@ -23,7 +23,7 @@
   <img alt="License" src="https://img.shields.io/badge/License-Apache--2.0-blue">
 </p>
 
-TraitTutor 用来把一个学习目标、一道问题或真实学习材料变成会根据证据调整的学习路径。用户可以不上传材料直接开始，也可以稍后加入 PDF、Word、PPT、Excel、图片或文本；系统会分析已有来源，结合 BKT 风格概念证据、学科支持动作和材料 affordance 自动选择学习组件，并在练习后更新学习画像。
+TraitTutor 把一个学习目标、一道问题或真实学习材料转化为会持续根据证据调整的学习路径。用户可以不上传材料直接开始，也可以在需要时加入 PDF、Word、PPT、Excel、图片或文本；系统会结合来源证据、BKT 风格概念信号、学科支持动作和材料 affordance 安排下一学习组件，并在练习过程中始终呈现安排依据与学习证据。
 
 产品边界很明确：人格 / 偏好信号只用于调整讲解方式，不用于诊断、能力标签或学习风格判定。
 
