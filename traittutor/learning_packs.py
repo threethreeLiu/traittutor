@@ -40,7 +40,9 @@ def _load() -> list[dict[str, Any]]:
         return []
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
-        return [_normalize_pack(item) for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+        if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
+            raise LearningPackStoreError("Learning-pack data has an invalid format")
+        return [_normalize_pack(item) for item in value]
     except OSError as exc:
         raise LearningPackStoreError("Unable to read learning packs") from exc
     except json.JSONDecodeError as exc:
