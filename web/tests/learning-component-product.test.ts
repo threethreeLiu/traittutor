@@ -89,3 +89,15 @@ test("completed component outputs are restored from durable generation ids", () 
   assert.match(canvas, /getTraitTutorGenerationTask\(component\.output_ref\)/);
   assert.match(canvas, /setOutputs\(Object\.fromEntries/);
 });
+
+test("mobile learning rationale is an accessible bottom-sheet dialog", () => {
+  const canvas = read("components/learning/LearningCanvas.tsx");
+  const globals = read("app/globals.css");
+
+  assert.match(canvas, /role="dialog"/);
+  assert.match(canvas, /aria-modal="true"/);
+  assert.match(canvas, /aria-labelledby="learning-why-title"/);
+  assert.match(canvas, /event\.key === "Escape"/);
+  assert.match(canvas, /event\.key !== "Tab"/);
+  assert.match(globals, /\.learning-drawer\s*\{[\s\S]*bottom-0[\s\S]*rounded-t-2xl/);
+});

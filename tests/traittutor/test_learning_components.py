@@ -143,3 +143,19 @@ def test_replan_preserves_completed_component_output_and_only_replaces_tail():
     assert replanned.components[0].component_id == completed.component_id
     assert replanned.components[0].output_ref == "generation-1"
     assert replanned.components[1].component_id != first.components[1].component_id
+
+
+def test_replan_preserves_an_active_component_and_every_prior_step():
+    first = _plan()
+    completed = first.components[0].model_copy(update={"status": "completed", "output_ref": "goal-output"})
+    active = first.components[1].model_copy(update={"status": "active"})
+    replanned = _plan(
+        signals=[{"concept_id": "slope", "support_level": "needs_support", "mastery_probability": .2}],
+        completed=[completed.model_dump(), active.model_dump()],
+        supersedes=first.plan_id,
+    )
+    assert [item.component_id for item in replanned.components[:2]] == [
+        completed.component_id,
+        active.component_id,
+    ]
+    assert replanned.components[1].status == "active"

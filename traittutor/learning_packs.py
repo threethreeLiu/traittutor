@@ -22,6 +22,10 @@ class InvalidComponentTransition(ValueError):
     """A component event violates the active plan's state machine."""
 
 
+class InvalidComponentPlanChain(ValueError):
+    """A plan does not directly supersede the current active version."""
+
+
 def _now() -> str:
     return datetime.now(UTC).isoformat()
 
@@ -224,9 +228,23 @@ def create_component_plan(pack_id: str, plan: dict[str, Any]) -> dict[str, Any] 
                 continue
             plans = pack.setdefault("component_plans", [])
             plan_id = str(plan.get("plan_id") or "")
-            if not plan_id or any(item.get("plan_id") == plan_id for item in plans):
+            if not plan_id:
                 return None
+            existing = next((item for item in plans if item.get("plan_id") == plan_id), None)
+            if existing is not None:
+                return dict(existing)
             previous_id = pack.get("active_plan_id")
+            supersedes_plan_id = plan.get("supersedes_plan_id")
+            active = next((item for item in plans if item.get("plan_id") == previous_id), None)
+            if active is None and supersedes_plan_id:
+                raise InvalidComponentPlanChain("The first plan cannot supersede another plan")
+            if active is not None and supersedes_plan_id != previous_id:
+                # A repeated initial-create request is safe to treat as an
+                # idempotent read of the current plan. Any other stale plan
+                # reference would fork the version chain and is rejected.
+                if not supersedes_plan_id:
+                    return dict(active)
+                raise InvalidComponentPlanChain("A new plan must supersede the active learning plan")
             if previous_id:
                 for previous in plans:
                     if previous.get("plan_id") == previous_id and previous.get("status") == "active":

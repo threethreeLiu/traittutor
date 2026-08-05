@@ -100,6 +100,27 @@ def test_plan_api_creates_reads_and_records_component_progress(client: TestClien
     assert updated_pack["artifacts"]["quiz"][0]["verified_generation_id"] == "generation-api"
 
 
+def test_initial_plan_create_is_idempotent(client: TestClient):
+    pack = client.post("/api/v1/learning-packs", json={"title": "Math"}).json()
+    first = client.post(f"/api/v1/learning-packs/{pack['pack_id']}/plans", json={})
+    repeated = client.post(f"/api/v1/learning-packs/{pack['pack_id']}/plans", json={})
+    assert first.status_code == repeated.status_code == 200
+    assert repeated.json()["plan_id"] == first.json()["plan_id"]
+    assert len(client.get(f"/api/v1/learning-packs/{pack['pack_id']}/plans").json()["plans"]) == 1
+
+
+def test_plan_store_rejects_a_stale_supersedes_link(tmp_path, monkeypatch):
+    monkeypatch.setattr(learning_packs, "_path", lambda: tmp_path / "learning-packs.json")
+    pack = learning_packs.create_pack(title="Math")
+    first = _plan(pack["pack_id"])
+    assert learning_packs.create_component_plan(pack["pack_id"], first.model_dump())
+    second = first.model_copy(update={"plan_id": "plan-api-2", "supersedes_plan_id": first.plan_id})
+    assert learning_packs.create_component_plan(pack["pack_id"], second.model_dump())
+    stale = first.model_copy(update={"plan_id": "plan-api-3", "supersedes_plan_id": first.plan_id})
+    with pytest.raises(learning_packs.InvalidComponentPlanChain):
+        learning_packs.create_component_plan(pack["pack_id"], stale.model_dump())
+
+
 def test_plan_api_rejects_unknown_pack_plan_and_component(client: TestClient):
     assert client.post("/api/v1/learning-packs/missing/plans", json={}).status_code == 404
     pack = client.post("/api/v1/learning-packs", json={"title": "Math"}).json()

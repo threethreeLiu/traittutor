@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Check, ChevronRight, Circle,
@@ -40,6 +40,7 @@ export default function LearningCanvas({ packId, locale }: { packId: string; loc
   const [error, setError] = useState<string | null>(null);
   const [whyOpen, setWhyOpen] = useState(false);
   const [adjusted, setAdjusted] = useState(false);
+  const drawerRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const wasCollapsed = readStoredSidebarCollapsed();
@@ -88,6 +89,43 @@ export default function LearningCanvas({ packId, locale }: { packId: string; loc
     })();
     return () => { active = false; };
   }, [packId]);
+
+  useEffect(() => {
+    if (!whyOpen) return;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const drawer = drawerRef.current;
+    const focusable = () => Array.from(drawer?.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ) ?? []);
+    focusable()[0]?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setWhyOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const targets = focusable();
+      if (!targets.length) {
+        event.preventDefault();
+        return;
+      }
+      const first = targets[0];
+      const last = targets[targets.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [whyOpen]);
 
   const selected = useMemo(
     () => plan?.components.find((item) => item.component_id === selectedId) ?? plan?.components[0] ?? null,
@@ -158,7 +196,9 @@ export default function LearningCanvas({ packId, locale }: { packId: string; loc
             method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: transcript.slice(0, 4000), generation_id: result.generation_id }),
           });
           if (!response.ok) throw new Error("tts unavailable");
-          output = { audioUrl: response.headers.get("X-TraitTutor-Audio-Url") || URL.createObjectURL(await response.blob()), transcript };
+          const audioUrl = response.headers.get("X-TraitTutor-Audio-Url");
+          if (!audioUrl) throw new Error("tts output was not persisted");
+          output = { audioUrl, transcript };
         } catch {
           mediaDegraded = true;
           output = result;
@@ -246,7 +286,7 @@ export default function LearningCanvas({ packId, locale }: { packId: string; loc
         </aside>
       </div>
 
-      {whyOpen ? <div className="learning-drawer-backdrop" onClick={() => setWhyOpen(false)}><aside className="learning-drawer" onClick={(event) => event.stopPropagation()}><button onClick={() => setWhyOpen(false)} className="learning-icon-button float-right"><X size={16} /></button><WhyPanel component={selected} plan={plan} zh={zh} /></aside></div> : null}
+      {whyOpen ? <div className="learning-drawer-backdrop" onClick={() => setWhyOpen(false)}><aside ref={drawerRef} className="learning-drawer" role="dialog" aria-modal="true" aria-labelledby="learning-why-title" onClick={(event) => event.stopPropagation()}><button onClick={() => setWhyOpen(false)} className="learning-icon-button float-right" aria-label={zh ? "关闭学习依据" : "Close learning rationale"}><X size={16} /></button><WhyPanel component={selected} plan={plan} zh={zh} headingId="learning-why-title" /></aside></div> : null}
     </main>
   );
 }
@@ -306,16 +346,16 @@ function ActionBar({ component, zh, onEvent }: { component: LearningComponent; z
   return <div className="learning-action-bar mt-6 flex flex-wrap gap-2 border-t pt-4"><button onClick={() => onEvent({ action: "complete", replan: false })} className="learning-button learning-button--primary"><Check size={14} />{zh ? "完成并继续" : "Complete and continue"}</button>{!component.required ? <button onClick={() => onEvent({ action: "skip", replan: false })} className="learning-button learning-button--secondary"><SkipForward size={14} />{zh ? "跳过" : "Skip"}</button> : null}<button onClick={() => onEvent({ action: "retry", feedback: "request_alternative_explanation", replan: false })} className="learning-button learning-button--secondary"><RefreshCcw size={14} />{zh ? "换一种解释" : "Explain differently"}</button></div>;
 }
 
-function WhyPanel({ component, plan, zh }: { component: LearningComponent; plan: LearningComponentPlan; zh: boolean }) {
+function WhyPanel({ component, plan, zh, headingId }: { component: LearningComponent; plan: LearningComponentPlan; zh: boolean; headingId?: string }) {
   const dimensions = component.support_dimensions.map((key) => plan.support_state_snapshot.dimensions[key]).filter(Boolean);
-  return <div className="pt-12 xl:pt-0"><p className="learning-eyebrow">{zh ? "为什么是这一步" : "Why this step"}</p><h2 className="mt-2 font-serif text-xl">{zh ? "学习依据" : "Learning rationale"}</h2><dl className="mt-6 space-y-5 text-xs"><WhyRow label={zh ? "当前目标" : "Current goal"} value={plan.goal} /><WhyRow label={zh ? "知识阶段" : "Knowledge stage"} value={stageLabel(component.bkt_stage, zh)} /><WhyRow label={zh ? "教学动作" : "Teaching action"} value={componentReason(component, zh)} /><WhyRow label={zh ? "材料证据" : "Source evidence"} value={component.evidence_refs.length ? (zh ? `${component.evidence_refs.length} 条来源` : `${component.evidence_refs.length} refs`) : (zh ? "当前材料与目标" : "Current source and goal")} /><WhyRow label={zh ? "支持信号" : "Support signal"} value={dimensions.length ? component.support_dimensions.map((item) => supportLabel(item, zh)).join(" · ") : (zh ? "标准结构" : "Standard structure")} /></dl><p className="learning-action-bar learning-copy-muted mt-7 flex gap-2 border-t pt-5 text-[10px] leading-5"><ShieldCheck size={14} className="mt-0.5 shrink-0" />{zh ? "支持状态只用于选择临时教学动作，不用于诊断能力、人格、情绪或固定学习风格。" : plan.support_state_snapshot.boundary}</p></div>;
+  return <div className="pt-12 xl:pt-0"><p className="learning-eyebrow">{zh ? "为什么是这一步" : "Why this step"}</p><h2 id={headingId} className="mt-2 font-serif text-xl">{zh ? "学习依据" : "Learning rationale"}</h2><dl className="mt-6 space-y-5 text-xs"><WhyRow label={zh ? "当前目标" : "Current goal"} value={plan.goal} /><WhyRow label={zh ? "知识阶段" : "Knowledge stage"} value={stageLabel(component.bkt_stage, zh)} /><WhyRow label={zh ? "教学动作" : "Teaching action"} value={componentReason(component, zh)} /><WhyRow label={zh ? "材料证据" : "Source evidence"} value={component.evidence_refs.length ? (zh ? `${component.evidence_refs.length} 条来源` : `${component.evidence_refs.length} refs`) : (zh ? "当前材料与目标" : "Current source and goal")} /><WhyRow label={zh ? "支持信号" : "Support signal"} value={dimensions.length ? component.support_dimensions.map((item) => supportLabel(item, zh)).join(" · ") : (zh ? "标准结构" : "Standard structure")} /></dl><p className="learning-action-bar learning-copy-muted mt-7 flex gap-2 border-t pt-5 text-[10px] leading-5"><ShieldCheck size={14} className="mt-0.5 shrink-0" />{zh ? "支持状态只用于选择临时教学动作，不用于诊断能力、人格、情绪或固定学习风格。" : plan.support_state_snapshot.boundary}</p></div>;
 }
 function WhyRow({ label, value }: { label: string; value: string }) { return <div><dt className="learning-meta text-[8px]">{label}</dt><dd className="mt-1.5 leading-5">{value}</dd></div>; }
 function StatusIcon({ status, active }: { status: LearningComponent["status"]; active: boolean }) { if (status === "completed") return <Check size={15} className="learning-accent" />; if (active) return <span className="learning-status-dot" />; return <Circle size={14} className={status === "degraded" ? "text-[var(--destructive)]" : "text-[var(--border)]"} />; }
 function stageLabel(stage: string, zh: boolean): string { if (!zh) return stage.replaceAll("_", " "); return ({ unobserved: "尚未观察", emerging: "正在形成", developing: "逐步理解", proficient: "基本掌握", mastered: "稳定掌握", needs_support: "需要支持" } as Record<string, string>)[stage] ?? stage.replaceAll("_", " "); }
 function modalityLabel(modality: string, zh: boolean): string { if (!zh) return modality.replaceAll("_", " "); return ({ interactive: "互动", visual: "图解", audio: "语音", text: "阅读", assessment: "诊断", retrieval: "回忆" } as Record<string, string>)[modality] ?? modality.replaceAll("_", " "); }
 function statusLabel(status: string, zh: boolean): string { if (!zh) return status; return ({ pending: "待开始", active: "进行中", completed: "已完成", skipped: "已跳过", degraded: "已降级" } as Record<string, string>)[status] ?? status; }
-function supportLabel(key: string, zh: boolean): string { if (!zh) return key.replaceAll("_", " "); return ({ monitoring_regulation: "监控与调节", cognitive_scaffolding: "认知支架", motivation_engagement: "动机参与", social_affective: "互动支持" } as Record<string, string>)[key] ?? key.replaceAll("_", " "); }
+function supportLabel(key: string, zh: boolean): string { if (!zh) return key.replaceAll("_", " "); return ({ goal_planning: "目标与计划", monitoring_regulation: "监控与调节", reflection_transfer: "反思与迁移", motivation_emotion: "动机与情绪支持" } as Record<string, string>)[key] ?? key.replaceAll("_", " "); }
 function componentReason(component: LearningComponent, zh: boolean): string { if (!zh) return component.reason; return ({ goal_map: "先明确目标、阶段与完成标准，让后续学习有清晰方向。", diagnostic_check: "当前学科还没有可判分证据，先用短诊断确认真实起点。", concept_explanation: "结合当前知识状态补足核心概念，再进入练习。", worked_example: "通过分步例题把概念连接到可执行的方法。", visual_map: "用关系图呈现重点概念和它们之间的联系。", audio_explanation: "用语音和文字稿提供另一种理解入口。", guided_practice: "在提示和即时反馈下完成练习，形成可判分证据。", retrieval_card: "用主动回忆检验保持程度，并安排后续复习。", progress_checkpoint: "回看当前证据，确认下一阶段最值得投入的内容。", reflection_prompt: "用简短反思整理本轮学习策略，不把自评当作掌握证据。", transfer_challenge: "把已学知识迁移到新情境，检验能否灵活运用。", review_queue: "优先复习已到期或仍需支持的概念。" } as Record<string, string>)[component.component_type] ?? component.reason; }
 function FullState({ icon, title }: { icon: React.ReactNode; title: string }) { return <main className="learning-full-state"><div className="learning-accent text-center">{icon}<p className="mt-4 font-serif text-xl text-[var(--foreground)]">{title}</p></div></main>; }
 function executorKind(executor: LearningComponent["executor"]): GenerateKind { return executor === "assessment" ? "quiz" : executor === "retrieval" ? "flashcards" : "courseware"; }

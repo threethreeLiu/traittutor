@@ -362,7 +362,10 @@ async def create_learning_component_plan(pack_id: str, request: CreateLearningPl
     if request.supersedes_plan_id and learning_packs.get_component_plan(pack_id, request.supersedes_plan_id) is None:
         raise HTTPException(status_code=404, detail="Previous learning plan not found")
     plan = _build_component_plan(pack, request)
-    saved = learning_packs.create_component_plan(pack_id, plan.model_dump())
+    try:
+        saved = learning_packs.create_component_plan(pack_id, plan.model_dump())
+    except learning_packs.InvalidComponentPlanChain as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     if saved is None:
         raise HTTPException(status_code=409, detail="Learning plan could not be saved")
     return {**saved, "start_url": f"/space/learning/{pack_id}"}
@@ -453,7 +456,10 @@ async def record_learning_component_event(
                 supersedes_plan_id=plan_id,
             ),
         )
-        replanned = learning_packs.create_component_plan(pack_id, replanned_model.model_dump())
+        try:
+            replanned = learning_packs.create_component_plan(pack_id, replanned_model.model_dump())
+        except learning_packs.InvalidComponentPlanChain as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
     return {
         "component": updated_component,
         "learner_state_updated": learner_state_updated,

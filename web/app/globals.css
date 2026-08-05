@@ -439,11 +439,11 @@
   }
 
   .learning-drawer {
-    @apply absolute right-0 top-0 h-full w-full max-w-md overflow-y-auto border-l p-6;
+    @apply absolute inset-x-0 bottom-0 max-h-[85vh] w-full overflow-y-auto rounded-t-2xl border-t p-6;
     border-color: var(--border);
     background: var(--popover);
     color: var(--popover-foreground);
-    box-shadow: -20px 0 50px color-mix(in srgb, var(--foreground) 12%, transparent);
+    box-shadow: 0 -20px 50px color-mix(in srgb, var(--foreground) 12%, transparent);
   }
 
   .learning-full-state {
