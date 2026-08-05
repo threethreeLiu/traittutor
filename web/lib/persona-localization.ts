@@ -5,6 +5,18 @@ type PersonaSource = PersonaPresentation &
   Partial<Pick<PersonaInfo, "source" | "read_only">>;
 
 const ZH_PRESETS: Record<string, PersonaPresentation> = {
+  peer: {
+    name: "学习伙伴",
+    description: "与你共同思考、提出挑战并探索想法的学习伙伴。",
+  },
+  "research-assistant": {
+    name: "研究助手",
+    description: "专注于引用、方法与批判性分析的严谨研究助手。",
+  },
+  teacher: {
+    name: "苏格拉底导师",
+    description: "通过提问引导你思考，而非直接给出答案的耐心导师。",
+  },
   "learning-companion": {
     name: "学习共振",
     description: "围绕你的目标、材料和学习画像一起推进对话与下一步。",
