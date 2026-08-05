@@ -84,6 +84,32 @@ def test_tts_missing_config_is_400(client: TestClient, monkeypatch: pytest.Monke
     assert resp.status_code == 400
 
 
+def test_tts_rejects_unknown_generation_before_calling_provider(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class MissingTasks:
+        def get(self, _generation_id: str):
+            return None
+
+    async def must_not_run(*_: Any, **__: Any):
+        raise AssertionError("TTS provider should not be called")
+
+    monkeypatch.setattr(voice_router, "get_generation_task_manager", lambda: MissingTasks())
+    monkeypatch.setattr(voice_router, "synthesize_speech", must_not_run)
+
+    resp = client.post(
+        "/api/v1/voice/tts",
+        json={"text": "hello", "generation_id": "missing-task"},
+    )
+
+    assert resp.status_code == 404
+
+
+def test_tts_rejects_text_above_provider_cost_limit(client: TestClient) -> None:
+    resp = client.post("/api/v1/voice/tts", json={"text": "x" * 4001})
+    assert resp.status_code == 422
+
+
 def test_stt_returns_text(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, Any] = {}
 

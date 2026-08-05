@@ -115,3 +115,26 @@ def test_assessment_event_rejects_client_supplied_observation(client: TestClient
         json={"action": "complete", "observation": "correct"},
     )
     assert response.status_code == 422
+
+
+def test_audio_component_rejects_untrusted_media_url(client: TestClient):
+    pack = client.post("/api/v1/learning-packs", json={"title": "Math"}).json()
+    plan = _plan(pack["pack_id"]).model_dump()
+    plan["components"] = [{
+        "component_id": "audio-api", "component_type": "audio_explanation",
+        "executor": "audio", "label_zh": "音频", "label_en": "Audio",
+        "concept_refs": ["slope"], "support_dimensions": [], "bkt_stage": "unobserved",
+        "modality": "audio", "required": True, "reason": "Audio explanation",
+        "completion_event": "audio_played",
+    }]
+    learning_packs.create_component_plan(pack["pack_id"], plan)
+
+    response = client.post(
+        f"/api/v1/learning-packs/{pack['pack_id']}/plans/plan-api/components/audio-api/events",
+        json={
+            "action": "complete", "output_ref": "generation-api",
+            "media_url": "https://untrusted.example/audio.mp3", "replan": False,
+        },
+    )
+
+    assert response.status_code == 422
