@@ -82,6 +82,7 @@ class LearningComponent(BaseModel):
     completion_event: str
     status: ComponentStatus = "pending"
     output_ref: str | None = None
+    media_url: str | None = None
 
 
 class LearningComponentPlan(BaseModel):
@@ -231,7 +232,15 @@ def build_learning_component_plan(
         instruction=" ".join((instruction, " ".join(preferred_modalities or []))),
     )
     previous = learning_packs.get_component_plan(str(pack["pack_id"]), supersedes_plan_id or "")
-    completed = [item for item in (previous or {}).get("components", []) if item.get("status") == "completed"]
+    # A replan may replace only work that has not started.  Preserve the full
+    # historical prefix, rather than just completed rows: an active assessment
+    # can emit useful feedback before it is completed.
+    previous_components = list((previous or {}).get("components", []))
+    last_started = max(
+        (index for index, item in enumerate(previous_components) if item.get("status") != "pending"),
+        default=-1,
+    )
+    preserved = previous_components[:last_started + 1]
     plan = LearningComponentSelector().select(
         pack_id=str(pack["pack_id"]), goal=goal,
         subject_ref=subject.model_dump() if subject else None,
@@ -239,7 +248,7 @@ def build_learning_component_plan(
         concept_signals=[item.model_dump() for item in context.relevant_concept_signals],
         support_state=support_state, affordances=affordances,
         supersedes_plan_id=supersedes_plan_id,
-        completed_components=completed,
+        completed_components=preserved,
     )
     return plan.model_copy(update={"version": int(previous.get("version") or 1) + 1}) if previous else plan
 
@@ -318,10 +327,10 @@ class LearningComponentSelector:
         if stage != "unobserved" and concept_signals:
             sequence.append(("review_queue", ["motivation_emotion"], False, "Observed concepts remain available in the subject-scoped review queue."))
 
-        completed = [LearningComponent.model_validate(item) for item in list(completed_components or [])]
-        if any(item.component_type == "goal_map" for item in completed):
+        preserved = [LearningComponent.model_validate(item) for item in list(completed_components or [])]
+        if any(item.component_type == "goal_map" for item in preserved):
             sequence = [item for item in sequence if item[0] != "goal_map"]
-        components: list[LearningComponent] = completed[:]
+        components: list[LearningComponent] = preserved[:]
         previous_id = components[-1].component_id if components else None
         catalog = dict(self.catalog.get("components") or {})
         for index, (component_type, dimensions, required, reason) in enumerate(sequence, start=1):
