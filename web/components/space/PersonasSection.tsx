@@ -237,6 +237,17 @@ export default function PersonasSection() {
   const editorNameInvalid = Boolean(
     editor?.name && !isValidSkillName(editor.name),
   );
+  const viewerDisplay = viewer
+    ? presentPersona(
+        {
+          name: viewer.name,
+          description: viewer.description,
+          source: viewer.source === "admin" ? "admin" : "user",
+          read_only: viewer.readOnly,
+        },
+        i18n.language,
+      )
+    : null;
 
   return (
     <div className="space-y-6">
@@ -400,7 +411,7 @@ export default function PersonasSection() {
                   className="shrink-0 text-[var(--muted-foreground)]"
                 />
                 <h3 className="truncate text-[14px] font-semibold text-[var(--foreground)]">
-                  {viewer.name}
+                  {viewerDisplay?.name}
                 </h3>
                 {viewer.readOnly ? (
                   <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[var(--muted)] px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
@@ -434,9 +445,9 @@ export default function PersonasSection() {
             </div>
 
             <div className="flex-1 overflow-y-auto px-5 py-4">
-              {viewer.description ? (
+              {viewerDisplay?.description ? (
                 <p className="mb-3 text-[13px] leading-relaxed text-[var(--muted-foreground)]">
-                  {viewer.description}
+                  {viewerDisplay.description}
                 </p>
               ) : null}
               {viewer.loading ? (

@@ -245,6 +245,64 @@
     @apply rounded-full bg-[var(--muted)] px-3 py-1 text-xs text-[var(--muted-foreground)];
   }
 
+  /* Goal-first home: these accents deliberately derive from the active
+     product theme. Keep this surface in the same visual system as the
+     sidebar rather than pinning a second, teal-only palette in JSX. */
+  .learning-home-card {
+    border-color: color-mix(in srgb, var(--border) 76%, var(--primary));
+    background: linear-gradient(145deg, color-mix(in srgb, var(--card) 94%, var(--primary)), var(--card));
+    box-shadow: 0 28px 90px -72px color-mix(in srgb, var(--primary) 78%, transparent);
+  }
+
+  .learning-home-rule {
+    background: linear-gradient(to right, transparent, color-mix(in srgb, var(--primary) 60%, transparent), transparent);
+  }
+
+  .learning-home-accent { color: var(--primary); }
+
+  .learning-home-chip,
+  .learning-home-secondary-action {
+    border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+    background: color-mix(in srgb, var(--primary) 9%, var(--card));
+    color: var(--primary);
+  }
+
+  .learning-home-chip:hover,
+  .learning-home-starter:hover {
+    border-color: color-mix(in srgb, var(--primary) 48%, var(--border));
+    background: color-mix(in srgb, var(--primary) 12%, var(--card));
+  }
+
+  .learning-home-dot,
+  .learning-home-submit { background: var(--primary); }
+
+  .learning-home-submit {
+    color: var(--primary-foreground);
+  }
+
+  .learning-home-submit:hover {
+    background: color-mix(in srgb, var(--primary) 82%, var(--foreground));
+  }
+
+  .learning-home-form:focus-within {
+    border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent);
+  }
+
+  .learning-home-source:hover {
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    color: var(--primary);
+  }
+
+  .home-attachment--theme {
+    border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+    background: color-mix(in srgb, var(--primary) 7%, var(--card));
+  }
+
+  .home-attachment--theme button:hover {
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+  }
+
   /* Learning canvas
      The adaptive path is a product surface, not a separate visual theme.
      These classes deliberately consume the same global theme tokens as the

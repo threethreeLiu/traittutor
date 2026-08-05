@@ -94,14 +94,14 @@ export default function LearningHomeIntro({
 
   return (
     <section className="w-full max-w-[920px] animate-fade-in px-1">
-      <div className="relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-[linear-gradient(145deg,color-mix(in_srgb,var(--card)_96%,#0d9488_4%),var(--card))] shadow-[0_28px_90px_-72px_rgba(45,212,191,0.9)]">
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-teal-300/60 to-transparent" />
+      <div className="learning-home-card relative overflow-hidden rounded-[28px] border">
+        <div className="learning-home-rule absolute inset-x-0 top-0 h-px" />
         <div className="relative px-6 py-6 sm:px-9 sm:py-7">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <TraitTutorMark className="h-8 w-8 shrink-0 select-none" />
               <div>
-                <p className="text-[9px] font-semibold uppercase tracking-[0.24em] text-teal-600 dark:text-teal-300">
+                <p className="learning-home-accent text-[9px] font-semibold uppercase tracking-[0.24em]">
                   TraitTutor · {zh ? "自适应学习路径" : "Adaptive learning path"}
                 </p>
                 <p className="mt-0.5 text-[10.5px] text-[var(--muted-foreground)]">
@@ -112,9 +112,9 @@ export default function LearningHomeIntro({
             {hasLearningEvidence ? (
               <Link
                 href="/profile/learning-model"
-                className="inline-flex items-center gap-2 rounded-full border border-teal-500/20 bg-teal-500/[0.07] px-3 py-1.5 text-[10px] text-teal-700 transition hover:border-teal-500/40 dark:text-teal-300"
+                className="learning-home-chip inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] transition"
               >
-                <span className="h-1.5 w-1.5 rounded-full bg-teal-400" />
+                <span className="learning-home-dot h-1.5 w-1.5 rounded-full" />
                 {zh
                   ? `${learnerState.subjects} 个学科 · ${learnerState.observations} 条证据 · ${learnerState.reviewLoad} 项待复习`
                   : `${learnerState.subjects} subjects · ${learnerState.observations} observations · ${learnerState.reviewLoad} due`}
@@ -138,7 +138,7 @@ export default function LearningHomeIntro({
                   type="button"
                   disabled={starting}
                   onClick={() => onStart(starters[0].prompt)}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-teal-500/10 px-3 py-2 text-[10.5px] font-semibold text-teal-700 dark:text-teal-300"
+                  className="learning-home-secondary-action inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[10.5px] font-semibold"
                 >
                   <Sparkles size={12} />{zh ? "试一个学习目标" : "Try a learning goal"}
                 </button>
@@ -152,9 +152,9 @@ export default function LearningHomeIntro({
                   type="button"
                   disabled={starting}
                   onClick={() => onStart(starter.prompt)}
-                  className="group flex min-w-0 items-center gap-3 rounded-xl border border-transparent px-3 py-2 text-left transition duration-200 hover:border-teal-500/20 hover:bg-teal-500/[0.06]"
+                  className="learning-home-starter group flex min-w-0 items-center gap-3 rounded-xl border border-transparent px-3 py-2 text-left transition duration-200"
                 >
-                  <span className="font-mono text-[9px] tracking-[0.16em] text-teal-600/80 dark:text-teal-300/80">{starter.index}</span>
+                  <span className="learning-home-accent font-mono text-[9px] tracking-[0.16em] opacity-80">{starter.index}</span>
                   <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium text-[var(--foreground)]">{starter.label}</span>
                   <ArrowRight size={12} className="shrink-0 -translate-x-1 text-[var(--muted-foreground)] opacity-0 transition group-hover:translate-x-0 group-hover:opacity-100" />
                 </button>
@@ -170,7 +170,7 @@ export default function LearningHomeIntro({
               zh={zh}
             />
             {pathStatus === "creating" || starting ? (
-              <p role="status" className="mb-2 inline-flex items-center gap-2 px-1 text-[10.5px] text-teal-700 dark:text-teal-300">
+              <p role="status" className="learning-home-accent mb-2 inline-flex items-center gap-2 px-1 text-[10.5px]">
                 <Loader2 size={12} className="animate-spin" />
                 {zh ? "正在分析材料并建立学习组件路径…" : "Analyzing the source and building the component path…"}
               </p>
@@ -186,7 +186,7 @@ export default function LearningHomeIntro({
               }}
               onDragOver={(event) => event.preventDefault()}
               onDrop={addDroppedFiles}
-              className="flex items-end gap-2 rounded-2xl border border-[var(--border)] bg-[var(--background)]/55 p-2.5 transition focus-within:border-teal-500/45"
+              className="learning-home-form flex items-end gap-2 rounded-2xl border border-[var(--border)] bg-[var(--background)]/55 p-2.5 transition"
             >
               <textarea
                 value={draft}
@@ -202,7 +202,7 @@ export default function LearningHomeIntro({
                 placeholder={zh ? "输入一个学习目标，或贴一道不会的题…" : "Enter a learning goal or paste a difficult problem…"}
                 className="min-h-12 flex-1 resize-none bg-transparent px-2 py-1 text-[13px] leading-5 outline-none placeholder:text-[var(--muted-foreground)]"
               />
-              <label className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl px-2.5 text-[10.5px] font-semibold text-[var(--muted-foreground)] transition hover:bg-teal-500/10 hover:text-teal-700 dark:hover:text-teal-300">
+              <label className="learning-home-source inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl px-2.5 text-[10.5px] font-semibold text-[var(--muted-foreground)] transition">
                 <FileUp size={14} />
                 <span className="hidden sm:inline">{zh ? "材料" : "Source"}</span>
                 <input
@@ -222,13 +222,13 @@ export default function LearningHomeIntro({
                 type="submit"
                 disabled={starting || (!draft.trim() && !attachments.length)}
                 aria-label={zh ? "开始学习" : "Start learning"}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-500 text-slate-950 transition hover:bg-teal-400 disabled:cursor-not-allowed disabled:opacity-30"
+                className="learning-home-submit inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition disabled:cursor-not-allowed disabled:opacity-30"
               >
                 {starting ? <Loader2 size={16} className="animate-spin" /> : <ArrowUp size={16} />}
               </button>
             </form>
             <div className="mt-3 hidden items-center justify-end gap-2 text-[9.5px] text-[var(--muted-foreground)] sm:flex" aria-label={zh ? "学习路径" : "Learning path"}>
-              <Sparkles size={12} className="text-teal-600 dark:text-teal-300" />
+              <Sparkles size={12} className="learning-home-accent" />
               <span>{zh ? "理解目标" : "Understand"}</span><span className="opacity-40">→</span>
               <span>{zh ? "安排组件" : "Arrange"}</span><span className="opacity-40">→</span>
               <span>{zh ? "根据证据调整" : "Adapt from evidence"}</span>
