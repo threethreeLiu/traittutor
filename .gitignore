@@ -120,10 +120,8 @@ web/build/
 # ============================================
 # Common Output and Cache Directories
 # ============================================
-# Local scratch/design/test artifacts
+# Local scratch artifacts
 _temp/
-web/playwright-report/
-web/test-results/
 
 # Output directories
 output/
@@ -136,7 +134,6 @@ cache/
 **/cache/
 .cache/
 .ruff_cache
-.playwright-cli/
 
 # Log files
 *.log
@@ -237,19 +234,6 @@ $RECYCLE.BIN/
 
 # Local scripts
 启动 TraitTutor.bat
-
-# ============================================
-# Testing and Coverage
-# ============================================
-.coverage
-.coverage.*
-htmlcov/
-.pytest_cache/
-.pytest_tmp/
-.tox/
-nosetests.xml
-coverage.xml
-develop/
 
 # ============================================
 # Jupyter Notebook

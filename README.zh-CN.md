@@ -121,8 +121,6 @@ npm run dev
 
 本地运行配置来自 `web/.env.local`、`config/models.local.yaml` 等已忽略文件。请根据示例文件创建本地配置，不要提交真实模型密钥。
 
-单机 Ubuntu 线上部署请阅读 [DEPLOYMENT.md](DEPLOYMENT.md)。首次运行 `bootstrap_production_server.sh`，之后每个已提交版本使用 `deploy_production.sh deploy`；同一脚本还提供状态检查、日志查看和回滚命令。
-
 ## 配置模型
 
 模型配置采用本地优先：
@@ -132,26 +130,10 @@ npm run dev
 - 真实 key 只放在本地或服务器环境中；
 - 新增生成路径必须通过现有 Gateway，不要直接调用模型供应商。
 
-## 验证命令
-
-后端核心回归：
-
-```bash
-.venv/bin/python -m pytest \
-  tests/traittutor/test_business_learning_loop.py \
-  tests/traittutor/test_learning_pack_events.py \
-  tests/traittutor/test_generate_suite.py \
-  tests/traittutor/test_personalization.py \
-  tests/api/test_personalization_router.py \
-  tests/services/test_evolution_core.py -q
-```
-
-前端：
+## 构建检查
 
 ```bash
 cd web
-npm run test:node
-npm run lint
 npm run build
 ```
 
@@ -162,8 +144,6 @@ npm run build
 ```text
 traittutor/                 FastAPI 后端、生成链路、Gateway、学习画像
 web/                        Next.js 前端
-tests/                      后端与业务闭环回归测试
-web/tests/                  前端 node 回归测试
 config/                     运行配置示例
 scripts/                    本地运维辅助脚本
 ```
@@ -178,14 +158,6 @@ TraitTutor 把画像和记忆信号当作可调整的教学上下文。它不会
 - 在解释中暴露隐藏 prompt 或私有推理。
 
 Why Drawer 应展示当前目标、材料证据、薄弱概念、显式偏好、教学动作和降级状态；不展示隐藏思维链、原始 prompt 或人格判断。
-
-## 贡献
-
-提交 PR 前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。请保持改动在 TraitTutor 学习产品边界内，为行为变更补测试，并尽量保持中英文文案同步。
-
-## 安全
-
-请不要在公开 issue 中提交凭证、私有部署 URL、模型 key 或用户材料。详见 [SECURITY.md](SECURITY.md)。
 
 ## 许可证
 

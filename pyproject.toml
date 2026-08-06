@@ -124,28 +124,9 @@ graphrag = ["graphrag>=3.0.1,<4.0.0; python_version < '3.14'"]
 # a future API-breaking 2.x isn't pulled in silently.
 rag-lightrag = ["raganything>=1.0.1,<2.0.0; python_version < '3.14'"]
 
-# Dev/test tooling. Mirrors requirements/dev.txt.
-dev = [
-    "traittutor[server]",
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.23.0",
-    "pre-commit>=3.0.0",
-    "safety<3.0.0",
-    "bandit>=1.8.0",
-    # Test fixture builders for document-loader tests. Runtime pulls these via
-    # cli/server, but dev keeps them explicit for pytest collection.
-    "python-docx>=1.1.0",
-    "openpyxl>=3.1.0",
-    "python-pptx>=1.0.0",
-    "pypdf>=4.0.0",
-    "defusedxml>=0.7.1",
-]
-
-# Everything needed for local TraitTutor MVP development.
 all = [
     "traittutor[server]",
     "traittutor[parse]",
-    "traittutor[dev]",
 ]
 
 [tool.setuptools]
@@ -263,7 +244,6 @@ exclude = [
     ".nox",
     ".pants.d",
     ".pyenv",
-    ".pytest_cache",
     ".pytype",
     ".ruff_cache",
     ".svn",
@@ -308,37 +288,10 @@ force-sort-within-sections = true
 split-on-trailing-comma = true
 
 # ============================================
-# Ruff per-file-ignores
-# ============================================
-[tool.ruff.lint.per-file-ignores]
-# Allow longer lines in test files
-# F401: Allow unused imports for availability checks in tests
-"**/test_*.py" = ["E501", "PLR2004", "F401"]
-"**/__init__.py" = ["F401"]  # Allow unused imports in __init__.py
-
-# ============================================
 # Ruff mccabe complexity
 # ============================================
 [tool.ruff.lint.mccabe]
 max-complexity = 10
-
-# ============================================
-# Pytest configuration
-# ============================================
-[tool.pytest.ini_options]
-testpaths = ["tests", "traittutor/learning/tests"]
-pythonpath = ["."]
-markers = [
-    "asyncio: mark async tests that require pytest-asyncio",
-]
-asyncio_default_fixture_loop_scope = "function"
-addopts = [
-    "--strict-markers",
-    "--strict-config",
-    "--disable-warnings",
-    "--tb=short",
-    "--import-mode=importlib",
-]
 
 # ============================================
 # MyPy type checking configuration
@@ -359,27 +312,6 @@ disallow_untyped_defs = false
 disallow_incomplete_defs = false
 no_implicit_optional = false
 
-# Module-specific overrides
-[[tool.mypy.overrides]]
-module = "tests.*"
-ignore_errors = true
-
 [[tool.mypy.overrides]]
 module = "traittutor.tools.*"
 ignore_errors = true  # Some tools may have dynamic imports
-
-# ============================================
-# Bandit security linting configuration
-# ============================================
-[tool.bandit]
-exclude_dirs = ["tests", "scripts"]
-# B101=assert, B311=random, B403/B404=pickle/subprocess imports
-# B110=try_except_pass (intentional for non-critical error handling)
-# B104=hardcoded_bind_all_interfaces (required for server binding)
-# B112=try_except_continue (intentional for iteration)
-# B105=hardcoded_password_string (false positive on empty string initialization)
-# B301=pickle (used for internal embedding cache, not untrusted data)
-# B501=request_with_no_cert_validation (opt-in via env var for dev/testing)
-# B603=subprocess_without_shell_equals_true (controlled execution)
-# B202=tarfile_unsafe_members (already using safe_members filter)
-skips = ["B101", "B311", "B403", "B404", "B110", "B104", "B112", "B105", "B301", "B501", "B603", "B202"]

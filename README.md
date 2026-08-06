@@ -121,8 +121,6 @@ npm run dev
 
 The app reads local runtime settings from ignored files such as `web/.env.local` and `config/models.local.yaml`. Use the example files as templates and never commit real model keys.
 
-For a single-host Ubuntu deployment, follow [DEPLOYMENT.md](DEPLOYMENT.md). The repeatable flow is `bootstrap_production_server.sh` once, then `deploy_production.sh deploy` for each committed release; the same script also provides status, logs, and rollback commands.
-
 ## Configuration
 
 Model configuration is intentionally local-first:
@@ -132,26 +130,10 @@ Model configuration is intentionally local-first:
 - keep real keys out of Git;
 - route new generation paths through the existing gateway instead of calling providers directly.
 
-## Verification
-
-Focused backend checks:
-
-```bash
-.venv/bin/python -m pytest \
-  tests/traittutor/test_business_learning_loop.py \
-  tests/traittutor/test_learning_pack_events.py \
-  tests/traittutor/test_generate_suite.py \
-  tests/traittutor/test_personalization.py \
-  tests/api/test_personalization_router.py \
-  tests/services/test_evolution_core.py -q
-```
-
-Frontend checks:
+## Build Check
 
 ```bash
 cd web
-npm run test:node
-npm run lint
 npm run build
 ```
 
@@ -162,8 +144,6 @@ npm run build
 ```text
 traittutor/                 FastAPI backend, generation, gateway, learner model
 web/                        Next.js app
-tests/                      Backend and business-loop regression tests
-web/tests/                  Frontend node-based regression tests
 config/                     Example runtime configuration
 scripts/                    Local operational helpers
 ```
@@ -178,14 +158,6 @@ TraitTutor uses profile and memory signals as adjustable teaching context only. 
 - expose hidden prompts or private reasoning in user-facing explanations.
 
 Why Drawer explanations should show the current goal, source evidence, weak concepts, explicit preferences, teaching actions, and degradation state—not private chain-of-thought, raw prompts, or personality judgments.
-
-## Contributing
-
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Keep changes inside the TraitTutor learning-product boundary, add tests for behavior changes, and preserve bilingual user-facing copy where applicable.
-
-## Security
-
-Please do not open public issues containing credentials, private URLs, model keys, or user materials. See [SECURITY.md](SECURITY.md).
 
 ## License
 

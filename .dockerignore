@@ -59,11 +59,6 @@ env.bak/
 venv.bak/
 TraitTutor.env
 
-# Pytest cache
-.pytest_cache/
-.coverage
-htmlcov/
-
 # mypy
 .mypy_cache/
 .dmypy.json

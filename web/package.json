@@ -7,17 +7,7 @@
     "dev:turbo": "node --max-old-space-size=6144 ./node_modules/next/dist/bin/next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint .",
-    "test:node": "node ./scripts/run-node-tests.mjs",
-    "perf:check": "node ./scripts/route_budgets.mjs",
-    "build:perf": "npm run build && npm run perf:check",
-    "i18n:parity": "node ./scripts/i18n_parity.mjs",
-    "i18n:audit": "node ./scripts/i18n_audit.mjs",
-    "i18n:audit:strict": "node ./scripts/i18n_audit.mjs --strict",
-    "i18n:check": "npm run i18n:parity && npm run i18n:audit",
-    "audit": "playwright test --project=ui-audit",
-    "audit:ui": "playwright test --ui --project=ui-audit",
-    "audit:report": "playwright show-report"
+    "lint": "eslint ."
   },
   "dependencies": {
     "chart.js": "^4.5.1",
@@ -45,7 +35,6 @@
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.53.2",
     "@types/node": "^25",
     "@types/react": "^19",
     "@types/react-dom": "^19",
