@@ -35,7 +35,7 @@ if [[ -z "$SERVER" ]]; then
   exit 1
 fi
 
-ssh "${SSH_OPTS[@]}" "$SERVER" "bash -s" -- \
+ssh "${SSH_OPTS[@]:-}" "$SERVER" "bash -s" -- \
   "$BASE_DIR" "$BASE_PATH" "$API_PORT" "$WEB_PORT" "$REMOTE_VENV" "$TRAITTUTOR_HOME_REMOTE" <<'REMOTE_BOOTSTRAP'
 set -Eeuo pipefail
 

@@ -86,7 +86,7 @@ require_remote_config() {
 }
 
 remote() {
-  ssh "${SSH_OPTS[@]}" "$SERVER" "$@"
+  ssh "${SSH_OPTS[@]:-}" "$SERVER" "$@"
 }
 
 local_git_clean_check() {
@@ -126,10 +126,10 @@ deploy() {
 
   echo "Packaging committed HEAD as ${release}"
   git -C "$ROOT_DIR" archive --format=tar --prefix="${release}/" HEAD | gzip > "$archive"
-  scp "${SSH_OPTS[@]}" "$archive" "${SERVER}:/tmp/${release}.tar.gz"
+  scp "${SSH_OPTS[@]:-}" "$archive" "${SERVER}:/tmp/${release}.tar.gz"
 
   echo "Installing ${release} on ${SERVER}"
-  ssh "${SSH_OPTS[@]}" "$SERVER" "bash -s" -- \
+  ssh "${SSH_OPTS[@]:-}" "$SERVER" "bash -s" -- \
     "$BASE_DIR" "$BASE_PATH" "$API_PORT" "$WEB_PORT" "$REMOTE_VENV" "$TRAITTUTOR_HOME_REMOTE" "$release" <<'REMOTE_DEPLOY'
 set -Eeuo pipefail
 
@@ -249,7 +249,7 @@ REMOTE_DEPLOY
 
 status() {
   require_remote_config
-  ssh "${SSH_OPTS[@]}" "$SERVER" "bash -s" -- \
+  ssh "${SSH_OPTS[@]:-}" "$SERVER" "bash -s" -- \
     "$BASE_DIR" "$BASE_PATH" "$API_PORT" "$WEB_PORT" "$TRAITTUTOR_HOME_REMOTE" <<'REMOTE_STATUS'
 set -euo pipefail
 BASE_DIR="$1"
@@ -279,7 +279,7 @@ logs() {
 rollback() {
   require_remote_config
   local target="${2:-}"
-  ssh "${SSH_OPTS[@]}" "$SERVER" "bash -s" -- \
+  ssh "${SSH_OPTS[@]:-}" "$SERVER" "bash -s" -- \
     "$BASE_DIR" "$BASE_PATH" "$API_PORT" "$WEB_PORT" "$target" <<'REMOTE_ROLLBACK'
 set -Eeuo pipefail
 BASE_DIR="$1"
