@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2, X } from "lucide-react";
+import { X } from "lucide-react";
 import { TraitTutorMark } from "@/components/brand/TraitTutorMark";
+import { ThinkingOrb } from "@/components/motion/ThinkingOrb";
 
 /**
  * Indeterminate loading overlay shown while a chat session is fetched from
@@ -49,7 +50,7 @@ export default function SessionLoadingView({
       {/* Logo + spinner */}
       <div className="flex items-center gap-3">
         <TraitTutorMark className="h-8 w-8 select-none" />
-        <Loader2 className="h-5 w-5 animate-spin text-[var(--primary)]" />
+        <ThinkingOrb size="md" className="text-[var(--primary)]" />
       </div>
 
       {/* Primary message */}

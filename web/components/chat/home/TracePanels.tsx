@@ -12,6 +12,8 @@ import {
 import { ChevronDown, Loader2, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
+import { BorderBeam } from "@/components/motion/BorderBeam";
+import { ThinkingOrb } from "@/components/motion/ThinkingOrb";
 import { formatTurnDuration, getTurnDurationSeconds } from "@/lib/trace-timing";
 import type { StreamEvent } from "@/lib/unified-ws";
 
@@ -2241,11 +2243,15 @@ export function StreamingStatus({
   const rowInner = (
     <>
       {showMark ? (
-        <Mark
-          size={22}
-          strokeWidth={1.5}
-          className={`${breathingClass} ${markPulseClass} shrink-0 text-[var(--primary)]/90`}
-        />
+        mode === "responded" ? (
+          <Mark
+            size={22}
+            strokeWidth={1.5}
+            className="shrink-0 text-[var(--primary)]/90"
+          />
+        ) : (
+          <ThinkingOrb size="sm" className="shrink-0 text-[var(--primary)]" />
+        )
       ) : null}
       <span className={breathingClass}>{label}</span>
       {durationLabel ? (
@@ -2444,7 +2450,8 @@ export function AssistantActivity({
   if (!isStreaming && !hasFinalContent && !hasTrace) return null;
 
   return (
-    <div className={className}>
+    <div className={`relative ${className}`}>
+      <BorderBeam active={Boolean(isStreaming)} />
       <StreamingStatus
         events={events}
         isStreaming={isStreaming}

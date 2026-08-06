@@ -1011,6 +1011,85 @@
   will-change: transform;
 }
 
+/* Active-state motion — an original, theme-aware interpretation of a border
+   beam and dotted thinking orb. Both are decorative and never communicate
+   state alone: surrounding text keeps the interaction understandable. */
+.traittutor-border-beam {
+  pointer-events: none;
+  position: absolute;
+  z-index: 1;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  overflow: hidden;
+  background: conic-gradient(
+    from var(--beam-angle),
+    transparent 0deg,
+    transparent 258deg,
+    color-mix(in srgb, var(--primary) 14%, transparent) 284deg,
+    var(--primary) 306deg,
+    color-mix(in srgb, var(--primary) 32%, transparent) 328deg,
+    transparent 348deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: traittutor-beam-orbit 3.8s linear infinite;
+}
+
+@property --beam-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes traittutor-beam-orbit {
+  to { --beam-angle: 360deg; }
+}
+
+.traittutor-thinking-orb {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  vertical-align: middle;
+  color: currentColor;
+  animation: traittutor-orb-drift 2.8s cubic-bezier(.42, 0, .2, 1) infinite;
+}
+
+.traittutor-thinking-orb--sm { width: .9rem; height: .9rem; }
+.traittutor-thinking-orb--lg { width: 3.5rem; height: 3.5rem; }
+
+.traittutor-thinking-orb i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14%;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: calc(.25 + (var(--orb-index) * .035));
+  transform: translate(-50%, -50%) rotate(calc(var(--orb-index) * 27.692deg)) translateY(-260%) scale(.82);
+  animation: traittutor-orb-particle 1.7s ease-in-out infinite;
+  animation-delay: calc(var(--orb-index) * -115ms);
+}
+
+.traittutor-thinking-orb i:nth-child(4n),
+.traittutor-thinking-orb i:nth-child(7n) {
+  transform: translate(-50%, -50%) rotate(calc(var(--orb-index) * 27.692deg)) translateY(-150%) scale(.72);
+}
+
+@keyframes traittutor-orb-drift {
+  0%, 100% { transform: rotate(-8deg) scale(.92); }
+  50% { transform: rotate(8deg) scale(1.05); }
+}
+
+@keyframes traittutor-orb-particle {
+  0%, 100% { opacity: .22; filter: blur(.1px); }
+  50% { opacity: 1; filter: blur(0); }
+}
+
 /* While a fullscreen picker/modal is open, freeze ambient background
    animations (sidebar "running session" pulse, breathing titles, pulsing
    marks). They live behind the modal's frosted `backdrop-filter`; their
@@ -1021,6 +1100,12 @@ body[data-picker-open] .dt-breathing-text,
 body[data-picker-open] .session-pulse,
 body[data-picker-open] .dt-session-icon-running,
 body[data-picker-open] .dt-mark-pulse {
+  animation-play-state: paused !important;
+}
+
+body[data-picker-open] .traittutor-border-beam,
+body[data-picker-open] .traittutor-thinking-orb,
+body[data-picker-open] .traittutor-thinking-orb i {
   animation-play-state: paused !important;
 }
 
@@ -1160,6 +1245,9 @@ body[data-picker-open] .dt-mark-pulse {
   .dt-breathing-text,
   .dt-mark-pulse,
   .session-pulse,
+  .traittutor-border-beam,
+  .traittutor-thinking-orb,
+  .traittutor-thinking-orb i,
   .animate-spin {
     animation: none !important;
   }

@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BrainCircuit, ChevronDown, Loader2 } from "lucide-react";
+import { BrainCircuit, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import MarkdownRenderer from "./MarkdownRenderer";
+import { BorderBeam } from "@/components/motion/BorderBeam";
+import { ThinkingOrb } from "@/components/motion/ThinkingOrb";
 
 interface ModelThinkingCardProps {
   /** Inner text of a single <think>...</think> block (already trimmed). */
@@ -66,8 +68,9 @@ export default function ModelThinkingCard({
     <details
       ref={detailsRef}
       onToggle={handleToggle}
-      className="group/think my-3 overflow-hidden rounded-xl border border-[var(--border)]/60 bg-[var(--card)]/40 transition-colors hover:border-[var(--border)]"
+      className="group/think relative my-3 overflow-hidden rounded-xl border border-[var(--border)]/60 bg-[var(--card)]/40 transition-colors hover:border-[var(--border)]"
     >
+      <BorderBeam active={!closed} />
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)] [&::-webkit-details-marker]:hidden">
         <ChevronDown
           size={12}
@@ -81,11 +84,7 @@ export default function ModelThinkingCard({
         />
         <span className="tracking-wide">{t("Model thinking")}</span>
         {!closed && (
-          <Loader2
-            size={11}
-            strokeWidth={1.8}
-            className="ml-1 animate-spin text-[var(--muted-foreground)]/70"
-          />
+          <ThinkingOrb size="sm" className="ml-1 text-[var(--primary)]" />
         )}
       </summary>
       <div className="border-t border-[var(--border)]/40 bg-[var(--background)]/40 px-3 py-2">
