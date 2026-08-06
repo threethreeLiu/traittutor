@@ -83,15 +83,15 @@ configured model gateway              durable learning events
 courseware / flashcards / quiz       BKT-style concept evidence + learner model
 ```
 
-The core design choice is to keep the learning sequence deterministic and explainable even when a model generates content. Material evidence, concept signals, subject support actions, and explicit learner preferences determine the component plan; generated artifacts execute that plan. Graded quiz answers and flashcard reviews become auditable learner events, so only the unstarted tail of a path is replanned rather than rewriting completed learning evidence. See [ADR-001](docs/decisions/ADR-001-goal-first-learning-component-canvas.md) for the decision record.
+The core design choice is to keep the learning sequence deterministic and explainable even when a model generates content. Material evidence, concept signals, subject support actions, and explicit learner preferences determine the component plan; generated artifacts execute that plan. Graded quiz answers and flashcard reviews become auditable learner events, so only the unstarted tail of a path is replanned rather than rewriting completed learning evidence.
 
 ## Open-source and dependency boundary
 
-TraitTutor's repository code is released under [Apache-2.0](LICENSE). Python dependencies are declared in `pyproject.toml`, frontend dependencies in `web/package.json`, and each dependency keeps its own license. The model gateway can use locally configured commercial or open model providers, but no provider keys, model weights, private user materials, or proprietary service outputs are included in this repository. Read the full [open-source, provider, data, and attribution boundary](docs/OPEN_SOURCE_BOUNDARIES.md).
+TraitTutor's repository code is released under [Apache-2.0](LICENSE). Python dependencies are declared in `pyproject.toml`, frontend dependencies in `web/package.json`, and each dependency keeps its own license. The model gateway can use locally configured commercial or open model providers, but no provider keys, model weights, private user materials, or proprietary service outputs are included in this repository.
 
 ## Roadmap and delivery
 
-The current release focuses on a runnable goal-to-learning-path loop, source analysis, practice evidence, and explainable next steps. Next priorities are generation-evaluation gates, durable TTS assets, and browser smoke coverage for the full material-to-follow-up journey. The product scope, non-goals, acceptance criteria, and detailed roadmap are maintained in the [PRD](docs/PRD.md).
+The current release focuses on a runnable goal-to-learning-path loop, source analysis, practice evidence, and explainable next steps. Next priorities are generation-evaluation gates, durable TTS assets, and browser smoke coverage for the full material-to-follow-up journey.
 
 ## Quick start
 
@@ -167,7 +167,6 @@ tests/                      Backend and business-loop regression tests
 web/tests/                  Frontend node-based regression tests
 config/                     Example runtime configuration
 scripts/                    Local operational helpers
-docs/source-projects/       Historical source-project notes
 ```
 
 ## Product safety boundary

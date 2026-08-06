@@ -11,13 +11,6 @@ data/
 run_code_workspace/
 traittutor/agents/question/reference_papers/
 traittutor/services/rag/eg_only_for_analysis/
-/docs/*
-!/docs/source-projects/
-!/docs/source-projects/*.md
-!/docs/PRD.md
-!/docs/HERMES_EVOLUTION_DESIGN.md
-!/docs/decisions/
-!/docs/decisions/*.md
 /site/
 .claude
 .agents/
