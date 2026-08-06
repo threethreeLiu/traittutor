@@ -244,7 +244,6 @@ def _request_snapshot_metadata(
     notebook_references: list[Any],
     history_references: list[Any],
     question_notebook_references: list[Any],
-    book_references: list[Any],
     learning_artifact_references: list[Any],
     persona: str,
     memory_references: Sequence[str],
@@ -268,8 +267,6 @@ def _request_snapshot_metadata(
         snapshot["historyReferences"] = history_references
     if question_notebook_references:
         snapshot["questionNotebookReferences"] = question_notebook_references
-    if book_references:
-        snapshot["bookReferences"] = book_references
     if learning_artifact_references:
         snapshot["learningArtifactReferences"] = learning_artifact_references
     if persona:
@@ -987,11 +984,6 @@ class TurnRuntimeManager:
                 if overrides.get("history_references") is not None
                 else preferences.get("history_references") or []
             ),
-            "book_references": list(
-                overrides.get("book_references")
-                if overrides.get("book_references") is not None
-                else snapshot.get("bookReferences") or []
-            ),
             "config": config,
         }
         if llm_selection:
@@ -1253,7 +1245,6 @@ class TurnRuntimeManager:
 
         try:
             from traittutor.agents.notebook import NotebookAnalysisAgent
-            from traittutor.book.context import build_book_context
             from traittutor.core.context import Attachment, UnifiedContext
             from traittutor.runtime.orchestrator import ChatOrchestrator
             from traittutor.services.memory import get_memory_store
@@ -1305,13 +1296,10 @@ class TurnRuntimeManager:
             history_references = payload.get("history_references", []) or []
             question_notebook_references = payload.get("question_notebook_references", []) or []
             learning_artifact_references = payload.get("learning_artifact_references", []) or []
-            book_context_result = build_book_context(payload.get("book_references", []) or [])
-            book_references = book_context_result.references
             memory_references = _extract_memory_references(payload)
             notebook_context = ""
             history_context = ""
             question_bank_context = ""
-            book_context = book_context_result.text
 
             import base64 as _b64
             import uuid as _uuid
@@ -1535,8 +1523,6 @@ class TurnRuntimeManager:
                     current_turn_ordinal=current_turn_ordinal,
                     fresh_attachment_records=attachment_records,
                     fresh_notebook_records=resolved_notebook_records,
-                    fresh_book_context_text=book_context,
-                    fresh_book_references=book_references,
                     fresh_history_session_ids=history_references,
                     fresh_question_entry_ids=question_notebook_references,
                     fresh_learning_artifact_references=learning_artifact_references,
@@ -1653,8 +1639,6 @@ class TurnRuntimeManager:
                 context_parts: list[str] = []
                 if document_texts:
                     context_parts.append("[Attached Documents]\n" + "\n\n".join(document_texts))
-                if book_context:
-                    context_parts.append(f"[Book Context]\n{book_context}")
                 if notebook_context:
                     context_parts.append(f"[Notebook Context]\n{notebook_context}")
                 if history_context:
@@ -1691,7 +1675,6 @@ class TurnRuntimeManager:
                         notebook_references=notebook_references,
                         history_references=history_references,
                         question_notebook_references=question_notebook_references,
-                        book_references=book_references,
                         learning_artifact_references=learning_artifact_references,
                         persona=active_persona,
                         memory_references=memory_references,
@@ -1729,10 +1712,7 @@ class TurnRuntimeManager:
                     "notebook_references": notebook_references,
                     "history_references": history_references,
                     "question_notebook_references": question_notebook_references,
-                    "book_references": book_references,
                     "learning_artifact_references": learning_artifact_references,
-                    "book_context": book_context,
-                    "book_context_warnings": book_context_result.warnings,
                     "memory_references": memory_references,
                     "question_bank_context": question_bank_context,
                     "memory_context": memory_context,

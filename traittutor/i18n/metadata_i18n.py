@@ -62,10 +62,6 @@ _TOOL_DESCRIPTIONS: dict[str, dict[str, str]] = {
         "en": "Generate images from a text prompt with the configured model.",
         "zh": "用已配置的模型，根据文字描述生成图片。",
     },
-    "videogen": {
-        "en": "Generate short videos from a text prompt with the configured model.",
-        "zh": "用已配置的模型，根据文字描述生成短视频。",
-    },
 }
 
 

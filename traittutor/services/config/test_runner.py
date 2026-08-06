@@ -126,8 +126,6 @@ class ConfigTestRunner:
                 asyncio.run(self._test_stt(run, catalog))
             elif service == "imagegen":
                 asyncio.run(self._test_imagegen(run, catalog))
-            elif service == "videogen":
-                asyncio.run(self._test_videogen(run, catalog))
             else:
                 raise ValueError(f"Unsupported service: {service}")
             if not run.cancelled and run.status == "running":

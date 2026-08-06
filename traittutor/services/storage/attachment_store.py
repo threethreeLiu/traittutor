@@ -32,10 +32,10 @@ import asyncio
 import logging
 import os
 from pathlib import Path
+import re
 from typing import Protocol, runtime_checkable
 from urllib.parse import quote
 
-from traittutor.partners.helpers import safe_filename
 from traittutor.services.config import load_system_settings
 from traittutor.services.path_service import get_path_service
 
@@ -47,16 +47,20 @@ _DEFAULT_SUBPATH = ("workspace", "chat", "attachments")
 _PUBLIC_URL_PREFIX = "/api/attachments"
 
 
+def _safe_filename(name: str) -> str:
+    """Return a portable filename without relying on the removed IM layer."""
+    return re.sub(r"[^A-Za-z0-9._ -]+", "_", name).strip(" .")
+
+
 def _coerce_filename(filename: str) -> str:
     """Reduce *filename* to a safe basename.
 
     * Strips any directory components (defends against ``../`` traversal).
-    * Replaces filesystem-unsafe characters via the existing ``safe_filename``
-      helper (already used by the matrix legacy_partner uploads).
+    * Replaces filesystem-unsafe characters.
     * Falls back to ``"file"`` if the result is empty.
     """
     base = os.path.basename(filename or "")
-    cleaned = safe_filename(base)
+    cleaned = _safe_filename(base)
     return cleaned or "file"
 
 

@@ -12,7 +12,9 @@
 services:
   pocketbase:
     volumes:
-      - ./data/pocketbase:/pb/pb_data
+      - ./data/pocketbase:/pb_data
+      - ./data/pocketbase/public:/pb_public
+      - ./data/pocketbase/hooks:/pb_hooks
 
   traittutor:
     build:

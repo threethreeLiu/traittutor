@@ -6,13 +6,11 @@ from traittutor.capabilities.explore_context import ExploreContextCapability
 from traittutor.capabilities.obsidian import ObsidianCapability
 from traittutor.capabilities.protocol import LoopCapability
 from traittutor.capabilities.solve import SolveLoopCapability
-from traittutor.capabilities.subagent import SubagentCapability
 from traittutor.core.context import UnifiedContext
 
 LOOP_CAPABILITIES: tuple[LoopCapability, ...] = (
     SolveLoopCapability(),
     ObsidianCapability(),
-    SubagentCapability(),
     ExploreContextCapability(),
 )
 

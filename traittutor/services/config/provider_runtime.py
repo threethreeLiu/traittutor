@@ -18,7 +18,6 @@ from traittutor.services.provider_registry import (
     find_by_name,
     find_gateway,
 )
-from traittutor.services.videogen.config import VideogenConfig
 from traittutor.services.voice.config import (
     AUTH_API_KEY_HEADER,
     AUTH_BEARER,
@@ -1166,9 +1165,7 @@ __all__ = [
     "resolve_stt_runtime_config",
     "GenerationProviderSpec",
     "IMAGEGEN_PROVIDERS",
-    "VIDEOGEN_PROVIDERS",
     "resolve_imagegen_runtime_config",
-    "resolve_videogen_runtime_config",
     "EMBEDDING_PROVIDER_ALIASES",
     "embedding_endpoint_validation_error",
     "normalize_embedding_endpoint_for_display",

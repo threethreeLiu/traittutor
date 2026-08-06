@@ -15,8 +15,9 @@
 # ============================================
 # Documentation
 # ============================================
-*.md
+/*.md
 !README.md
+!traittutor/**/*.md
 docs/
 assets/gifs/
 assets/figs/

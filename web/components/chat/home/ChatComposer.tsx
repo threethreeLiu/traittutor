@@ -45,7 +45,6 @@ import ChatSpaceMenu from "@/components/chat/space/ChatSpaceMenu";
 import type { SpaceMemoryFile } from "@/lib/space-items";
 import type { SelectedBookReference } from "@/lib/book-references";
 import type { SelectedLearningArtifactReference } from "@/components/chat/LearningArtifactPicker";
-import AgentSelector from "./AgentSelector";
 import KnowledgeSelector from "./KnowledgeSelector";
 import ModelSelector from "./ModelSelector";
 import PersonaSelector from "./PersonaSelector";

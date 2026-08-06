@@ -9,10 +9,9 @@ from typing import Any
 
 from traittutor.capabilities.obsidian import OBSIDIAN_TOOL_TYPES
 from traittutor.capabilities.solve import SOLVE_TOOL_TYPES
-from traittutor.capabilities.subagent import SUBAGENT_TOOL_TYPES
 from traittutor.core.tool_protocol import BaseTool, ToolDefinition, ToolParameter, ToolResult
 from traittutor.tools.exec_tool import ExecTool
-from traittutor.tools.media_gen_tool import ImagegenTool, VideogenTool
+from traittutor.tools.media_gen_tool import ImagegenTool
 from traittutor.tools.prompting import load_prompt_hints
 
 logger = logging.getLogger(__name__)
@@ -1462,24 +1461,18 @@ BUILTIN_TOOL_TYPES: tuple[type[BaseTool], ...] = (
     WriteNoteTool,
     GithubTool,
     AskUserTool,
-    CronTool,
     # Image → GeoGebra figure reconstruction. User-toggleable in chat; the
     # solve loop capability force-mounts it for diagram problems.
     GeoGebraAnalysisTool,
-    # Text-to-image / text-to-video generation. User-toggleable + per-user
+    # Text-to-image generation. User-toggleable + per-user
     # grant-gated; the chat pipeline only mounts them when a model is configured.
     ImagegenTool,
-    VideogenTool,
     # Solve + Obsidian tools — globally registered so schemas/API
     # stay stable; the chat loop capabilities decide when to auto-mount them for
     # a turn. Obsidian is a knowledge capability: when its vault is selected it
     # runs the turn exclusively on these tools.
     *SOLVE_TOOL_TYPES,
     *OBSIDIAN_TOOL_TYPES,
-    # Subagent consult tool — globally registered; the subagent knowledge
-    # capability runs the turn exclusively on it when a connected agent is the
-    # selected KB.
-    *SUBAGENT_TOOL_TYPES,
 )
 
 # No tools are parked right now. When a tool's implementation is being

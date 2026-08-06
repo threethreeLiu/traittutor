@@ -113,8 +113,6 @@ async def build_inventory(
     current_turn_ordinal: int,
     fresh_attachment_records: Sequence[dict[str, Any]],
     fresh_notebook_records: Sequence[dict[str, Any]],
-    fresh_book_context_text: str,
-    fresh_book_references: Sequence[dict[str, Any]],
     fresh_history_session_ids: Sequence[Any],
     fresh_question_entry_ids: Sequence[Any],
     fresh_learning_artifact_references: Sequence[Any] = (),
@@ -135,8 +133,6 @@ async def build_inventory(
         current_turn_ordinal=current_turn_ordinal,
         attachment_records=fresh_attachment_records,
         notebook_records=fresh_notebook_records,
-        book_context_text=fresh_book_context_text,
-        book_references=fresh_book_references,
     )
     # History + question entries are async (per-id store fetches), keep them
     # in a separate phase so the sync fresh additions don't block.
@@ -243,11 +239,8 @@ def _add_fresh(
     current_turn_ordinal: int,
     attachment_records: Sequence[dict[str, Any]],
     notebook_records: Sequence[dict[str, Any]],
-    book_context_text: str,
-    book_references: Sequence[dict[str, Any]],
 ) -> None:
-    """Add the synchronously-available fresh sources (notebook records,
-    book pages, attachments)."""
+    """Add the synchronously-available fresh sources (notebook records and attachments)."""
     for rec in notebook_records:
         rid = str(rec.get("id", "") or "").strip()
         full = str(rec.get("output", "") or "")
@@ -259,26 +252,6 @@ def _add_fresh(
                 kind="notebook",
                 name=str(rec.get("title") or rec.get("name") or "Untitled record"),
                 full_text=full,
-                fresh=True,
-                first_seen_turn=current_turn_ordinal,
-            )
-        )
-
-    # Books: split the cumulative ``build_book_context`` output by the
-    # ``---`` section separator so each book gets its own ``bk-{book_id}``
-    # sid. The order in ``book_references`` matches the order
-    # ``build_book_context`` produces sections in, so we can zip them.
-    book_sections = _split_book_sections(book_context_text)
-    for ref, section in zip(book_references, book_sections, strict=False):
-        book_id = str(ref.get("book_id") or "").strip()
-        if not book_id or not section.strip():
-            continue
-        inv.add(
-            SourceEntry(
-                sid=f"bk-{book_id}",
-                kind="book",
-                name=_extract_book_title(section, fallback=f"Book {book_id}"),
-                full_text=section,
                 fresh=True,
                 first_seen_turn=current_turn_ordinal,
             )
@@ -462,30 +435,6 @@ async def _collect_from_user_message(
                 )
             )
 
-    # Books — one source per book_id (union of page ranges across all
-    # turns is implicit because we always pull the *current* book reference
-    # to render).
-    for ref in snap.get("bookReferences") or []:
-        book_id = str((ref or {}).get("book_id") or "").strip()
-        if not book_id:
-            continue
-        sid = f"bk-{book_id}"
-        if sid in inv:
-            continue
-        section_text, name = _resolve_book_section(ref)
-        if not section_text.strip():
-            continue
-        inv.add(
-            SourceEntry(
-                sid=sid,
-                kind="book",
-                name=name,
-                full_text=section_text,
-                fresh=False,
-                first_seen_turn=turn_ordinal,
-            )
-        )
-
     # History sessions — async, one store fetch per id.
     for raw in snap.get("historyReferences") or []:
         hs_id = str(raw or "").strip()
@@ -575,50 +524,6 @@ async def _load_lineage(
         safety -= 1
     chain.reverse()
     return chain
-
-
-# ----- Per-type resolvers shared by fresh + historical paths --------------
-
-
-def _split_book_sections(book_context_text: str) -> list[str]:
-    """Split the output of ``build_book_context`` back into per-book
-    sections. ``build_book_context`` joins sections with ``"\\n\\n---\\n\\n"``;
-    we split on the same separator. Returns an empty list when input is
-    empty."""
-    if not book_context_text.strip():
-        return []
-    return [seg for seg in book_context_text.split("\n\n---\n\n") if seg.strip()]
-
-
-def _extract_book_title(section: str, *, fallback: str) -> str:
-    """``_serialize_book_header`` prefixes every section with
-    ``# Book: <title>`` — extract that here for the manifest's name field."""
-    first_line = section.lstrip().split("\n", 1)[0]
-    prefix = "# Book: "
-    if first_line.startswith(prefix):
-        return first_line[len(prefix) :].strip() or fallback
-    return fallback
-
-
-def _resolve_book_section(book_reference: dict[str, Any]) -> tuple[str, str]:
-    """Resolve a single book reference into its serialized section + title.
-
-    Used by the historical-collection path where each past turn's book
-    reference is rendered independently (so the per-book ``bk-{book_id}``
-    source id stays stable). Returns ``("", "")`` on failure.
-    """
-    from traittutor.book.context import build_book_context
-
-    try:
-        result = build_book_context([book_reference])
-    except Exception:
-        logger.debug("Failed to resolve historical book reference", exc_info=True)
-        return "", ""
-    text = (result.text or "").strip()
-    if not text:
-        return "", ""
-    name = _extract_book_title(text, fallback=f"Book {book_reference.get('book_id', '?')}")
-    return text, name
 
 
 def _add_fresh_learning_artifacts(

@@ -129,13 +129,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to start EventBus: {e}")
 
-    try:
-        from traittutor.services.cron import get_cron_service
-
-        await get_cron_service().start()
-    except Exception as e:
-        logger.warning(f"Failed to start cron service: {e}")
-
     # Recover durable generation coordination before accepting requests. Any
     # lease left by a prior process is marked interrupted/retryable, while
     # queued work is atomically claimed by whichever API instance has capacity.
@@ -175,14 +168,6 @@ async def lifespan(app: FastAPI):
 
     # Execute on shutdown
     logger.info("Application shutdown")
-
-    # Stop cron scheduler
-    try:
-        from traittutor.services.cron import get_cron_service
-
-        await get_cron_service().stop()
-    except Exception as e:
-        logger.warning(f"Failed to stop cron service: {e}")
 
     # Stop EventBus
     try:

@@ -1,6 +1,6 @@
-"""Image- and video-generation chat tools.
+"""Image-generation chat tool.
 
-Thin BaseTool front-ends over the ``imagegen`` / ``videogen`` services. Each
+Thin BaseTool front-end over the ``imagegen`` service. Each
 call generates media via the active catalog model, writes the bytes into the
 turn's public workspace, and returns the files as artifacts — reusing the exact
 same ``collect_public_artifacts`` convention as the exec / code_execution tools,
@@ -258,4 +258,4 @@ class VideogenTool(BaseTool):
         )
 
 
-__all__ = ["ImagegenTool", "VideogenTool"]
+__all__ = ["ImagegenTool"]
