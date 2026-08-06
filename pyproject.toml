@@ -154,7 +154,6 @@ traittutor = [
     "**/*.j2",
     "**/*.jinja",
 ]
-traittutor_web = ["**/*", ".next/**/*"]
 
 # ============================================
 # Black code formatter configuration

@@ -26,7 +26,6 @@ BACKEND_READY_TIMEOUT = 60
 FRONTEND_READY_TIMEOUT = 120
 FRONTEND_REUSE_PROBE_TIMEOUT = 2
 KILL_SIGNAL = getattr(signal, "SIGKILL", signal.SIGTERM)
-WEB_CACHE_DIR = Path("data") / "user" / "runtime" / "web"
 
 # Mutable holder so module-level helpers can format messages in the active
 # UI language without threading the labels through every function.
@@ -442,85 +441,6 @@ def _http_ready(url: str, *, timeout: float) -> bool:
         return False
 
 
-def _packaged_web_dir() -> Path | None:
-    try:
-        import traittutor_web
-    except ImportError:
-        return None
-    path = Path(traittutor_web.__file__).resolve().parent
-    return path if (path / "server.js").exists() else None
-
-
-def _copy_packaged_web_if_needed(
-    packaged: Path,
-    *,
-    home: Path,
-    api_base: str,
-    auth_enabled: bool,
-) -> Path:
-    """Copy packaged Next.js standalone files into a writable runtime cache.
-
-    Next public variables are inlined at build time, so placeholders must be
-    replaced before ``server.js`` starts. The installed package may live in a
-    read-only site-packages directory; the cache keeps mutation local to the
-    active workspace.
-    """
-
-    cache = home / WEB_CACHE_DIR
-    marker = cache / ".traittutor-web-runtime.json"
-    source_server = packaged / "server.js"
-    marker_payload = {
-        "source": str(packaged),
-        "source_mtime_ns": source_server.stat().st_mtime_ns,
-        "api_base": api_base,
-        "auth_enabled": bool(auth_enabled),
-    }
-    if (cache / "server.js").exists():
-        try:
-            if json.loads(marker.read_text(encoding="utf-8")) == marker_payload:
-                return cache
-        except Exception:
-            pass
-
-    if cache.exists():
-        shutil.rmtree(cache)
-    shutil.copytree(packaged, cache)
-    _patch_packaged_web_placeholders(
-        cache,
-        api_base=api_base,
-        auth_enabled="true" if auth_enabled else "false",
-    )
-    marker.write_text(json.dumps(marker_payload, indent=2), encoding="utf-8")
-    return cache
-
-
-def _patch_packaged_web_placeholders(
-    web_dir: Path,
-    *,
-    api_base: str,
-    auth_enabled: str,
-) -> None:
-    replacements = {
-        "__NEXT_PUBLIC_API_BASE_PLACEHOLDER__": api_base,
-        "__NEXT_PUBLIC_AUTH_ENABLED_PLACEHOLDER__": auth_enabled,
-    }
-    roots = [web_dir / ".next", web_dir / "server.js"]
-    for root in roots:
-        paths = [root] if root.is_file() else root.rglob("*") if root.exists() else []
-        for path in paths:
-            if not path.is_file() or path.suffix not in {".js", ".json", ".html", ".txt"}:
-                continue
-            try:
-                text = path.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                continue
-            updated = text
-            for placeholder, value in replacements.items():
-                updated = updated.replace(placeholder, value)
-            if updated != text:
-                path.write_text(updated, encoding="utf-8")
-
-
 def _source_web_dir(home: Path) -> Path | None:
     candidates = [home / "web", PACKAGE_ROOT / "web"]
     for path in candidates:
@@ -529,26 +449,7 @@ def _source_web_dir(home: Path) -> Path | None:
     return None
 
 
-def _resolve_frontend(
-    home: Path,
-    frontend_port: int,
-    *,
-    api_base: str,
-    auth_enabled: bool,
-) -> FrontendRuntime:
-    packaged = _packaged_web_dir()
-    node = shutil.which("node")
-    if packaged is not None:
-        if not node:
-            raise SystemExit("Node.js 20+ is required to run the packaged TraitTutor Web app.")
-        runtime_web = _copy_packaged_web_if_needed(
-            packaged,
-            home=home,
-            api_base=api_base,
-            auth_enabled=auth_enabled,
-        )
-        return FrontendRuntime("packaged", [node, str(runtime_web / "server.js")], runtime_web)
-
+def _resolve_frontend(home: Path, frontend_port: int) -> FrontendRuntime:
     source = _source_web_dir(home)
     if source is not None:
         npm = shutil.which("npm")
@@ -561,8 +462,7 @@ def _resolve_frontend(
         )
 
     raise SystemExit(
-        "TraitTutor Web assets are not installed. Install the full app with `pip install -U traittutor`, "
-        "or run from a source checkout that contains `web/`."
+        "TraitTutor Web source is missing. Run from a source checkout that contains `web/`."
     )
 
 
@@ -752,12 +652,7 @@ def start(home: str | Path | None = None) -> None:
         or runtime_env.get("NEXT_PUBLIC_API_BASE")
         or backend_url
     )
-    frontend = _resolve_frontend(
-        runtime_home,
-        frontend_port,
-        api_base=api_base,
-        auth_enabled=auth_enabled,
-    )
+    frontend = _resolve_frontend(runtime_home, frontend_port)
     existing_frontend = _detect_existing_source_frontend(frontend)
     if existing_frontend is not None and not _http_ready(
         existing_frontend.url, timeout=FRONTEND_REUSE_PROBE_TIMEOUT
@@ -787,12 +682,7 @@ def start(home: str | Path | None = None) -> None:
             or runtime_env.get("NEXT_PUBLIC_API_BASE")
             or backend_url
         )
-        frontend = _resolve_frontend(
-            runtime_home,
-            frontend_port,
-            api_base=api_base,
-            auth_enabled=auth_enabled,
-        )
+        frontend = _resolve_frontend(runtime_home, frontend_port)
 
     frontend_url = (
         existing_frontend.url
