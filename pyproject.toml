@@ -68,24 +68,12 @@ dependencies = [
     "pocketbase>=0.12.0",
     "loguru>=0.7.3,<1.0.0",
     "json-repair>=0.57.0,<1.0.0",
+    "croniter>=6.0.0,<7.0.0",
     "langgraph>=0.3.0",
     "cryptography>=42.0.0",
 ]
 
 [project.optional-dependencies]
-server = [
-    "fastapi>=0.100.0",
-    "uvicorn[standard]>=0.24.0",
-    "websockets>=12.0",
-    "python-multipart>=0.0.6",
-    "bcrypt>=4.0.0",
-    "python-jose[cryptography]>=3.3.0",
-    "pocketbase>=0.12.0",
-    "loguru>=0.7.3,<1.0.0",
-    "json-repair>=0.57.0,<1.0.0",
-    "croniter>=6.0.0,<7.0.0",
-]
-
 # Optional document-parsing engines for the shared parse layer
 # (traittutor/services/parsing). MinerU is an external CLI / hosted API and is
 # not a pip dependency. Engines import lazily, so these stay opt-in and an
@@ -125,7 +113,6 @@ graphrag = ["graphrag>=3.0.1,<4.0.0; python_version < '3.14'"]
 rag-lightrag = ["raganything>=1.0.1,<2.0.0; python_version < '3.14'"]
 
 all = [
-    "traittutor[server]",
     "traittutor[parse]",
 ]
 

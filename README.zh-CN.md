@@ -106,9 +106,9 @@ TraitTutor 仓库代码采用 [Apache-2.0](LICENSE) 协议；Python 依赖以 `p
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e .
 
-traittutor serve
+python -m uvicorn traittutor.api.main:app --host 127.0.0.1 --port 8001
 ```
 
 ### 前端

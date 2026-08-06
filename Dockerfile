@@ -92,11 +92,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Add Rust to PATH
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Copy requirements and install Python dependencies
-COPY requirements/ ./requirements/
-COPY requirements.txt ./
+# Copy backend package metadata and source, then install Python dependencies
+COPY pyproject.toml README.md ./
+COPY traittutor/ ./traittutor/
 RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+    pip install .
 
 # ============================================
 # Stage 3: Production Image
@@ -160,8 +160,6 @@ COPY --from=frontend-builder /app/web/public/ ./web/public/
 COPY traittutor/ ./traittutor/
 COPY scripts/ ./scripts/
 COPY pyproject.toml ./
-COPY requirements/ ./requirements/
-COPY requirements.txt ./
 
 # Create necessary directories (these will be overwritten by volume mounts)
 RUN mkdir -p \
@@ -442,12 +440,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     vim \
     git \
     && rm -rf /var/lib/apt/lists/*
-
-# Install development Python packages
-RUN pip install --no-cache-dir \
-    pre-commit \
-    black \
-    ruff
 
 # Development overrides only the program definitions (uvicorn --reload and
 # `next dev`); the shared daemon-level /etc/supervisor/supervisord.conf from

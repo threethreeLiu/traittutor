@@ -106,9 +106,9 @@ The current release focuses on a runnable goal-to-learning-path loop, source ana
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e .
 
-traittutor serve
+python -m uvicorn traittutor.api.main:app --host 127.0.0.1 --port 8001
 ```
 
 ### Frontend
