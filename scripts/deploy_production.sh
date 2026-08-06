@@ -39,7 +39,12 @@ ALLOW_DIRTY="${TRAITTUTOR_DEPLOY_ALLOW_DIRTY:-0}"
 
 # Optional SSH options, for example:
 #   TRAITTUTOR_DEPLOY_SSH_OPTS='-i ~/.ssh/traittutor -o BatchMode=yes'
-read -r -a SSH_OPTS <<< "${TRAITTUTOR_DEPLOY_SSH_OPTS:-}"
+# Initialise explicitly: with `set -u`, an empty `read -a` leaves the array
+# unset and `${SSH_OPTS[@]}` aborts before the first SSH preflight.
+SSH_OPTS=()
+if [[ -n "${TRAITTUTOR_DEPLOY_SSH_OPTS:-}" ]]; then
+  read -r -a SSH_OPTS <<< "${TRAITTUTOR_DEPLOY_SSH_OPTS}"
+fi
 
 usage() {
   cat <<'USAGE'

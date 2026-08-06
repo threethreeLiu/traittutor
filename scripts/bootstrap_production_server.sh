@@ -23,7 +23,12 @@ BASE_PATH="${TRAITTUTOR_DEPLOY_BASE_PATH:-/traittutor-all-web}"
 REMOTE_VENV="${TRAITTUTOR_DEPLOY_VENV:-${BASE_DIR}/venv}"
 TRAITTUTOR_HOME_REMOTE="${TRAITTUTOR_DEPLOY_HOME:-/var/lib/traittutor}"
 
-read -r -a SSH_OPTS <<< "${TRAITTUTOR_DEPLOY_SSH_OPTS:-}"
+# Keep an empty SSH-options list defined under `set -u`; deployments normally
+# rely on the user's SSH agent and do not need an explicit identity option.
+SSH_OPTS=()
+if [[ -n "${TRAITTUTOR_DEPLOY_SSH_OPTS:-}" ]]; then
+  read -r -a SSH_OPTS <<< "${TRAITTUTOR_DEPLOY_SSH_OPTS}"
+fi
 
 if [[ -z "$SERVER" ]]; then
   echo "Set TRAITTUTOR_DEPLOY_SERVER, for example ubuntu@example.com" >&2
