@@ -11,8 +11,8 @@ import {
 // Backend base URL for `/api/*` and `/ws/*` rewrites. The container entrypoint
 // exports `TRAITTUTOR_API_BASE_URL` from `data/user/settings/system.json`
 // (preferring `next_public_api_base`, then `next_public_api_base_external`,
-// then `http://localhost:${BACKEND_PORT}`). In dev (`traittutor start`) it
-// defaults to `http://localhost:8001`.
+// then `http://localhost:${BACKEND_PORT}`). In source dev it defaults to
+// `http://localhost:8001`.
 const API_BASE_URL =
   process.env.TRAITTUTOR_API_BASE_URL ?? "http://localhost:8001";
 

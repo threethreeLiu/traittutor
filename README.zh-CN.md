@@ -161,7 +161,6 @@ npm run build
 
 ```text
 traittutor/                 FastAPI 后端、生成链路、Gateway、学习画像
-traittutor_cli/             本地 CLI
 web/                        Next.js 前端
 tests/                      后端与业务闭环回归测试
 web/tests/                  前端 node 回归测试

@@ -21,7 +21,6 @@ services:
     volumes:
       # Mount backend source code for hot-reload
       - ./traittutor:/app/traittutor:ro
-      - ./traittutor_cli:/app/traittutor_cli:ro
       - ./scripts:/app/scripts:ro
 
       # Mount frontend source for hot-reload

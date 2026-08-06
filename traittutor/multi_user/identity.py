@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Serialises writes to USERS_FILE so a concurrent burst of /register requests
 # cannot all see ``not users`` and each promote themselves to admin. Single-
-# process FastAPI deployments (the ``traittutor start`` launcher) are fully covered;
+# process FastAPI deployments are fully covered;
 # multi-worker deployments still race and must rely on an external user store
 # (e.g. PocketBase), which is documented in the multi-user README.
 _USERS_WRITE_LOCK = threading.Lock()

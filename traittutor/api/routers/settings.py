@@ -1213,5 +1213,5 @@ async def complete_tour(payload: TourCompletePayload | None = None):
 async def reopen_tour():
     return {
         "message": "Run the terminal setup guide from the project root to re-open the guided setup.",
-        "command": "traittutor init",
+        "command": "python scripts/start_web.py",
     }

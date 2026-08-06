@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Compatibility wrapper for ``traittutor start``."""
+"""Start TraitTutor Web from a source checkout."""
 
 from __future__ import annotations
 

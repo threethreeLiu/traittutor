@@ -72,44 +72,8 @@ dependencies = [
     "cryptography>=42.0.0",
 ]
 
-[project.scripts]
-traittutor = "traittutor_cli.main:main"
-
 [project.optional-dependencies]
-# Compatibility extra for source installs and older docs. These packages are
-# already included in the public `traittutor` wheel; the local CLI-only project
-# under `packaging/traittutor-cli` uses the same list without Web assets/server deps.
-cli = [
-    # LLM provider SDKs
-    "anthropic>=0.30.0",
-    "dashscope>=1.14.0",
-    "perplexityai>=0.1.0",
-    "oauth-cli-kit>=0.1.1",
-    # RAG (LlamaIndex)
-    "llama-index>=0.14.12",
-    "llama-index-retrievers-bm25>=0.7.1,<0.8.0",
-    # FAISS vector store: vectorized ANN retrieval that replaces SimpleVectorStore's
-    # brute-force per-query scan for large knowledge bases (issue #552). The
-    # pipeline imports it lazily and falls back to SimpleVectorStore if absent.
-    "llama-index-vector-stores-faiss>=0.4.0,<1.0.0",
-    "faiss-cpu>=1.8.0,<2.0.0",
-    "PyMuPDF>=1.26.0",
-    "numpy>=1.24.0,<3.0.0",
-    "arxiv>=2.0.0",
-    # Document text extraction (chat attachments) + office-skill authoring libs
-    "python-docx>=1.1.0",
-    "openpyxl>=3.1.0",
-    "python-pptx>=1.0.0",
-    "pypdf>=4.0.0",
-    "pdfplumber>=0.11.0,<0.11.8",  # 0.11.8+ pins pdfminer.six==20251230, conflicts with mineru (via raganything)
-    "reportlab>=4.0.0",
-    "defusedxml>=0.7.1",
-]
-
-# Compatibility extra for source installs and older docs. These packages are
-# already included in the public `traittutor` wheel.
 server = [
-    "traittutor[cli]",
     "fastapi>=0.100.0",
     "uvicorn[standard]>=0.24.0",
     "websockets>=12.0",
@@ -192,7 +156,7 @@ version = {attr = "traittutor.__version__.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["traittutor*", "traittutor_cli*"]
+include = ["traittutor*"]
 
 [tool.setuptools.package-data]
 # Runtime data shipped inside the traittutor package: prompt Markdown assets
@@ -209,7 +173,6 @@ traittutor = [
     "**/*.j2",
     "**/*.jinja",
 ]
-traittutor_cli = ["**/*.md"]
 traittutor_web = ["**/*", ".next/**/*"]
 
 # ============================================
@@ -340,7 +303,7 @@ line-ending = "auto"
 # Ruff import sorting (isort replacement)
 # ============================================
 [tool.ruff.lint.isort]
-known-first-party = ["traittutor", "traittutor_cli", "scripts"]
+known-first-party = ["traittutor", "scripts"]
 force-sort-within-sections = true
 split-on-trailing-comma = true
 

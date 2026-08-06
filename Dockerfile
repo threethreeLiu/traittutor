@@ -158,7 +158,6 @@ COPY --from=frontend-builder /app/web/public/ ./web/public/
 
 # Copy application source code
 COPY traittutor/ ./traittutor/
-COPY traittutor_cli/ ./traittutor_cli/
 COPY scripts/ ./scripts/
 COPY pyproject.toml ./
 COPY requirements/ ./requirements/
@@ -366,8 +365,8 @@ export FRONTEND_PORT=${FRONTEND_PORT:-3782}
 # export_runtime_settings_to_env eval above (see render_environment in
 # traittutor/services/config/runtime_settings.py). web/proxy.ts reads them at
 # request time to rewrite /api/* and /ws/* to the backend and to gate the login
-# redirect. Keeping them in the single JSON-backed exporter means the Docker and
-# `traittutor start` paths stay in sync.
+# redirect. Keeping them in the single JSON-backed exporter keeps Docker and
+# source-run deployments aligned.
 echo "📌 API Base URL (proxy): ${TRAITTUTOR_API_BASE_URL:-http://localhost:${BACKEND_PORT}}"
 echo "📌 Auth enabled: ${TRAITTUTOR_AUTH_ENABLED:-false}"
 

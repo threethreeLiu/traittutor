@@ -28,8 +28,8 @@ const INITIAL: AuthStatusState = {
  * toggle is a runtime setting read from `data/user/settings/auth.json`, never
  * baked into the build. Components that need to know whether auth is on — to
  * show the Sign-out / Admin affordances — use this hook instead of a build-time
- * constant, so it works identically on Docker (read-only rootfs), the PyPI
- * `traittutor start` launcher, and source dev.
+ * constant, so it works identically on Docker (read-only rootfs), production,
+ * and source dev.
  */
 // Several components (sidebar Admin / Logout / Profile links) mount this hook
 // at once. Share a single in-flight request so a page load makes one

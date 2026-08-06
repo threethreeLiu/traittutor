@@ -161,7 +161,6 @@ npm run build
 
 ```text
 traittutor/                 FastAPI backend, generation, gateway, learner model
-traittutor_cli/             Local CLI entry points
 web/                        Next.js app
 tests/                      Backend and business-loop regression tests
 web/tests/                  Frontend node-based regression tests
