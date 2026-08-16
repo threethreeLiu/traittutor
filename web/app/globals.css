@@ -1,0 +1,1567 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ────────────────────────────────────────────────────────────────────────
+     Theme palettes — four families:
+       • Default (.theme-snow) → pure-white neutral greys, blue accent
+       • Cream (:root) and Dark (.dark) → warm family, terracotta accent
+       • Teal (.theme-teal) → pale mint canvas, blue-green accent
+     Tokens that every theme must publish:
+       --background, --foreground, --card / --popover (+ their -foreground),
+       --primary (+ -foreground), --secondary, --muted (+ -foreground),
+       --accent (+ -foreground), --destructive (+ -foreground),
+       --border, --input, --ring,
+       --overlay   → scrim color for modal backdrops / picker shells
+                     (replaces hardcoded bg-black/40 in components)
+   ──────────────────────────────────────────────────────────────────────── */
+
+  /* Cream — near-white warm canvas. Reads as off-white at first glance;
+     the warm tint only surfaces on filled blocks (selected nav, panels)
+     and against the terracotta primary. Inspired by Claude's chrome:
+     keep bg essentially white, save the visible warmth for accents. */
+  :root {
+    /* Fonts are theme-independent. Loaded via Google Fonts mirror in
+       layout.tsx <head>; each stack falls back to the system fonts so
+       the UI degrades gracefully when the CDN is unreachable. Emoji
+       fonts are appended last so color emoji renders consistently via
+       the platform emoji font rather than relying on browser-level
+       system fallback. */
+    --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
+    --font-serif: 'Lora', 'Iowan Old Style', Palatino Linotype, Book Antiqua, Palatino, Georgia, serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
+    color-scheme: light;
+    --background: #fdfcf9;
+    --foreground: #1c1816;
+    --card: #ffffff;
+    --card-foreground: #1c1816;
+    --popover: #ffffff;
+    --popover-foreground: #1c1816;
+    --primary: #b0501e;
+    --primary-foreground: #ffffff;
+    --secondary: #f5f2ea;
+    --secondary-foreground: #1c1816;
+    --muted: #f1ede2;
+    --muted-foreground: #6d645a;
+    --accent: #ece7d8;
+    --accent-foreground: #1c1816;
+    --destructive: #c53a2c;
+    --destructive-foreground: #ffffff;
+    --border: #e6decc;
+    --input: #e6decc;
+    --ring: #b0501e;
+    --overlay: rgba(28, 24, 22, 0.42);
+  }
+
+  /* Dark — warm near-black, same terracotta family as Cream. */
+  .dark {
+    color-scheme: dark;
+    --background: #1a1918;
+    --foreground: #e8e4de;
+    --card: #242220;
+    --card-foreground: #e8e4de;
+    --popover: #242220;
+    --popover-foreground: #e8e4de;
+    --primary: #d4734b;
+    --primary-foreground: #1a1918;
+    --secondary: #2a2725;
+    --secondary-foreground: #e8e4de;
+    --muted: #2a2725;
+    --muted-foreground: #9b9590;
+    --accent: #302d2a;
+    --accent-foreground: #e8e4de;
+    --destructive: #d44a3c;
+    --destructive-foreground: #ffffff;
+    --border: #3a3634;
+    --input: #3a3634;
+    --ring: #d4734b;
+    --overlay: rgba(0, 0, 0, 0.6);
+  }
+
+  /* Default — pure-white neutral canvas (theme id "snow" kept for stored
+     preferences). No tint anywhere: flat #fff bg, plain grey surfaces and
+     borders. The only chroma is the blue primary on interactive accents,
+     in the spirit of Codex/ChatGPT chrome. */
+  .theme-snow {
+    color-scheme: light;
+    --background: #ffffff;
+    --foreground: #0d0d0d;
+    --card: #ffffff;
+    --card-foreground: #0d0d0d;
+    --popover: #ffffff;
+    --popover-foreground: #0d0d0d;
+    --primary: #2563eb;
+    --primary-foreground: #ffffff;
+    --secondary: #f7f7f7;
+    --secondary-foreground: #0d0d0d;
+    --muted: #f2f2f2;
+    --muted-foreground: #6e6e6e;
+    --accent: #ececec;
+    --accent-foreground: #0d0d0d;
+    --destructive: #d92d20;
+    --destructive-foreground: #ffffff;
+    --border: #e5e5e5;
+    --input: #e5e5e5;
+    --ring: #2563eb;
+    --overlay: rgba(0, 0, 0, 0.4);
+  }
+
+  /* Teal — a calm blue-green palette with a pale mint canvas. */
+  .theme-teal {
+    color-scheme: light;
+    --background: #f1fbf8;
+    --foreground: #12332e;
+    --card: #ffffff;
+    --card-foreground: #12332e;
+    --popover: #ffffff;
+    --popover-foreground: #12332e;
+    --primary: #0f766e;
+    --primary-foreground: #ffffff;
+    --secondary: #e5f5f0;
+    --secondary-foreground: #12332e;
+    --muted: #dff3ee;
+    --muted-foreground: #4b6f68;
+    --accent: #ccebe3;
+    --accent-foreground: #12332e;
+    --destructive: #c53a2c;
+    --destructive-foreground: #ffffff;
+    --border: #b9ddd5;
+    --input: #b9ddd5;
+    --ring: #0f766e;
+    --overlay: rgba(18, 51, 46, 0.35);
+  }
+
+  .theme-teal body {
+    background: radial-gradient(circle at 15% 0%, #dff3ee 0%, #f1fbf8 42%, #ffffff 100%);
+    background-attachment: fixed;
+  }
+
+  /* Generated PNG brand marks share one normalized canvas. A CSS background
+     keeps theme selection synchronous with ThemeScript and only downloads the
+     active asset rather than mounting all four images. */
+  .traittutor-mark {
+    background-image: url('/brand/traittutor-mark-light.png');
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
+  }
+
+  .dark .traittutor-mark {
+    background-image: url('/brand/traittutor-mark-dark.png');
+  }
+
+  .theme-snow .traittutor-mark {
+    background-image: url('/brand/traittutor-mark-snow.png');
+  }
+
+  .theme-teal .traittutor-mark {
+    background-image: url('/brand/traittutor-mark-teal.png');
+  }
+
+  /* The product illustration set follows the same theme-aware PNG contract as
+     the brand mark. Icons outside this set keep their compact inline SVGs. */
+  .traittutor-generated-icon {
+    display: inline-block;
+    flex: none;
+    background-image: var(--traittutor-icon-light);
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
+    vertical-align: middle;
+  }
+
+  .dark .traittutor-generated-icon {
+    background-image: var(--traittutor-icon-dark);
+  }
+
+  .theme-snow .traittutor-generated-icon {
+    background-image: var(--traittutor-icon-snow);
+  }
+
+  .theme-teal .traittutor-generated-icon {
+    background-image: var(--traittutor-icon-teal);
+  }
+
+  * {
+    @apply border-[color:var(--border)];
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+
+  html[data-scroll-behavior='smooth'] {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply antialiased;
+    background: var(--background);
+    color: var(--foreground);
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  summary::-webkit-details-marker {
+    display: none;
+  }
+}
+
+@layer components {
+  .surface-card {
+    @apply rounded-2xl border bg-[var(--card)] shadow-sm;
+  }
+
+  .muted-chip {
+    @apply rounded-full bg-[var(--muted)] px-3 py-1 text-xs text-[var(--muted-foreground)];
+  }
+
+  /* Goal-first home: these accents deliberately derive from the active
+     product theme. Keep this surface in the same visual system as the
+     sidebar rather than pinning a second, teal-only palette in JSX. */
+  .learning-home-card {
+    border-color: color-mix(in srgb, var(--border) 76%, var(--primary));
+    background: linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--card) 94%, var(--primary)),
+      var(--card)
+    );
+    box-shadow: 0 28px 90px -72px color-mix(in srgb, var(--primary) 78%, transparent);
+  }
+
+  .learning-home-kicker {
+    @apply text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--primary)];
+  }
+
+  .learning-home-composer {
+    border-color: color-mix(in srgb, var(--border) 78%, var(--primary));
+    background: color-mix(in srgb, var(--card) 96%, var(--primary));
+    box-shadow: 0 24px 70px -56px color-mix(in srgb, var(--primary) 70%, transparent);
+  }
+
+  .learning-home-composer:focus-within {
+    border-color: color-mix(in srgb, var(--primary) 48%, var(--border));
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--primary) 9%, transparent),
+      0 24px 70px -56px color-mix(in srgb, var(--primary) 78%, transparent);
+  }
+
+  .learning-home-upload-button {
+    border-color: color-mix(in srgb, var(--primary) 32%, var(--border));
+    color: var(--primary);
+  }
+
+  .learning-home-upload-button:hover {
+    border-color: color-mix(in srgb, var(--primary) 58%, var(--border));
+    background: color-mix(in srgb, var(--primary) 8%, var(--card));
+  }
+
+  .learning-home-quick-card:hover,
+  .learning-home-continue-card:hover {
+    border-color: color-mix(in srgb, var(--primary) 42%, var(--border));
+    box-shadow: 0 14px 32px -26px color-mix(in srgb, var(--primary) 60%, transparent);
+    transform: translateY(-2px);
+  }
+
+  .learning-home-text-link {
+    @apply items-center gap-1 text-[11px] font-semibold text-[var(--primary)] transition hover:opacity-75;
+  }
+
+  .learning-home-rule {
+    background: linear-gradient(
+      to right,
+      transparent,
+      color-mix(in srgb, var(--primary) 60%, transparent),
+      transparent
+    );
+  }
+
+  .learning-home-accent {
+    color: var(--primary);
+  }
+
+  .learning-home-chip,
+  .learning-home-secondary-action {
+    border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+    background: color-mix(in srgb, var(--primary) 9%, var(--card));
+    color: var(--primary);
+  }
+
+  .learning-home-chip:hover,
+  .learning-home-starter:hover {
+    border-color: color-mix(in srgb, var(--primary) 48%, var(--border));
+    background: color-mix(in srgb, var(--primary) 12%, var(--card));
+  }
+
+  .learning-home-dot,
+  .learning-home-submit {
+    background: var(--primary);
+  }
+
+  .learning-home-submit {
+    color: var(--primary-foreground);
+  }
+
+  .learning-home-submit:hover {
+    background: color-mix(in srgb, var(--primary) 82%, var(--foreground));
+  }
+
+  .learning-home-form:focus-within {
+    border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent);
+  }
+
+  .learning-home-source:hover {
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    color: var(--primary);
+  }
+
+  .home-attachment--theme {
+    border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+    background: color-mix(in srgb, var(--primary) 7%, var(--card));
+    /* Nudge the attachment chip down to align with its row baseline. */
+    transform: translateY(8px);
+  }
+
+  .home-attachment--theme button:hover {
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+  }
+
+  /* Learning canvas
+     The adaptive path is a product surface, not a separate visual theme.
+     These classes deliberately consume the same global theme tokens as the
+     sidebar, chat, settings, and learning-model pages. */
+  .learning-canvas {
+    @apply flex h-full min-h-0 w-full flex-col overflow-hidden;
+    --learning-panel: var(--card);
+    --learning-panel-subtle: color-mix(in srgb, var(--card) 76%, var(--secondary));
+    --learning-panel-active: color-mix(in srgb, var(--primary) 11%, var(--card));
+    --learning-border-active: color-mix(in srgb, var(--primary) 45%, var(--border));
+    --learning-error-bg: color-mix(in srgb, var(--destructive) 10%, var(--card));
+    --learning-error-border: color-mix(in srgb, var(--destructive) 35%, var(--border));
+    background: var(--background);
+    color: var(--foreground);
+  }
+
+  .learning-canvas__header {
+    @apply shrink-0 border-b px-4 py-3 md:px-6;
+    border-color: var(--border);
+    background: color-mix(in srgb, var(--background) 90%, var(--card));
+  }
+
+  .learning-canvas__toolbar {
+    @apply flex w-full items-center justify-between gap-4;
+  }
+
+  .learning-canvas__layout {
+    @apply grid min-h-0 w-full flex-1 lg:grid-cols-[252px_minmax(0,1fr)] xl:grid-cols-[252px_minmax(0,1fr)_292px];
+  }
+
+  .learning-canvas__layout--assistant-closed {
+    @apply xl:grid-cols-[252px_minmax(0,1fr)];
+  }
+
+  .learning-canvas__path-panel {
+    @apply shrink-0 border-b px-4 py-3 lg:min-h-0 lg:overflow-y-auto lg:border-r lg:border-b-0 lg:p-5;
+    border-color: var(--border);
+    background: var(--learning-panel-subtle);
+  }
+
+  .learning-canvas__content {
+    @apply flex min-h-0 min-w-0 flex-col overflow-y-auto p-4 md:p-6 xl:p-8;
+    background: var(--background);
+  }
+
+  .learning-canvas__assistant-panel {
+    @apply hidden min-h-0 overflow-hidden border-l xl:block;
+    border-color: var(--border);
+    background: var(--learning-panel-subtle);
+  }
+
+  .learning-canvas__assistant-panel--mobile-open {
+    @apply fixed inset-x-0 bottom-0 z-[60] block h-[78vh] max-h-[calc(100dvh-4rem)] rounded-t-2xl border-t xl:static xl:h-auto xl:max-h-none xl:rounded-none xl:border-t-0;
+    border-color: var(--border);
+    box-shadow: 0 -20px 50px color-mix(in srgb, var(--foreground) 12%, transparent);
+  }
+
+  .learning-canvas__assistant-panel--minimized {
+    display: none;
+  }
+
+  .learning-assistant-backdrop {
+    @apply fixed inset-0 z-50;
+    background: var(--overlay);
+  }
+
+  .learning-assistant {
+    @apply flex h-full min-h-0 flex-col;
+    background:
+      radial-gradient(
+        circle at 86% 2%,
+        color-mix(in srgb, var(--primary) 10%, transparent),
+        transparent 28%
+      ),
+      var(--learning-panel-subtle);
+  }
+
+  .learning-assistant__header {
+    @apply flex shrink-0 items-center justify-between gap-3 border-b px-4 py-4;
+    border-color: var(--border);
+  }
+
+  .learning-assistant__mark,
+  .learning-assistant__avatar {
+    @apply grid h-9 w-9 shrink-0 place-items-center rounded-xl;
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 12%, var(--card));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 22%, transparent);
+  }
+
+  .learning-assistant__avatar--small {
+    @apply h-7 w-7 rounded-lg;
+  }
+
+  .learning-assistant__context {
+    @apply mx-4 mt-3 flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-[10px];
+    border-color: color-mix(in srgb, var(--primary) 20%, var(--border));
+    background: color-mix(in srgb, var(--primary) 6%, var(--card));
+    color: var(--muted-foreground);
+  }
+
+  .learning-assistant__context-dot {
+    @apply h-1.5 w-1.5 shrink-0 rounded-full;
+    background: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent);
+  }
+
+  .learning-assistant__messages {
+    @apply min-h-0 flex-1 overflow-y-auto px-4 py-4;
+    scrollbar-width: thin;
+  }
+
+  .learning-assistant__welcome {
+    @apply flex items-start gap-3 rounded-2xl border p-3 text-xs;
+    border-color: var(--border);
+    background: color-mix(in srgb, var(--card) 85%, transparent);
+  }
+
+  .learning-assistant__suggestion {
+    @apply rounded-full border px-3 py-1.5 text-left text-[10px] leading-4 transition;
+    border-color: var(--border);
+    color: var(--muted-foreground);
+    background: color-mix(in srgb, var(--card) 76%, transparent);
+  }
+
+  .learning-assistant__suggestion:hover {
+    border-color: var(--learning-border-active);
+    color: var(--foreground);
+    background: var(--learning-panel-active);
+  }
+
+  .learning-assistant__message {
+    @apply mb-4 flex items-start gap-2.5 text-xs leading-5;
+  }
+
+  .learning-assistant__message--user {
+    @apply ml-6 rounded-2xl rounded-br-md px-3 py-2.5;
+    background: color-mix(in srgb, var(--primary) 13%, var(--card));
+  }
+
+  .learning-assistant__message--assistant {
+    @apply pr-1;
+  }
+
+  .learning-assistant__thinking {
+    @apply mb-4 ml-7 inline-flex items-center gap-2.5 rounded-2xl rounded-bl-md px-3 py-2.5 text-[11px];
+    border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border));
+    background: color-mix(in srgb, var(--primary) 8%, var(--card));
+    color: var(--muted-foreground);
+  }
+
+  .learning-assistant__thinking-dots {
+    @apply inline-flex shrink-0 items-center gap-1;
+  }
+
+  .learning-assistant__thinking-dot {
+    @apply h-1.5 w-1.5 rounded-full;
+    background: var(--muted-foreground);
+    animation: learning-thinking-bounce 1.2s ease-in-out infinite;
+  }
+
+  .learning-assistant__thinking-dot:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+
+  .learning-assistant__thinking-dot:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+
+  @keyframes learning-thinking-bounce {
+    0%,
+    60%,
+    100% {
+      transform: translateY(0);
+      opacity: 0.4;
+    }
+    30% {
+      transform: translateY(-3px);
+      opacity: 1;
+    }
+  }
+
+  .learning-assistant__composer {
+    @apply m-3 mt-0 shrink-0 space-y-2 rounded-2xl border p-2.5;
+    border-color: color-mix(in srgb, var(--primary) 25%, var(--border));
+    background: var(--card);
+    box-shadow: 0 12px 32px color-mix(in srgb, var(--foreground) 7%, transparent);
+  }
+
+  .learning-assistant__composer:focus-within {
+    border-color: var(--learning-border-active);
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--primary) 9%, transparent),
+      0 12px 32px color-mix(in srgb, var(--foreground) 7%, transparent);
+  }
+
+  .learning-assistant__composer textarea {
+    @apply block max-h-28 min-h-12 w-full resize-none bg-transparent px-1 text-xs leading-5 outline-none;
+    color: var(--foreground);
+  }
+
+  .learning-assistant__composer textarea::placeholder {
+    color: var(--muted-foreground);
+  }
+
+  .learning-assistant__tool,
+  .learning-assistant__icon-tool {
+    @apply inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 text-[10px] transition;
+    color: var(--muted-foreground);
+  }
+
+  .learning-assistant__icon-tool {
+    @apply w-8 shrink-0 px-0;
+  }
+
+  .learning-assistant__tool:hover,
+  .learning-assistant__icon-tool:hover,
+  .learning-assistant__tool--active {
+    color: var(--foreground);
+    background: var(--muted);
+  }
+
+  .learning-assistant__tool--active {
+    color: var(--primary);
+  }
+
+  .learning-assistant__icon-tool--recording {
+    color: var(--destructive);
+    background: color-mix(in srgb, var(--destructive) 10%, transparent);
+  }
+
+  .learning-assistant__send {
+    @apply grid h-8 w-8 shrink-0 place-items-center rounded-xl transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-35;
+    color: var(--primary-foreground);
+    background: var(--primary);
+  }
+
+  .learning-assistant__send:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+
+  .learning-assistant-bubble {
+    @apply fixed bottom-5 right-[72px] z-40 grid h-[52px] w-[52px] place-items-center rounded-full border transition duration-200 hover:-translate-y-1;
+    border-color: color-mix(in srgb, var(--primary) 48%, var(--border));
+    color: var(--primary-foreground);
+    background: var(--primary);
+    box-shadow: 0 14px 36px color-mix(in srgb, var(--primary) 30%, transparent);
+  }
+
+  .learning-assistant-bubble__pulse {
+    @apply absolute right-0 top-0 h-3 w-3 rounded-full border-2;
+    border-color: var(--background);
+    background: color-mix(in srgb, var(--primary) 55%, white);
+  }
+
+  .learning-canvas__section-heading,
+  .learning-action-bar {
+    border-color: var(--border);
+  }
+
+  .learning-eyebrow {
+    @apply font-mono text-[12.5px] uppercase tracking-[0.2em];
+    color: var(--primary);
+  }
+
+  .learning-meta {
+    @apply font-mono text-[12.5px] uppercase tracking-[0.18em];
+    color: var(--muted-foreground);
+  }
+
+  .learning-copy-muted {
+    color: var(--muted-foreground);
+  }
+
+  .learning-accent {
+    color: var(--primary);
+  }
+
+  .learning-icon-button {
+    @apply grid h-9 w-9 shrink-0 place-items-center rounded-full border transition;
+    border-color: var(--border);
+    color: var(--muted-foreground);
+    background: var(--card);
+  }
+
+  .learning-icon-button:hover {
+    border-color: var(--learning-border-active);
+    color: var(--foreground);
+    background: var(--accent);
+  }
+
+  .learning-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border px-4 py-2.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40;
+    border-color: var(--border);
+  }
+
+  .learning-button--primary {
+    border-color: transparent;
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  .learning-button--primary:hover:not(:disabled) {
+    filter: brightness(1.06);
+  }
+
+  .learning-button--secondary {
+    background: var(--card);
+    color: var(--foreground);
+  }
+
+  .learning-button--secondary:hover:not(:disabled) {
+    border-color: var(--learning-border-active);
+    background: var(--accent);
+  }
+
+  .learning-status-pill {
+    @apply rounded-md border px-2.5 py-1 font-mono text-[9px] uppercase;
+    border-color: var(--border);
+    color: var(--muted-foreground);
+    background: var(--muted);
+  }
+
+  .learning-notice {
+    @apply border-b px-4 py-2 text-center text-xs;
+    border-color: var(--learning-border-active);
+    background: var(--learning-panel-active);
+    color: var(--foreground);
+  }
+
+  .learning-step {
+    @apply flex w-full items-center gap-3 rounded-md border border-transparent px-3 py-2.5 text-left transition lg:py-3;
+    color: var(--muted-foreground);
+  }
+
+  .learning-step:hover {
+    background: var(--accent);
+    color: var(--foreground);
+  }
+
+  .learning-step--active {
+    border-color: var(--learning-border-active);
+    background: var(--learning-panel-active);
+    color: var(--foreground);
+  }
+
+  .learning-card {
+    @apply rounded-lg border p-5;
+    border-color: var(--border);
+    background: var(--learning-panel);
+    color: var(--card-foreground);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 5%, transparent);
+  }
+
+  .learning-card--large {
+    @apply rounded-xl p-6 md:p-8;
+  }
+
+  .learning-component-stage {
+    @apply flex min-h-0 flex-1 flex-col border-y py-5 md:min-h-[500px] md:py-10;
+    border-color: var(--border);
+  }
+
+  .learning-component-stage__intro {
+    @apply md:flex-1;
+  }
+
+  .learning-component-stage__action {
+    @apply mt-5 flex flex-col items-start justify-between gap-4 border-t pt-5 sm:flex-row sm:items-center md:mt-12 md:gap-5 md:pt-6;
+    border-color: var(--border);
+  }
+
+  .learning-choice {
+    @apply flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 text-sm transition;
+    border-color: var(--border);
+    background: var(--card);
+    color: var(--foreground);
+  }
+
+  .learning-choice:hover,
+  .learning-choice--selected {
+    border-color: var(--learning-border-active);
+    background: var(--learning-panel-active);
+  }
+
+  .learning-alert--error {
+    @apply mt-4 rounded-xl border px-4 py-3 text-xs;
+    border-color: var(--learning-error-border);
+    background: var(--learning-error-bg);
+    color: var(--destructive);
+  }
+
+  .learning-success {
+    color: var(--primary);
+  }
+
+  .learning-full-state {
+    @apply grid h-full min-h-0 place-items-center;
+    background: var(--background);
+    color: var(--foreground);
+  }
+
+  .learning-status-dot {
+    @apply grid h-4 w-4 place-items-center rounded-full border;
+    border-color: var(--primary);
+  }
+
+  .learning-status-dot::after {
+    content: '';
+    @apply h-1.5 w-1.5 rounded-full;
+    background: var(--primary);
+  }
+
+  .learning-icon-badge {
+    @apply grid h-10 w-10 place-items-center rounded-full;
+    background: var(--learning-panel-active);
+    color: var(--primary);
+  }
+
+  /* Goal map — the mission opening a learning path. It shows the learning
+     goal and the knowledge points as a vertical route, not the internal
+     component arrangement. */
+  .goal-map {
+    @apply max-w-2xl;
+  }
+
+  .goal-map__title {
+    @apply mt-2 font-serif text-2xl font-semibold leading-9 md:text-[28px];
+    text-wrap: pretty;
+  }
+
+  .goal-map__route {
+    @apply mt-7 list-none;
+    counter-reset: goal-map-node;
+  }
+
+  .goal-map__node {
+    @apply relative flex items-start gap-4 pb-7 last:pb-0;
+  }
+
+  /* Vertical route line: a quiet spine from node marker to node marker. */
+  .goal-map__node:not(:last-child)::before {
+    content: '';
+    @apply absolute top-7 bottom-0 left-[15px] w-px;
+    background: color-mix(in srgb, var(--border) 80%, transparent);
+  }
+
+  .goal-map__marker {
+    @apply grid h-8 w-8 shrink-0 place-items-center rounded-full border text-[11px] font-semibold;
+    border-color: var(--learning-border-active);
+    color: var(--primary);
+    background: var(--learning-panel-active);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 7%, transparent);
+  }
+
+  .goal-map__marker::after {
+    content: counter(goal-map-node);
+    counter-increment: goal-map-node;
+  }
+
+  .goal-map__point {
+    @apply pt-1 text-[15px] leading-7;
+    color: var(--foreground);
+    text-wrap: pretty;
+  }
+
+  .goal-map__foot {
+    @apply mt-7 border-t pt-4 text-xs leading-6;
+    border-color: var(--border);
+    color: var(--muted-foreground);
+  }
+}
+
+@layer utilities {
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
+/* Chat and learning launch surfaces keep the scrollbar quiet until it is
+   useful. This avoids a bright vertical rail competing with the centered
+   editorial panel while preserving an obvious affordance on hover. */
+.traittutor-scroll-area {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.traittutor-scroll-area::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.traittutor-scroll-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.traittutor-scroll-area::-webkit-scrollbar-thumb {
+  min-height: 40px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.traittutor-scroll-area:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted-foreground) 28%, transparent);
+}
+
+.traittutor-scroll-area:hover {
+  scrollbar-color: color-mix(in srgb, var(--muted-foreground) 28%, transparent) transparent;
+}
+
+.traittutor-scroll-area::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--muted-foreground) 52%, transparent);
+}
+
+/* ─── Streaming surfaces ───
+   Every scroll container that wraps an LLM-streaming surface (chat,
+   trace card, quiz follow-up, book chat, …) opts into this contract
+   by carrying ``data-chat-scroll-root="true"``.
+
+   ``overflow-anchor: none``
+     Disables the browser's automatic scroll anchoring. Anchoring tries
+     to keep an in-viewport element fixed in screen space when content
+     above it grows; for a chat surface this fights ``useChatAutoScroll``
+     every time a code block / KaTeX block / dynamic viewer mounts and
+     reflows the message list. Without this rule the page visibly jitters
+     during fast streams.
+
+   ``scroll-behavior: auto``
+     The hook intentionally never animates ``scrollTop``. If a global
+     ``scroll-behavior: smooth`` ever lands (theme, base reset, browser
+     experiment), a smooth animation racing against the next-frame pin
+     reintroduces the exact stutter this rule is here to prevent. */
+[data-chat-scroll-root='true'] {
+  overflow-anchor: none;
+  scroll-behavior: auto;
+}
+
+/* ─── Prose: base ─── */
+.prose {
+  @apply font-serif text-[16px];
+}
+
+.prose pre {
+  @apply rounded-lg p-4 overflow-x-auto my-4;
+  background: #292524;
+  color: #d6d3d1;
+}
+
+.prose code:not(.md-code-block__code):not(.md-inline-code) {
+  @apply px-1.5 py-0.5 rounded text-sm font-mono;
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.prose pre code {
+  @apply bg-transparent text-inherit p-0;
+}
+
+.md-renderer .md-inline-code {
+  @apply px-1.5 py-0.5 rounded text-sm font-mono;
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.md-renderer .md-code-block {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Force light text on dark code blocks regardless of theme. The wrapper
+   .md-code-block always uses a fixed dark background (#1f2937 / #292524),
+   so we need to override .prose pre (color: #D6D3D1) and any inherited
+   --foreground from the prose wrapper that would otherwise render as
+   near-black in the light theme. Specificity (0,2,1) beats .prose pre. */
+.md-renderer .md-code-block,
+.md-renderer .md-code-block pre,
+.md-renderer .md-code-block code {
+  color: #e5e7eb;
+}
+
+.md-renderer .md-code-block pre,
+.md-renderer .md-code-block code {
+  background: transparent !important;
+}
+
+.md-renderer .md-code-block pre {
+  @apply overflow-x-auto;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  padding: 1rem !important;
+}
+
+.md-renderer .md-code-block__code {
+  padding: 0 !important;
+  border-radius: 0 !important;
+  font-size: 0.875rem !important;
+  line-height: 1.7 !important;
+  color: inherit !important;
+}
+
+.md-renderer .md-code-block__code span {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+/* ─── Headings ─── */
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  @apply font-sans;
+}
+
+.prose h1 {
+  @apply text-2xl font-bold tracking-tight mt-8 mb-4;
+  color: var(--foreground);
+}
+
+.prose h2 {
+  @apply text-xl font-semibold tracking-tight mt-7 mb-3;
+  color: var(--foreground);
+}
+
+.prose h3 {
+  @apply text-lg font-semibold tracking-tight mt-6 mb-2.5;
+  color: var(--foreground);
+}
+
+.prose h4 {
+  @apply text-base font-semibold tracking-tight mt-5 mb-2;
+  color: var(--foreground);
+}
+
+.prose h5 {
+  @apply text-sm font-semibold tracking-tight mt-4 mb-2;
+  color: var(--foreground);
+}
+
+.prose h6 {
+  @apply text-sm font-semibold tracking-tight mt-4 mb-2;
+  color: var(--muted-foreground);
+}
+
+/* ─── Body text ─── */
+.prose p {
+  @apply mb-4;
+  line-height: 1.75;
+  color: var(--foreground);
+}
+
+.prose strong {
+  @apply font-semibold;
+  color: var(--foreground);
+}
+
+.prose em {
+  @apply italic;
+}
+
+/* ─── Strikethrough ─── */
+.prose del,
+.prose s {
+  @apply line-through;
+  color: var(--muted-foreground);
+}
+
+/* ─── Highlight / Mark ─── */
+.prose mark {
+  @apply rounded px-1 py-0.5;
+  background: #fef08a;
+  color: #422006;
+}
+
+.dark .prose mark {
+  background: #854d0e;
+  color: #fef9c3;
+}
+
+/* ─── Subscript / Superscript ─── */
+.prose sub {
+  @apply text-[0.75em];
+  vertical-align: sub;
+}
+
+.prose sup {
+  @apply text-[0.75em];
+  vertical-align: super;
+}
+
+/* ─── Abbreviation ─── */
+.prose abbr[title] {
+  @apply cursor-help;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+/* ─── Keyboard ─── */
+.prose kbd {
+  @apply inline-block rounded border px-1.5 py-0.5 font-mono text-[0.8em] font-medium leading-none;
+  background: var(--muted);
+  border-color: var(--border);
+  color: var(--foreground);
+  box-shadow: 0 1px 0 1px var(--border);
+}
+
+/* ─── Links ─── */
+.prose a {
+  @apply underline underline-offset-2;
+  color: var(--primary);
+}
+
+/* ─── Lists ─── */
+.prose ul {
+  @apply list-disc list-outside ml-6 mb-4;
+  color: var(--foreground);
+}
+
+.prose ol {
+  @apply list-decimal list-outside ml-6 mb-4;
+  color: var(--foreground);
+}
+
+.prose li {
+  @apply mb-1;
+}
+
+.prose li > ul,
+.prose li > ol {
+  @apply mt-1 mb-0;
+}
+
+/* ─── Task list (GFM) ─── */
+.prose ul:has(> li > input[type='checkbox']) {
+  @apply list-none ml-0 pl-0;
+}
+
+.prose li:has(> input[type='checkbox']) {
+  @apply flex items-start gap-0;
+}
+
+.prose li > input[type='checkbox'] {
+  @apply mt-1.5 shrink-0;
+}
+
+/* ─── Blockquote ─── */
+.prose blockquote {
+  @apply border-l-[3px] pl-4 italic my-4;
+  border-color: var(--muted-foreground);
+  color: var(--muted-foreground);
+}
+
+.prose blockquote blockquote {
+  @apply mt-2;
+  border-color: var(--border);
+}
+
+/* ─── Horizontal rule ─── */
+.prose hr {
+  @apply my-6 border-none;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ─── Tables ─── */
+.prose table {
+  @apply border-collapse;
+}
+
+.prose th {
+  @apply font-semibold px-4 py-2 border text-left;
+  background: var(--muted);
+  color: var(--foreground);
+  border-color: var(--border);
+}
+
+.prose td {
+  @apply px-4 py-2 border;
+  color: var(--foreground);
+  border-color: var(--border);
+}
+
+/* ─── Images ─── */
+.prose img {
+  @apply my-4 max-w-full h-auto rounded-lg;
+}
+
+.prose figure {
+  @apply my-4;
+}
+
+.prose figcaption {
+  @apply mt-2 text-center text-sm;
+  color: var(--muted-foreground);
+}
+
+/* ─── Details / Summary ─── */
+.prose details {
+  @apply my-4 rounded-lg border px-4 py-2;
+  background: var(--card);
+  border-color: var(--border);
+}
+
+.prose details:empty,
+.prose details:not(:has(> :not(summary))),
+.md-renderer details:empty,
+.md-renderer details:not(:has(> :not(summary))) {
+  display: none;
+}
+
+.prose > :empty:not(hr):not(br):not(img) {
+  display: none;
+}
+
+.prose summary {
+  @apply cursor-pointer font-medium select-none;
+  color: var(--foreground);
+}
+
+.prose details[open] > summary {
+  @apply mb-2;
+}
+
+/* ─── Definition list ─── */
+.prose dl {
+  @apply my-4;
+}
+
+.prose dt {
+  @apply font-semibold mt-3;
+  color: var(--foreground);
+}
+
+.prose dd {
+  @apply ml-6 mt-1;
+  color: var(--muted-foreground);
+}
+
+/* ─── Footnotes (remark-gfm) ─── */
+.prose .footnotes {
+  @apply mt-8 border-t pt-4 text-sm;
+  border-color: var(--border);
+  color: var(--muted-foreground);
+}
+
+.prose .footnotes ol {
+  @apply ml-4;
+}
+
+/* ─── md-renderer: scope overrides only inside our component ─── */
+.md-renderer .contains-task-list {
+  @apply list-none ml-0 pl-0;
+}
+
+/* Animations */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.35s ease-out forwards;
+}
+
+/* Picker chrome: a soft scrim fade + a small spring-in for the card, so
+   modal pickers feel placed rather than popped. */
+@keyframes dt-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-overlay-in {
+  animation: dt-overlay-in 160ms ease-out;
+}
+@keyframes dt-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.animate-pop-in {
+  animation: dt-pop-in 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Streaming "breathing" label — used above the trace panel to surface that
+   the assistant is still working. Cycles between full and dim opacity with
+   a slow ease, mirroring Claude desktop's reasoning indicator. */
+@keyframes dt-breathing {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.dt-breathing-text {
+  animation: dt-breathing 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Icon-only stretch/contract on top of the opacity breathing. Slightly
+   different period (2.4s vs 1.8s) so the scale and opacity cycles drift
+   in and out of phase, giving the mark a hand-drawn, "alive" feel rather
+   than a single mechanical pulse. */
+@keyframes dt-mark-pulse {
+  0%,
+  100% {
+    transform: scale(0.9);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+.dt-mark-pulse {
+  animation: dt-mark-pulse 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+  will-change: transform;
+}
+
+/* Active-state motion — an original, theme-aware interpretation of a border
+   beam and dotted thinking orb. Both are decorative and never communicate
+   state alone: surrounding text keeps the interaction understandable. */
+.traittutor-border-beam {
+  pointer-events: none;
+  position: absolute;
+  z-index: 1;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  overflow: hidden;
+  background: conic-gradient(
+    from var(--beam-angle),
+    transparent 0deg,
+    transparent 258deg,
+    color-mix(in srgb, var(--primary) 14%, transparent) 284deg,
+    var(--primary) 306deg,
+    color-mix(in srgb, var(--primary) 32%, transparent) 328deg,
+    transparent 348deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: traittutor-beam-orbit 3.8s linear infinite;
+}
+
+@property --beam-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes traittutor-beam-orbit {
+  to {
+    --beam-angle: 360deg;
+  }
+}
+
+.traittutor-thinking-orb {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  vertical-align: middle;
+  color: currentColor;
+  animation: traittutor-orb-drift 2.8s cubic-bezier(0.42, 0, 0.2, 1) infinite;
+}
+
+.traittutor-thinking-orb--sm {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+.traittutor-thinking-orb--lg {
+  width: 3.5rem;
+  height: 3.5rem;
+}
+
+.traittutor-thinking-orb i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14%;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: calc(0.25 + (var(--orb-index) * 0.035));
+  transform: translate(-50%, -50%) rotate(calc(var(--orb-index) * 27.692deg)) translateY(-260%)
+    scale(0.82);
+  animation: traittutor-orb-particle 1.7s ease-in-out infinite;
+  animation-delay: calc(var(--orb-index) * -115ms);
+}
+
+.traittutor-thinking-orb i:nth-child(4n),
+.traittutor-thinking-orb i:nth-child(7n) {
+  transform: translate(-50%, -50%) rotate(calc(var(--orb-index) * 27.692deg)) translateY(-150%)
+    scale(0.72);
+}
+
+@keyframes traittutor-orb-drift {
+  0%,
+  100% {
+    transform: rotate(-8deg) scale(0.92);
+  }
+  50% {
+    transform: rotate(8deg) scale(1.05);
+  }
+}
+
+@keyframes traittutor-orb-particle {
+  0%,
+  100% {
+    opacity: 0.22;
+    filter: blur(0.1px);
+  }
+  50% {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+/* While a fullscreen picker/modal is open, freeze ambient background
+   animations (sidebar "running session" pulse, breathing titles, pulsing
+   marks). They live behind the modal's frosted `backdrop-filter`; their
+   per-frame repaints were being re-sampled by the blur, reading as a constant
+   shimmer behind the scrim. `paused` holds them at their current frame (no
+   jump) and they resume on close. */
+body[data-picker-open] .dt-breathing-text,
+body[data-picker-open] .session-pulse,
+body[data-picker-open] .dt-session-icon-running,
+body[data-picker-open] .dt-mark-pulse {
+  animation-play-state: paused !important;
+}
+
+body[data-picker-open] .traittutor-border-beam,
+body[data-picker-open] .traittutor-thinking-orb,
+body[data-picker-open] .traittutor-thinking-orb i {
+  animation-play-state: paused !important;
+}
+
+/* Capability menu pop-up — the dropdown blooms out of the chip itself
+   rather than fading in from above the composer. Origin at bottom-left so
+   the menu visually "unfurls" from the chevron corner of the chip. */
+@keyframes dt-popup-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.dt-popup-up {
+  animation: dt-popup-up 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: bottom left;
+  will-change: opacity, transform;
+}
+
+/* Session status pulse */
+@keyframes session-pulse {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(2.2);
+  }
+}
+
+.session-pulse {
+  animation: session-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Session avatar — gentle breathing wiggle when a session is running */
+@keyframes dt-session-icon-running {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+  25% {
+    transform: translateY(-0.6px) rotate(-6deg) scale(1.05);
+  }
+  50% {
+    transform: translateY(0) rotate(0deg) scale(1.02);
+  }
+  75% {
+    transform: translateY(0.6px) rotate(6deg) scale(1.05);
+  }
+}
+
+.dt-session-icon-running {
+  animation: dt-session-icon-running 1.6s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  transform-origin: center;
+}
+
+/* ----- Chat shell ↔ file preview drawer ---------------------------------
+   Squeezes the chat column when the drawer is open. The transition
+   timing here MUST match FilePreviewDrawer's transform transition so the
+   slide-in and the squeeze animate as one motion. Stays a no-op below
+   the lg breakpoint, where the drawer overlays instead. */
+.chat-preview-shell {
+  transition: padding-right 220ms ease-out;
+  padding-right: 0;
+}
+/* While the viewer is being drag-resized, kill the squeeze transition so the
+   chat column tracks the panel edge frame-for-frame instead of lagging. */
+:root[data-viewer-resizing='true'] .chat-preview-shell {
+  transition: none;
+}
+@media (min-width: 1024px) {
+  /* The wider composer-side preview drawer (pre-send attachment peek)
+     gets the largest squeeze. */
+  .chat-preview-shell[data-preview-open='true'] {
+    padding-right: min(560px, 92vw);
+  }
+}
+
+/* Sidebar tooltip */
+.dt-tooltip-wrapper {
+  @apply relative inline-flex;
+}
+
+.dt-tooltip-content {
+  @apply absolute z-50 rounded-lg bg-[var(--popover)] px-3 py-1.5 text-xs shadow-md text-[var(--popover-foreground)] pointer-events-none;
+  animation: dt-tooltip-fade-in 150ms ease-out;
+}
+
+.dt-tooltip-label {
+  @apply font-medium truncate;
+}
+
+.dt-tooltip-desc {
+  @apply mt-0.5 text-[11px] text-[var(--muted-foreground)] truncate;
+}
+
+.dt-tooltip-content[data-side='right'] {
+  @apply left-full top-1/2 -translate-y-1/2 ml-2 max-w-[200px];
+}
+
+.dt-tooltip-content[data-side='bottom'] {
+  @apply bottom-[-40px] left-1/2 -translate-x-1/2 max-w-[180px];
+}
+
+@keyframes dt-tooltip-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ─── Reduced motion ──────────────────────────────────────────────────────
+   Honor the OS-level prefers-reduced-motion setting. We don't strip motion
+   entirely — interaction-critical transitions (drawer slide, menu reveal)
+   stay visible but are shortened to a near-imperceptible duration so the
+   UI still communicates state changes without vestibular jitter. Loop
+   animations (breathing, pulse, spin) are removed outright. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .dt-breathing-text,
+  .dt-mark-pulse,
+  .session-pulse,
+  .traittutor-border-beam,
+  .traittutor-thinking-orb,
+  .traittutor-thinking-orb i,
+  .animate-spin {
+    animation: none !important;
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "id": "p0b-review-audit",
+  "title": "Continuation review-audit over ws-1b live-path wiring (complementary dimensions: frontend + invariants + deferred-findings re-check)",
+  "status": "in_progress",
+  "strategy": "review-audit",
+  "currentPhase": "3",
+  "nextAction": "Phase 3 done: synthesis in REVIEW-REPORT.md. Claude fixed C2/C3/W1/W6 (e07a6c7+069f675). Codex implementing C1/C4/C5/C8/C9/C10/C11+W2-W5 (dispatch 019fe5e0); C6/C7 ADR-gated. Await Codex -> review+commit by feature.",
+  "phase2Verdict": "frontend PASS (fixed); backend FAIL 36/100 (11 Critical + 6 Warning)",
+  "reportPath": ".ccg/tasks/p0b-review-audit/REVIEW-REPORT.md",
+  "gate": "scope-determined",
+  "branch": "ws-1b",
+  "scope": "ws-1b diff main..HEAD (64 files, +6065/-307)",
+  "createdAt": "2026-08-09T09:07:31Z"
+}

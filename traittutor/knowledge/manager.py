@@ -1,0 +1,1378 @@
+#!/usr/bin/env python
+"""
+Knowledge Base Manager
+
+Manages multiple knowledge bases and provides utilities for accessing them.
+"""
+
+from datetime import datetime, timedelta
+import hashlib
+import logging
+import os
+from pathlib import Path
+import shutil
+import stat
+from typing import Any
+
+from traittutor.knowledge.kb_types import (
+    LIGHTRAG_SERVER_KB_TYPE,
+    LINKED_KB_TYPE,
+    OBSIDIAN_KB_TYPE,
+    external_root_of,
+    is_connected_kb,
+)
+from traittutor.knowledge.state_store import KnowledgeStateStore
+from traittutor.services.rag.factory import (
+    DEFAULT_PROVIDER,
+    KNOWN_PROVIDERS,
+    LIGHTRAG_SERVER_PROVIDER,
+    has_ready_provider_index,
+    normalize_provider_name,
+    provider_uses_embedding_versions,
+)
+from traittutor.services.rag.file_routing import FileTypeRouter
+from traittutor.services.rag.index_probe import (
+    inspect_kb_versions,
+    inspect_provider_version,
+    provider_failure_summary,
+)
+
+logger = logging.getLogger(__name__)
+
+
+# How long an entry can be missing its KB directory before ``list_knowledge_bases``
+# treats it as a stale orphan. The KB create flow writes the "initializing"
+# config entry before the on-disk folder is created, so a too-short grace would
+# let a list-call mid-creation racy-delete the entry. 60s is comfortably longer
+# than the create handshake while still keeping multi-day zombies out.
+_ORPHAN_PRUNE_GRACE_SECONDS = 60
+
+
+def _entry_updated_after(kb_entry: dict | None, cutoff: datetime) -> bool:
+    """Return True when the entry's ``updated_at`` is strictly after ``cutoff``.
+
+    Entries without a parseable timestamp are treated as old (return False) —
+    a long-stuck orphan that crashed before recording a timestamp should still
+    get pruned.
+    """
+    if not isinstance(kb_entry, dict):
+        return False
+    raw = kb_entry.get("updated_at")
+    if not isinstance(raw, str):
+        return False
+    try:
+        return datetime.fromisoformat(raw) > cutoff
+    except ValueError:
+        return False
+
+
+def _provider_from_version_entry(entry: dict[str, Any]) -> str:
+    provider = str(entry.get("provider") or "").strip().lower()
+    if provider in KNOWN_PROVIDERS:
+        return provider
+    signature = str(entry.get("signature") or "").strip().lower()
+    return signature if signature in KNOWN_PROVIDERS else DEFAULT_PROVIDER
+
+
+def _detect_provider_from_versions(versions: list[dict[str, Any]]) -> str:
+    for entry in versions:
+        provider = _provider_from_version_entry(entry)
+        if provider != DEFAULT_PROVIDER:
+            return provider
+    return DEFAULT_PROVIDER
+
+
+def _get_embedding_fingerprint() -> tuple[str, int] | None:
+    """Return ``(model_name, dimension)`` of the active embedding config."""
+    try:
+        from traittutor.services.embedding import get_embedding_config
+
+        cfg = get_embedding_config()
+        return (cfg.model, cfg.dim)
+    except Exception:
+        return None
+
+
+def _reconcile_embedding_flags(knowledge_bases: dict, base_dir: Path | None = None) -> bool:
+    """Reconcile per-KB embedding flags against the on-disk index versions.
+
+    For each KB we check canonical ``version-N`` directories for a version
+    matching the active embedding signature:
+
+    * Match found → clear ``needs_reindex`` and ``embedding_mismatch`` (the
+      user has switched back to a previously-indexed configuration).
+    * No match, but the KB has a stored ``embedding_model`` that differs
+      from the active fingerprint → set both flags so the UI surfaces a
+      "Re-index" CTA.
+
+    Returns ``True`` when any entry changed.
+    """
+    from traittutor.services.rag.embedding_signature import signature_from_embedding_config
+    from traittutor.services.rag.index_versioning import (
+        find_matching_version,
+    )
+
+    fp = _get_embedding_fingerprint()
+    signature = signature_from_embedding_config()
+    changed = False
+
+    if signature is None and not fp:
+        return False
+
+    for kb_name, kb_entry in knowledge_bases.items():
+        if not isinstance(kb_entry, dict):
+            continue
+
+        # Connected KBs (Obsidian vaults, linked indexes) are pointers with no
+        # embedding lifecycle we manage — compatibility is checked once at
+        # connect time, never reconciled here.
+        if is_connected_kb(kb_entry):
+            continue
+
+        provider = normalize_provider_name(kb_entry.get("rag_provider"))
+        if not provider_uses_embedding_versions(provider):
+            kb_dir = (base_dir / kb_name) if base_dir is not None else None
+            if kb_dir is not None:
+                versions = inspect_kb_versions(kb_dir, provider)
+                kb_entry["index_versions"] = versions
+                if has_ready_provider_index(kb_dir, provider):
+                    mutated_local = False
+                    had_embedding_mismatch = bool(kb_entry.get("embedding_mismatch"))
+                    if kb_entry.get("embedding_mismatch"):
+                        kb_entry.pop("embedding_mismatch", None)
+                        mutated_local = True
+                    if had_embedding_mismatch and kb_entry.get("needs_reindex"):
+                        kb_entry["needs_reindex"] = False
+                        mutated_local = True
+                    if mutated_local:
+                        changed = True
+            continue
+
+        kb_dir = (base_dir / kb_name) if base_dir is not None else None
+        matched = False
+        if kb_dir is not None and signature is not None:
+            matched_entry = find_matching_version(kb_dir, signature)
+            matched = (
+                matched_entry is not None
+                and inspect_provider_version(matched_entry, DEFAULT_PROVIDER).ready
+            )
+
+        if matched:
+            mutated_local = False
+            if kb_entry.get("needs_reindex"):
+                kb_entry["needs_reindex"] = False
+                mutated_local = True
+            if kb_entry.get("embedding_mismatch"):
+                kb_entry.pop("embedding_mismatch", None)
+                mutated_local = True
+            if mutated_local:
+                changed = True
+            # Refresh the surfaced version list either way so the UI sees
+            # accurate state.
+            if kb_dir is not None:
+                kb_entry["index_versions"] = inspect_kb_versions(kb_dir, provider)
+            continue
+
+        # No matching ready index version on disk.
+        stored_model = kb_entry.get("embedding_model")
+        # Empty/in-progress version dirs are created before indexing finishes.
+        # They should not mark a brand-new KB as needing re-index.
+        versions = []
+        has_ready_version = False
+        if kb_dir is not None:
+            versions = inspect_kb_versions(kb_dir, provider)
+            has_ready_version = any(bool(version.get("ready")) for version in versions)
+            kb_entry["index_versions"] = versions
+
+        if not has_ready_version and not stored_model:
+            continue
+
+        current_model = fp[0] if fp else ""
+        current_dim = fp[1] if fp else 0
+        stored_dim = kb_entry.get("embedding_dim")
+        mismatch = (stored_model and stored_model != current_model) or (
+            stored_dim is not None and current_dim and stored_dim != current_dim
+        )
+        # If ready versions exist but none match active signature, that's also a mismatch.
+        if has_ready_version:
+            mismatch = True
+
+        if mismatch and not kb_entry.get("embedding_mismatch"):
+            kb_entry["embedding_mismatch"] = True
+            if not kb_entry.get("needs_reindex"):
+                kb_entry["needs_reindex"] = True
+            changed = True
+        elif not mismatch and kb_entry.get("embedding_mismatch"):
+            kb_entry.pop("embedding_mismatch", None)
+            changed = True
+
+    return changed
+
+
+class KnowledgeBaseManager:
+    """Manager for knowledge bases"""
+
+    def __init__(self, base_dir="./data/knowledge_bases"):
+        self.base_dir = Path(base_dir)
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+
+        self.config = self._load_config()
+
+    def _load_config(self) -> dict:
+        """Load knowledge base configuration from canonical SQLite state."""
+        config = KnowledgeStateStore(self.base_dir).load_config()
+        if config:
+            try:
+                # Ensure knowledge_bases key exists
+                if "knowledge_bases" not in config:
+                    config["knowledge_bases"] = {}
+
+                # Canonical state may contain only registered providers.
+                knowledge_bases = config.get("knowledge_bases", {})
+                config_changed = False
+                for kb_name, kb_entry in knowledge_bases.items():
+                    if not isinstance(kb_entry, dict):
+                        continue
+
+                    # Connected KBs (Obsidian vaults, linked indexes) are
+                    # pointers with no index pipeline — none of the
+                    # provider/embedding normalization below applies. Leave
+                    # their type/external pointer untouched.
+                    if is_connected_kb(kb_entry):
+                        continue
+
+                    raw_provider = str(kb_entry.get("rag_provider") or "").strip().lower()
+                    if raw_provider not in KNOWN_PROVIDERS:
+                        raise ValueError(
+                            f"Knowledge base '{kb_name}' has an unsupported rag_provider"
+                        )
+
+                if _reconcile_embedding_flags(knowledge_bases, self.base_dir):
+                    config_changed = True
+
+                if config_changed:
+                    try:
+                        KnowledgeStateStore(self.base_dir).save_config(config)
+                    except Exception as save_err:
+                        logger.warning(f"Failed to persist normalized KB config: {save_err}")
+
+                return config
+            except Exception as e:
+                raise RuntimeError("Invalid canonical knowledge-base state") from e
+        return {"knowledge_bases": {}}
+
+    def _save_config(self):
+        """Save knowledge-base configuration transactionally in SQLite."""
+        KnowledgeStateStore(self.base_dir).save_config(self.config)
+
+    def _load_metadata(self, name: str) -> dict[str, Any]:
+        return KnowledgeStateStore(self.base_dir).load_metadata(name)
+
+    def _save_metadata(self, name: str, metadata: dict[str, Any]) -> None:
+        KnowledgeStateStore(self.base_dir).save_metadata(name, metadata)
+
+    def update_kb_status(
+        self,
+        name: str,
+        status: str,
+        progress: dict | None = None,
+    ):
+        """
+        Update knowledge-base status and progress in canonical state.
+
+        Args:
+            name: Knowledge base name
+            status: Status string ("initializing", "processing", "ready", "error")
+            progress: Optional progress dict with keys like:
+                - stage: Current stage name
+                - message: Human-readable message
+                - percent: Progress percentage (0-100)
+                - current: Current item number
+                - total: Total items
+                - file_name: Current file being processed
+                - error: Error message (if status is "error")
+        """
+        # Reload config to get latest state
+        self.config = self._load_config()
+
+        if "knowledge_bases" not in self.config:
+            self.config["knowledge_bases"] = {}
+
+        if name not in self.config["knowledge_bases"]:
+            # Auto-register if not exists
+            self.config["knowledge_bases"][name] = {
+                "path": name,
+                "description": f"Knowledge base: {name}",
+            }
+
+        kb_config = self.config["knowledge_bases"][name]
+        kb_config["status"] = status
+        kb_config["updated_at"] = datetime.now().isoformat()
+        index_changed = False
+        indexed_count: int | None = None
+        index_action: str | None = None
+        if isinstance(progress, dict):
+            raw_indexed_count = progress.get("indexed_count")
+            if isinstance(raw_indexed_count, bool):
+                indexed_count = int(raw_indexed_count)
+            elif isinstance(raw_indexed_count, (int, float)):
+                indexed_count = int(raw_indexed_count)
+            elif isinstance(raw_indexed_count, str):
+                try:
+                    indexed_count = int(raw_indexed_count)
+                except ValueError:
+                    indexed_count = None
+
+            index_changed = bool(progress.get("index_changed")) or (
+                indexed_count is not None and indexed_count > 0
+            )
+            raw_index_action = progress.get("index_action")
+            if isinstance(raw_index_action, str) and raw_index_action.strip():
+                index_action = raw_index_action.strip()
+
+        if status == "ready":
+            # Ready KBs should look like stable resources in the UI instead of
+            # permanently carrying a "completed" progress banner.
+            kb_config.pop("progress", None)
+            kb_config.pop("last_error", None)
+            kb_config.pop("last_error_at", None)
+            if progress is not None:
+                kb_config["last_completed_at"] = (
+                    progress.get("timestamp") or datetime.now().isoformat()
+                )
+                if index_changed:
+                    kb_config["last_indexed_at"] = kb_config["last_completed_at"]
+                    if indexed_count is not None:
+                        kb_config["last_indexed_count"] = max(indexed_count, 0)
+                    if index_action:
+                        kb_config["last_indexed_action"] = index_action
+        elif status == "error":
+            if progress is not None:
+                kb_config["progress"] = progress
+                kb_config["last_error"] = progress.get("error") or progress.get("message")
+                kb_config["last_error_at"] = progress.get("timestamp") or datetime.now().isoformat()
+        elif progress is not None:
+            kb_config["progress"] = progress
+
+        if status == "ready":
+            fp = _get_embedding_fingerprint()
+            if fp:
+                kb_config["embedding_model"], kb_config["embedding_dim"] = fp
+            # Record the active signature + the on-disk version registry so
+            # the UI can render version chips without recomputing.
+            try:
+                from traittutor.services.rag.embedding_signature import (
+                    signature_from_embedding_config,
+                )
+
+                sig = signature_from_embedding_config()
+                if sig is not None:
+                    kb_config["embedding_signature"] = sig.hash()
+                kb_dir = self.base_dir / name
+                if kb_dir.is_dir():
+                    provider = normalize_provider_name(kb_config.get("rag_provider"))
+                    kb_config["index_versions"] = inspect_kb_versions(kb_dir, provider)
+            except Exception:  # pragma: no cover - best-effort metadata
+                pass
+
+        self._save_config()
+
+    def get_kb_status(self, name: str) -> dict | None:
+        """Get status and progress for a knowledge base."""
+        self.config = self._load_config()
+        kb_config = self.config.get("knowledge_bases", {}).get(name)
+        if not kb_config:
+            return None
+        return {
+            "status": kb_config.get("status", "unknown"),
+            "progress": kb_config.get("progress"),
+            "updated_at": kb_config.get("updated_at"),
+        }
+
+    def list_knowledge_bases(self) -> list[str]:
+        """List all available knowledge bases.
+
+        This method:
+        1. Loads registered KBs from canonical state
+        2. Drops registered entries whose on-disk directory no longer exists
+           (orphans from failed inits or manual ``rm -rf`` of a KB folder).
+        3. Scans the directory for existing KBs not yet registered
+        4. Auto-registers discovered KBs with valid raw/index structure
+        """
+        # Always reload config from file to ensure we have the latest data
+        self.config = self._load_config()
+
+        config_kbs = self.config.get("knowledge_bases", {})
+        kb_list: set[str] = set()
+        config_changed = False
+
+        # Filter out orphan entries whose KB directory is gone. The on-disk
+        # folder is the source of truth for existence — without it the KB
+        # has no documents, no index, and surfacing it in the UI just shows
+        # zombies that the user can't act on.
+        #
+        # Grace period: a freshly-created KB writes its config entry before
+        # ``create_directory_structure`` mkdir-s the folder (so the UI can
+        # render the "initializing" row immediately). If ``list`` races into
+        # that window we'd prune a perfectly healthy in-flight KB. Skip the
+        # prune when ``updated_at`` is recent enough that an init could still
+        # be wiring things up.
+        base_exists = self.base_dir.exists()
+        grace_cutoff = datetime.now() - timedelta(seconds=_ORPHAN_PRUNE_GRACE_SECONDS)
+        for kb_name, kb_entry in list(config_kbs.items()):
+            # Connected KBs (Obsidian vaults, linked indexes) live outside
+            # ``base_dir`` — they have no on-disk KB folder by design, so the
+            # orphan prune below would wrongly delete them. Keep them
+            # unconditionally.
+            if is_connected_kb(kb_entry):
+                kb_list.add(kb_name)
+                continue
+            rel_path = (kb_entry or {}).get("path", kb_name)
+            kb_dir = self.base_dir / rel_path
+            if base_exists and not kb_dir.exists():
+                if _entry_updated_after(kb_entry, grace_cutoff):
+                    kb_list.add(kb_name)
+                    continue
+                logger.warning(
+                    "Pruning orphaned KB entry '%s': directory %s no longer exists.",
+                    kb_name,
+                    kb_dir,
+                )
+                del config_kbs[kb_name]
+                config_changed = True
+                continue
+            kb_list.add(kb_name)
+
+        # Discover only canonical provider-version directories. An unregistered
+        # old storage directory is not a knowledge base and stays invisible.
+        if base_exists:
+            for item in self.base_dir.iterdir():
+                if not item.is_dir() or item.name.startswith(("__", ".")):
+                    continue
+
+                # Skip if already in config
+                if item.name in kb_list:
+                    continue
+
+                # Check if this is a valid canonical KB directory.
+                from traittutor.services.rag.index_versioning import list_kb_versions
+
+                versions = list_kb_versions(item)
+                detected_provider = _detect_provider_from_versions(versions)
+                is_valid_kb = has_ready_provider_index(item, detected_provider)
+
+                if is_valid_kb:
+                    # Register the canonical on-disk index in SQLite state.
+                    kb_list.add(item.name)
+                    self._auto_register_kb(item.name)
+                    config_changed = True
+
+        # Save config if we pruned orphans or registered new KBs
+        if config_changed:
+            self._save_config()
+
+        return sorted(kb_list)
+
+    def _auto_register_kb(self, name: str):
+        """Register an existing canonical provider-version index."""
+        kb_dir = self.base_dir / name
+        from traittutor.services.rag.index_versioning import list_kb_versions
+
+        versions = list_kb_versions(kb_dir)
+        detected_provider = _detect_provider_from_versions(versions)
+
+        # Default values
+        kb_entry: dict[str, Any] = {
+            "path": name,
+            "description": f"Knowledge base: {name}",
+            "rag_provider": detected_provider,
+            "updated_at": datetime.now().isoformat(),
+        }
+
+        if has_ready_provider_index(kb_dir, detected_provider):
+            kb_entry["status"] = "ready"
+        else:
+            kb_entry["status"] = "unknown"
+
+        # Add to config
+        if "knowledge_bases" not in self.config:
+            self.config["knowledge_bases"] = {}
+        self.config["knowledge_bases"][name] = kb_entry
+
+        logger.info(f"Registered canonical KB '{name}' in SQLite state")
+
+    def register_knowledge_base(self, name: str, description: str = "", set_default: bool = False):
+        """Register a knowledge base"""
+        kb_dir = self.base_dir / name
+        if not kb_dir.exists():
+            raise ValueError(f"Knowledge base directory does not exist: {kb_dir}")
+
+        if "knowledge_bases" not in self.config:
+            self.config["knowledge_bases"] = {}
+
+        self.config["knowledge_bases"][name] = {
+            "path": name,
+            "description": description,
+            "rag_provider": DEFAULT_PROVIDER,
+        }
+
+        # Only set default if explicitly requested
+        if set_default:
+            self.set_default(name)
+
+        self._save_config()
+
+    def register_obsidian_vault(self, name: str, vault_path: str, description: str = "") -> dict:
+        """Register a connected Obsidian vault as a pointer-type KB.
+
+        Unlike a normal KB this creates no folder under ``base_dir`` and runs no
+        index pipeline: it records a ``type: obsidian`` entry pointing at the
+        user's existing vault directory, which the Obsidian capability reads
+        live. Raises ``ValueError`` on a missing/invalid path or a name clash.
+        """
+        name = (name or "").strip()
+        if not name:
+            raise ValueError("Knowledge base name is required.")
+        vault = Path(vault_path).expanduser()
+        if not vault.is_dir():
+            raise ValueError(f"Vault path is not a directory: {vault_path}")
+
+        self.config = self._load_config()
+        knowledge_bases = self.config.setdefault("knowledge_bases", {})
+        if name in knowledge_bases:
+            raise ValueError(f"A knowledge base named '{name}' already exists.")
+
+        now = datetime.now().isoformat()
+        entry = {
+            "path": name,
+            "type": OBSIDIAN_KB_TYPE,
+            "vault_path": str(vault.resolve()),
+            "description": description or f"Obsidian vault: {name}",
+            "status": "ready",
+            "created_at": now,
+            "updated_at": now,
+        }
+        knowledge_bases[name] = entry
+        self._save_config()
+        return entry
+
+    def register_linked_kb(
+        self,
+        name: str,
+        external_path: str,
+        provider: str,
+        *,
+        description: str = "",
+        stats: dict | None = None,
+    ) -> dict:
+        """Register a pointer to a pre-built engine index as a ``linked`` KB.
+
+        Like :meth:`register_obsidian_vault` this creates no folder under
+        ``base_dir`` and runs no index pipeline: it records an
+        ``external_path`` the bound ``provider`` reads in place, so retrieval
+        skips indexing entirely. ``stats`` (embedding model/dim/signature, doc
+        count) is surfaced read-only in the UI. Callers should validate the
+        folder with the probe helper first; this only guards basic invariants.
+        Raises ``ValueError`` on a missing/invalid path or a name clash.
+        """
+        name = (name or "").strip()
+        if not name:
+            raise ValueError("Knowledge base name is required.")
+        provider = normalize_provider_name(provider)
+        folder = Path(external_path).expanduser()
+        if not folder.is_dir():
+            raise ValueError(f"Folder path is not a directory: {external_path}")
+
+        self.config = self._load_config()
+        knowledge_bases = self.config.setdefault("knowledge_bases", {})
+        if name in knowledge_bases:
+            raise ValueError(f"A knowledge base named '{name}' already exists.")
+
+        now = datetime.now().isoformat()
+        entry: dict[str, Any] = {
+            "path": name,
+            "type": LINKED_KB_TYPE,
+            "external_path": str(folder.resolve()),
+            "rag_provider": provider,
+            "description": description or f"Linked {provider} index: {name}",
+            "status": "ready",
+            "needs_reindex": False,
+            "created_at": now,
+            "updated_at": now,
+        }
+        for key in ("embedding_model", "embedding_dim", "embedding_signature"):
+            if stats and stats.get(key) is not None:
+                entry[key] = stats[key]
+        if stats and stats.get("doc_count") is not None:
+            entry["last_indexed_count"] = stats["doc_count"]
+            entry["last_indexed_action"] = "link"
+        knowledge_bases[name] = entry
+        self._save_config()
+        return entry
+
+    def register_lightrag_server_kb(
+        self,
+        name: str,
+        server_url: str,
+        *,
+        api_key: str = "",
+        search_mode: str = "",
+        description: str = "",
+    ) -> dict:
+        """Register a pointer to an external LightRAG server as a connected KB.
+
+        Like the other connected types this creates no folder under ``base_dir``
+        and runs no index pipeline: it records a ``type: lightrag_server`` entry
+        whose ``server_url`` (+ optional ``api_key``) the ``lightrag-server``
+        provider queries over HTTP. The server owns indexing entirely. Callers
+        should validate reachability with the probe helper first; this only
+        guards basic invariants. Raises ``ValueError`` on a missing name/URL or a
+        name clash.
+        """
+        name = (name or "").strip()
+        server_url = (server_url or "").strip().rstrip("/")
+        if not name:
+            raise ValueError("Knowledge base name is required.")
+        if not server_url:
+            raise ValueError("LightRAG server URL is required.")
+
+        self.config = self._load_config()
+        knowledge_bases = self.config.setdefault("knowledge_bases", {})
+        if name in knowledge_bases:
+            raise ValueError(f"A knowledge base named '{name}' already exists.")
+
+        now = datetime.now().isoformat()
+        entry: dict[str, Any] = {
+            "path": name,
+            "type": LIGHTRAG_SERVER_KB_TYPE,
+            "rag_provider": LIGHTRAG_SERVER_PROVIDER,
+            "server_url": server_url,
+            "api_key": (api_key or "").strip(),
+            "description": description or f"LightRAG server: {name}",
+            "status": "ready",
+            "needs_reindex": False,
+            "created_at": now,
+            "updated_at": now,
+        }
+        search_mode = (search_mode or "").strip().lower()
+        if search_mode:
+            entry["search_mode"] = search_mode
+        knowledge_bases[name] = entry
+        self._save_config()
+        return entry
+
+    def get_knowledge_base_path(self, name: str | None = None) -> Path:
+        """Get path to a knowledge base.
+
+        Connected KBs (Obsidian vaults, linked indexes) live outside
+        ``base_dir`` — resolve them to their external pointer so callers that
+        ask for "where is this KB's data" reach the right place.
+        """
+        self.config = self._load_config()
+        if name is None:
+            name = self.config.get("default")
+            if name is None:
+                raise ValueError("No default knowledge base set")
+
+        entry = self.config.get("knowledge_bases", {}).get(name, {})
+        external = external_root_of(entry)
+        if external:
+            folder = Path(external).expanduser()
+            if not folder.is_dir():
+                raise ValueError(f"Linked folder is no longer available: {external}")
+            return folder
+
+        kb_dir = self.base_dir / name
+        if not kb_dir.exists():
+            raise ValueError(f"Knowledge base not found: {name}")
+
+        return kb_dir
+
+    def get_images_path(self, name: str | None = None) -> Path:
+        """Get images path for a knowledge base"""
+        kb_dir = self.get_knowledge_base_path(name)
+        return kb_dir / "images"
+
+    def get_content_list_path(self, name: str | None = None) -> Path:
+        """Get content list path for a knowledge base"""
+        kb_dir = self.get_knowledge_base_path(name)
+        return kb_dir / "content_list"
+
+    def get_raw_path(self, name: str | None = None) -> Path:
+        """Get raw documents path for a knowledge base"""
+        kb_dir = self.get_knowledge_base_path(name)
+        return kb_dir / "raw"
+
+    def set_default(self, name: str):
+        """Set the default knowledge base in canonical state."""
+        if name not in self.list_knowledge_bases():
+            raise ValueError(f"Knowledge base not found: {name}")
+        self.config = self._load_config()
+        self.config.setdefault("defaults", {})["default_kb"] = name
+        self._save_config()
+
+    def get_default(self) -> str | None:
+        """
+        Get default knowledge base name.
+
+        Uses the explicit canonical default, then the first registered KB.
+        """
+        self.config = self._load_config()
+        default_kb = self.config.get("defaults", {}).get("default_kb")
+        if default_kb and default_kb in self.list_knowledge_bases():
+            return str(default_kb)
+
+        # Fallback to first knowledge base in sorted list
+        kb_list = self.list_knowledge_bases()
+        if kb_list:
+            return kb_list[0]
+
+        return None
+
+    @staticmethod
+    def _embedding_fields(kb_config: dict) -> dict:
+        """Extract embedding fingerprint fields from a KB config entry."""
+        fields = {}
+        for key in ("embedding_model", "embedding_dim"):
+            val = kb_config.get(key)
+            if val is not None:
+                fields[key] = val
+        if kb_config.get("embedding_mismatch"):
+            fields["embedding_mismatch"] = True
+        return fields
+
+    def get_metadata(self, name: str | None = None) -> dict:
+        """Get knowledge base metadata from canonical owner-scoped state."""
+        kb_name = name
+        if kb_name is None:
+            kb_name = self.get_default()
+            if kb_name is None:
+                return {}
+
+        self.config = self._load_config()
+        kb_config = self.config.get("knowledge_bases", {}).get(kb_name, {})
+
+        if kb_config:
+            # Build metadata from config
+            metadata = {
+                "name": kb_name,
+                "description": kb_config.get("description", f"Knowledge base: {kb_name}"),
+                "rag_provider": normalize_provider_name(kb_config.get("rag_provider")),
+                "needs_reindex": bool(kb_config.get("needs_reindex", False)),
+                "created_at": kb_config.get("created_at"),
+                "last_updated": kb_config.get("updated_at"),
+                "last_indexed_at": kb_config.get("last_indexed_at"),
+                "last_indexed_count": kb_config.get("last_indexed_count"),
+                "last_indexed_action": kb_config.get("last_indexed_action"),
+                # Connected-KB fields (None for ordinary indexed KBs, dropped below).
+                "type": kb_config.get("type"),
+                "vault_path": kb_config.get("vault_path"),
+                "external_path": kb_config.get("external_path"),
+                # LightRAG server pointer (the URL is safe to surface; the API
+                # key deliberately is not).
+                "server_url": kb_config.get("server_url"),
+            }
+            metadata.update(self._embedding_fields(kb_config))
+            # Remove None values
+            metadata = {k: v for k, v in metadata.items() if v is not None}
+            return metadata
+
+        return {}
+
+    def get_info(self, name: str | None = None) -> dict:
+        """Collect details from canonical state and provider-owned indexes."""
+        # Reload config to get latest status
+        self.config = self._load_config()
+
+        kb_name = name or self.get_default()
+        if kb_name is None:
+            raise ValueError("No knowledge base name provided and no default set")
+
+        kb_config = self.config.get("knowledge_bases", {}).get(kb_name, {})
+
+        # Connected KBs live outside ``base_dir``; resolve to their external
+        # pointer so the on-disk stats/index-version scan below reflect reality.
+        external = external_root_of(kb_config)
+        kb_dir = Path(external).expanduser() if external else self.base_dir / kb_name
+
+        status = kb_config.get("status")
+        progress = kb_config.get("progress")
+        description = kb_config.get("description", f"Knowledge base: {kb_name}")
+        rag_provider = normalize_provider_name(kb_config.get("rag_provider"))
+        needs_reindex = bool(kb_config.get("needs_reindex", False))
+        created_at = kb_config.get("created_at")
+        updated_at = kb_config.get("updated_at")
+
+        live_status = status in {"initializing", "processing"}
+        if live_status and isinstance(progress, dict):
+            live_status = progress.get("stage") not in {"completed", "error"}
+        effective_needs_reindex = needs_reindex and not live_status
+
+        # KB might not have a directory yet if still initializing
+        dir_exists = kb_dir.exists()
+        index_versions: list[dict[str, Any]] = []
+        has_ready_provider = False
+        if dir_exists:
+            index_versions = inspect_kb_versions(kb_dir, rag_provider)
+            has_ready_provider = any(bool(version.get("ready")) for version in index_versions)
+        provider_error_summary = (
+            provider_failure_summary(kb_dir, rag_provider) if dir_exists else ""
+        )
+
+        if effective_needs_reindex:
+            status = "needs_reindex"
+        elif status == "ready" and not has_ready_provider and provider_error_summary:
+            status = "error"
+            progress = {
+                "stage": "error",
+                "message": "Previous indexing failed.",
+                "error": provider_error_summary,
+            }
+        elif (
+            status in {"processing", "initializing"}
+            and has_ready_provider
+            and not (isinstance(progress, dict) and progress.get("stage") == "error")
+        ):
+            # A ready index version exists on disk but the persisted status is
+            # still a "live" sentinel — typically because the progress writer
+            # crashed (or the process was killed) after the index was finalised
+            # but before status was promoted to "ready". Recover the actual
+            # state on read so the UI does not show a perpetual processing
+            # banner. Persistent state is left untouched; the
+            # next legitimate update_kb_status() call will clean it up.
+            # See issue #418.
+            status = "ready"
+            progress = None
+        elif not status and dir_exists and has_ready_provider:
+            status = "ready"
+        elif not status:
+            status = "unknown"
+
+        # Build public metadata from canonical state.
+        metadata = {
+            "name": kb_name,
+            "description": description,
+            "rag_provider": rag_provider,
+            "needs_reindex": effective_needs_reindex,
+        }
+        if created_at:
+            metadata["created_at"] = created_at
+        if updated_at:
+            metadata["last_updated"] = updated_at
+        if kb_config.get("last_indexed_at"):
+            metadata["last_indexed_at"] = kb_config.get("last_indexed_at")
+        if kb_config.get("last_indexed_count") is not None:
+            metadata["last_indexed_count"] = kb_config.get("last_indexed_count")
+        if kb_config.get("last_indexed_action"):
+            metadata["last_indexed_action"] = kb_config.get("last_indexed_action")
+        if kb_config.get("last_error"):
+            metadata["last_error"] = kb_config.get("last_error")
+        if kb_config.get("last_error_at"):
+            metadata["last_error_at"] = kb_config.get("last_error_at")
+        # Connected-KB fields, so the UI can badge it and show the path.
+        if kb_config.get("type"):
+            metadata["type"] = kb_config.get("type")
+        if kb_config.get("vault_path"):
+            metadata["vault_path"] = kb_config.get("vault_path")
+        if kb_config.get("external_path"):
+            metadata["external_path"] = kb_config.get("external_path")
+        # The server URL is shown read-only in the UI; the API key never leaves
+        # the backend, so it is deliberately not surfaced here.
+        if kb_config.get("server_url"):
+            metadata["server_url"] = kb_config.get("server_url")
+
+        metadata.update(self._embedding_fields(kb_config))
+
+        # Remove None values
+        metadata = {k: v for k, v in metadata.items() if v is not None}
+
+        info = {
+            "name": kb_name,
+            "path": str(kb_dir),
+            "is_default": kb_name == self.get_default(),
+            "metadata": metadata,
+            "status": status,
+            "progress": progress,
+        }
+
+        # Count files - handle errors gracefully
+        raw_dir = kb_dir / "raw" if dir_exists else None
+        images_dir = kb_dir / "images" if dir_exists else None
+        content_list_dir = kb_dir / "content_list" if dir_exists else None
+
+        raw_count = 0
+        images_count = 0
+        content_lists_count = 0
+
+        if dir_exists:
+            try:
+                raw_count = (
+                    len([f for f in raw_dir.rglob("*") if f.is_file()])
+                    if raw_dir and raw_dir.is_dir()
+                    else 0
+                )
+            except Exception:
+                pass
+
+            try:
+                images_count = (
+                    len([f for f in images_dir.iterdir() if f.is_file()]) if images_dir else 0
+                )
+            except Exception:
+                pass
+
+            try:
+                content_lists_count = (
+                    len(list(content_list_dir.glob("*.json"))) if content_list_dir else 0
+                )
+            except Exception:
+                pass
+
+        # Check rag_initialized from provider-owned real output, not metadata alone.
+        from traittutor.services.rag.embedding_signature import signature_from_embedding_config
+        from traittutor.services.rag.index_versioning import (
+            find_matching_version,
+        )
+
+        kb_probe_dir = kb_dir if dir_exists else None
+        rag_initialized = has_ready_provider
+
+        active_signature = signature_from_embedding_config()
+        if provider_uses_embedding_versions(rag_provider):
+            matched_entry = (
+                find_matching_version(kb_probe_dir, active_signature)
+                if (kb_probe_dir and active_signature)
+                else None
+            )
+            active_match = (
+                inspect_provider_version(matched_entry, rag_provider).ready
+                if matched_entry
+                else False
+            )
+        else:
+            active_match = rag_initialized
+
+        info["statistics"] = {
+            "raw_documents": raw_count,
+            "images": images_count,
+            "content_lists": content_lists_count,
+            "rag_initialized": rag_initialized,
+            "rag_provider": rag_provider,
+            "needs_reindex": effective_needs_reindex,
+            "index_versions": index_versions,
+            "active_signature": active_signature.hash() if active_signature else None,
+            "active_match": active_match,
+            "status": status,
+            "progress": progress,
+        }
+
+        return info
+
+    def delete_knowledge_base(self, name: str, confirm: bool = False) -> bool:
+        """
+        Delete a knowledge base
+
+        Args:
+            name: Knowledge base name
+            confirm: If True, skip confirmation (use with caution!)
+
+        Returns:
+            True if deleted successfully
+        """
+        # Look up against the raw config rather than ``list_knowledge_bases``:
+        # the latter prunes orphan entries (dir missing) as a side effect, so
+        # calling it here would race-delete the entry we are about to clean up
+        # and then raise "not found" on the now-empty config.
+        self.config = self._load_config()
+        config_kbs = self.config.get("knowledge_bases", {})
+        if name not in config_kbs and not (self.base_dir / name).exists():
+            raise ValueError(f"Knowledge base not found: {name}")
+
+        # Resolve the directory directly to stay idempotent: if the on-disk
+        # folder was already removed (e.g. manually rm-rf'd) we still want to
+        # purge the orphaned canonical entry instead of failing.
+        kb_dir = self.base_dir / name
+        dir_exists = kb_dir.exists()
+
+        # Connected KBs reference a user-owned external resource or remote
+        # service. Deleting one must only drop our pointer entry; never touch
+        # what it references or warn about a deliberately absent local folder.
+        connected = is_connected_kb(config_kbs.get(name, {}))
+        if connected:
+            dir_exists = False
+
+        if not confirm:
+            # Ask for confirmation in CLI
+            print(f"⚠️  Warning: This will permanently delete the knowledge base '{name}'")
+            print(f"   Path: {kb_dir}")
+            response = input("Are you sure? Type 'yes' to confirm: ")
+            if response.lower() != "yes":
+                print("Deletion cancelled.")
+                return False
+
+        if dir_exists:
+
+            def _on_rmtree_error(func, path, exc_info):
+                exc = exc_info[1]
+                if isinstance(exc, FileNotFoundError):
+                    # Race: something else removed the entry between walk and unlink.
+                    return
+                # On Windows (and some bind-mounted filesystems) a read-only bit
+                # or a stale handle from a failed RAG init can block removal.
+                # Clear the read-only bit and retry once; if it still fails, log
+                # and continue so the config entry gets cleaned up regardless —
+                # leaving the KB stuck in the list is worse than orphan files on
+                # disk (issue #370).
+                try:
+                    os.chmod(path, stat.S_IWRITE)
+                    func(path)
+                except Exception as retry_exc:
+                    logger.warning(
+                        f"Could not remove '{path}' while deleting KB '{name}': "
+                        f"{retry_exc}. Continuing; orphan files may remain on disk."
+                    )
+
+            shutil.rmtree(kb_dir, onerror=_on_rmtree_error)
+        elif not connected:
+            logger.warning(
+                f"KB directory '{kb_dir}' missing on disk; cleaning up orphaned config entry."
+            )
+
+        # Remove from config
+        if name in self.config.get("knowledge_bases", {}):
+            del self.config["knowledge_bases"][name]
+
+        # Update default if this was the default
+        if self.config.get("default") == name:
+            remaining = [n for n in self.config.get("knowledge_bases", {}).keys() if n != name]
+            self.config["default"] = sorted(remaining)[0] if remaining else None
+
+        self._save_config()
+        return True
+
+    def link_folder(self, kb_name: str, folder_path: str) -> dict:
+        """
+        Link a local folder to a knowledge base.
+
+        Args:
+            kb_name: Knowledge base name
+            folder_path: Path to local folder (supports ~, relative paths)
+
+        Returns:
+            Dict with folder info including id, path, and file count
+
+        Raises:
+            ValueError: If KB not found or folder doesn't exist
+        """
+        if kb_name not in self.list_knowledge_bases():
+            raise ValueError(f"Knowledge base not found: {kb_name}")
+
+        # Normalize path (cross-platform: handles ~, relative paths, etc.)
+        folder = Path(folder_path).expanduser().resolve()
+
+        if not folder.exists():
+            raise ValueError(f"Folder does not exist: {folder}")
+        if not folder.is_dir():
+            raise ValueError(f"Path is not a directory: {folder}")
+
+        files = FileTypeRouter.collect_supported_files(folder, recursive=True)
+
+        # Generate folder ID
+
+        folder_id = hashlib.md5(  # noqa: S324
+            str(folder).encode(), usedforsecurity=False
+        ).hexdigest()[:8]
+
+        # Load existing linked folders from metadata
+        metadata = self._load_metadata(kb_name)
+
+        if "linked_folders" not in metadata:
+            metadata["linked_folders"] = []
+
+        # Check if already linked
+        existing_ids = [item["id"] for item in metadata.get("linked_folders", [])]
+        if folder_id in existing_ids:
+            # If already linked, treat as success (idempotent)
+            # Find and return existing info
+            for item in metadata.get("linked_folders", []):
+                if item["id"] == folder_id:
+                    return item
+
+        # Add folder info
+        folder_info = {
+            "id": folder_id,
+            "path": str(folder),
+            "added_at": datetime.now().isoformat(),
+            "file_count": len(files),
+        }
+        metadata["linked_folders"].append(folder_info)
+
+        self._save_metadata(kb_name, metadata)
+
+        return folder_info
+
+    def get_linked_folders(self, kb_name: str) -> list[dict]:
+        """
+        Get list of linked folders for a knowledge base.
+
+        Args:
+            kb_name: Knowledge base name
+
+        Returns:
+            List of linked folder info dicts
+        """
+        if kb_name not in self.list_knowledge_bases():
+            raise ValueError(f"Knowledge base not found: {kb_name}")
+
+        return self._load_metadata(kb_name).get("linked_folders", [])
+
+    def unlink_folder(self, kb_name: str, folder_id: str) -> bool:
+        """
+        Unlink a folder from a knowledge base.
+
+        Args:
+            kb_name: Knowledge base name
+            folder_id: Folder ID to unlink
+
+        Returns:
+            True if unlinked successfully, False if not found
+        """
+        if kb_name not in self.list_knowledge_bases():
+            raise ValueError(f"Knowledge base not found: {kb_name}")
+
+        metadata = self._load_metadata(kb_name)
+        if not metadata:
+            return False
+
+        linked = metadata.get("linked_folders", [])
+        new_linked = [f for f in linked if f["id"] != folder_id]
+
+        if len(new_linked) == len(linked):
+            return False  # Not found
+
+        metadata["linked_folders"] = new_linked
+
+        self._save_metadata(kb_name, metadata)
+
+        return True
+
+    def scan_linked_folder(self, folder_path: str, provider: str = DEFAULT_PROVIDER) -> list[str]:
+        """
+        Scan a linked folder and return list of supported file paths.
+
+        Args:
+            folder_path: Path to folder
+            provider: RAG provider to determine supported extensions (default: llamaindex)
+
+        Returns:
+            List of file paths (as strings)
+        """
+        folder = Path(folder_path).expanduser().resolve()
+
+        if not folder.exists() or not folder.is_dir():
+            return []
+
+        files = [
+            str(file_path)
+            for file_path in FileTypeRouter.collect_supported_files(folder, recursive=True)
+        ]
+
+        return sorted(files)
+
+    def detect_folder_changes(self, kb_name: str, folder_id: str) -> dict:
+        """
+        Detect new and modified files in a linked folder since last sync.
+
+        This enables automatic sync of changes from local folders that may
+        be synced with cloud services like SharePoint, Google Drive, etc.
+
+        Args:
+            kb_name: Knowledge base name
+            folder_id: Folder ID to check for changes
+
+        Returns:
+            Dict with 'new_files', 'modified_files', and 'has_changes' keys
+        """
+        if kb_name not in self.list_knowledge_bases():
+            raise ValueError(f"Knowledge base not found: {kb_name}")
+
+        # Get folder info
+        folders = self.get_linked_folders(kb_name)
+        folder_info = next((f for f in folders if f["id"] == folder_id), None)
+
+        if not folder_info:
+            raise ValueError(f"Linked folder not found: {folder_id}")
+
+        folder_path = Path(folder_info["path"]).expanduser().resolve()
+        synced_files = folder_info.get("synced_files", {})
+
+        new_files = []
+        modified_files = []
+
+        for file_path in FileTypeRouter.collect_supported_files(folder_path, recursive=True):
+            file_str = str(file_path)
+            file_mtime = datetime.fromtimestamp(file_path.stat().st_mtime)
+
+            if file_str in synced_files:
+                # Check if modified since last sync
+                prev_mtime_str = synced_files[file_str]
+                try:
+                    prev_mtime = datetime.fromisoformat(prev_mtime_str)
+                    if file_mtime > prev_mtime:
+                        modified_files.append(file_str)
+                except Exception:
+                    modified_files.append(file_str)
+            else:
+                # New file (not in synced files)
+                new_files.append(file_str)
+
+        return {
+            "new_files": sorted(new_files),
+            "modified_files": sorted(modified_files),
+            "has_changes": len(new_files) > 0 or len(modified_files) > 0,
+            "new_count": len(new_files),
+            "modified_count": len(modified_files),
+        }
+
+    def update_folder_sync_state(self, kb_name: str, folder_id: str, synced_files: list[str]):
+        """
+        Update the sync state for a linked folder after successful sync.
+
+        Records which files were synced and their modification times,
+        enabling future change detection.
+
+        Args:
+            kb_name: Knowledge base name
+            folder_id: Folder ID
+            synced_files: List of file paths that were successfully synced
+        """
+        if kb_name not in self.list_knowledge_bases():
+            raise ValueError(f"Knowledge base not found: {kb_name}")
+
+        metadata = self._load_metadata(kb_name)
+        if not metadata:
+            return
+
+        linked = metadata.get("linked_folders", [])
+
+        for folder in linked:
+            if folder["id"] == folder_id:
+                # Record sync timestamp
+                folder["last_sync"] = datetime.now().isoformat()
+
+                # Record file modification times
+                file_states = folder.get("synced_files", {})
+                for file_path in synced_files:
+                    try:
+                        p = Path(file_path)
+                        if p.exists():
+                            mtime = datetime.fromtimestamp(p.stat().st_mtime)
+                            file_states[file_path] = mtime.isoformat()
+                    except Exception:
+                        pass
+
+                folder["synced_files"] = file_states
+                folder["file_count"] = len(file_states)
+                self._save_metadata(kb_name, metadata)
+                break
+
+
+def main():
+    """Command-line interface for knowledge base manager"""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Knowledge Base Manager")
+    parser.add_argument(
+        "--base-dir", default="./knowledge_bases", help="Base directory for knowledge bases"
+    )
+
+    subparsers = parser.add_subparsers(dest="command", help="Commands")
+
+    # List command
+    subparsers.add_parser("list", help="List all knowledge bases")
+
+    # Info command
+    info_parser = subparsers.add_parser("info", help="Show knowledge base information")
+    info_parser.add_argument(
+        "name", nargs="?", help="Knowledge base name (default if not specified)"
+    )
+
+    # Set default command
+    default_parser = subparsers.add_parser("set-default", help="Set default knowledge base")
+    default_parser.add_argument("name", help="Knowledge base name")
+
+    # Delete command
+    delete_parser = subparsers.add_parser("delete", help="Delete a knowledge base")
+    delete_parser.add_argument("name", help="Knowledge base name")
+    delete_parser.add_argument("--force", action="store_true", help="Skip confirmation")
+
+    args = parser.parse_args()
+
+    manager = KnowledgeBaseManager(args.base_dir)
+
+    if args.command == "list":
+        kb_list = manager.list_knowledge_bases()
+        default_kb = manager.get_default()
+
+        print("\nAvailable Knowledge Bases:")
+        print("=" * 60)
+        if not kb_list:
+            print("No knowledge bases found")
+        else:
+            for kb_name in kb_list:
+                default_marker = " (default)" if kb_name == default_kb else ""
+                print(f"  • {kb_name}{default_marker}")
+        print()
+
+    elif args.command == "info":
+        try:
+            info = manager.get_info(args.name)
+
+            print("\nKnowledge Base Information:")
+            print("=" * 60)
+            print(f"Name: {info['name']}")
+            print(f"Path: {info['path']}")
+            print(f"Default: {'Yes' if info['is_default'] else 'No'}")
+
+            if info.get("metadata"):
+                print("\nMetadata:")
+                for key, value in info["metadata"].items():
+                    print(f"  {key}: {value}")
+
+            print("\nStatistics:")
+            stats = info["statistics"]
+            print(f"  Raw documents: {stats['raw_documents']}")
+            print(f"  Images: {stats['images']}")
+            print(f"  Content lists: {stats['content_lists']}")
+            print(f"  RAG initialized: {'Yes' if stats['rag_initialized'] else 'No'}")
+
+            if "rag" in stats:
+                print("\n  RAG Statistics:")
+                for key, value in stats["rag"].items():
+                    print(f"    {key}: {value}")
+
+            print()
+        except Exception as e:
+            print(f"Error: {e!s}")
+
+    elif args.command == "set-default":
+        try:
+            manager.set_default(args.name)
+            print(f"✓ Set '{args.name}' as default knowledge base")
+        except Exception as e:
+            print(f"Error: {e!s}")
+
+    elif args.command == "delete":
+        try:
+            success = manager.delete_knowledge_base(args.name, confirm=args.force)
+            if success:
+                print(f"✓ Deleted knowledge base '{args.name}'")
+        except Exception as e:
+            print(f"Error: {e!s}")
+
+    else:
+        parser.print_help()
+
+
+if __name__ == "__main__":
+    main()

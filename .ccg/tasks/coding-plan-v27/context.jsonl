@@ -1,0 +1,4 @@
+{"_example": "Fill with {\"file\": \"path\", \"reason\": \"why\"}. Seed rows are skipped."}
+{"file": "docs/PRD.md", "reason": "v2.7 源真值；F-01~F-13 + §6.3-6.9"}
+{"file": "docs/AUDIT-FINDINGS-v24-ref.md", "reason": "v2.4 G1-G6 代码事实参考；编号过时需对照 v2.7 重校验"}
+{"file": "docs/REMEDIATION-PLAN-v24-ref.md", "reason": "v2.4 补救策略参考"}

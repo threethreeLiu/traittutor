@@ -1,0 +1,12 @@
+{
+  "id": "prd-update-and-audit",
+  "title": "更新 PRD v2.0→v2.4 并逐项核查代码实现状态",
+  "status": "in_progress",
+  "strategy": "deep-research",
+  "currentPhase": "1",
+  "nextAction": "写入新版 PRD；并行派发 4 个代理核查 F-01~F-08",
+  "gate": null,
+  "branch": "main",
+  "scope": "prd-update-and-audit",
+  "createdAt": "2026-08-08T14:23:18Z"
+}

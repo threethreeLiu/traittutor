@@ -1,0 +1,12 @@
+{
+  "id": "v27-mainchain-closure",
+  "title": "PRD v2.7 主链完整闭环",
+  "status": "in_progress",
+  "strategy": "full-collaborate",
+  "currentPhase": "4-mainchain-consumer-and-provenance-closure",
+  "nextAction": "Run explicit feature-flag enable/rollback and sustained failure/latency rehearsals for the real-provider courseware path, then validate configured exact-model prices and notification routes without weakening owner, tool, or retry bounds",
+  "gate": null,
+  "branch": "ws-1b",
+  "scope": "PRD-v2.7-full-mainchain",
+  "createdAt": "2026-08-10T00:00:00Z"
+}

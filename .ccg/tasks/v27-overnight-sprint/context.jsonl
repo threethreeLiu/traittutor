@@ -1,0 +1,5 @@
+{"_example": "Fill with {\"file\": \"path\", \"reason\": \"why\"}. Seed rows are skipped."}
+{"file": "docs/CODING-PLAN.md", "reason": "authoritative WS roadmap + F-01..F-13 gap matrix + build order §5 + §7 open questions"}
+{"file": "docs/PRD.md", "reason": "v2.7 authoritative spec; was uncommitted 1221-line rewrite (committed this sprint)"}
+{"file": "CLAUDE.md", "reason": "§3 = 12 invariants (must obey); §7 = pre-初赛 v2.7 ban, OVERRIDDEN by user 2026-08-09"}
+{"file": "PROGRESS.md", "reason": "living commit log + ADR-lite decisions for §7 open questions"}

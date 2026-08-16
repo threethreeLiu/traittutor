@@ -1,0 +1,82 @@
+name: traittutor
+
+x-worker: &worker
+  build:
+    context: .
+    target: production
+  restart: unless-stopped
+  user: "1000:1000"
+  volumes:
+    - ./data:/app/data
+  depends_on:
+    traittutor:
+      condition: service_healthy
+  networks:
+    - traittutor
+
+services:
+  traittutor:
+    build:
+      context: .
+      target: production
+    container_name: traittutor
+    restart: unless-stopped
+    ports:
+      - "${TRAITTUTOR_DOCKER_BIND_HOST:-127.0.0.1}:${TRAITTUTOR_DOCKER_BACKEND_PORT:-8001}:${TRAITTUTOR_DOCKER_BACKEND_PORT:-8001}"
+      - "${TRAITTUTOR_DOCKER_BIND_HOST:-127.0.0.1}:${TRAITTUTOR_DOCKER_FRONTEND_PORT:-3782}:${TRAITTUTOR_DOCKER_FRONTEND_PORT:-3782}"
+    volumes:
+      - ./data:/app/data
+    environment:
+      TRAITTUTOR_SANDBOX_RUNNER_URL: http://sandbox-runner:8900
+      TRAITTUTOR_RESEARCH_WORKSPACE_GATEWAY: ${TRAITTUTOR_RESEARCH_WORKSPACE_GATEWAY:-1}
+      TRAITTUTOR_RESEARCH_WORKSPACE_STREAM_GATEWAY: ${TRAITTUTOR_RESEARCH_WORKSPACE_STREAM_GATEWAY:-1}
+      TRAITTUTOR_SESSION_TITLE_GATEWAY: ${TRAITTUTOR_SESSION_TITLE_GATEWAY:-1}
+      TRAITTUTOR_NOTEBOOK_SUMMARY_GATEWAY: ${TRAITTUTOR_NOTEBOOK_SUMMARY_GATEWAY:-1}
+    depends_on:
+      sandbox-runner:
+        condition: service_healthy
+    networks:
+      - traittutor
+
+  research-worker:
+    <<: *worker
+    command: ["python", "scripts/run_research_worker.py", "--poll-seconds", "5"]
+    environment:
+      TRAITTUTOR_RESEARCH_WORKSPACE_GATEWAY: ${TRAITTUTOR_RESEARCH_WORKSPACE_GATEWAY:-1}
+      TRAITTUTOR_RESEARCH_WORKSPACE_STREAM_GATEWAY: ${TRAITTUTOR_RESEARCH_WORKSPACE_STREAM_GATEWAY:-1}
+
+  reminder-worker:
+    <<: *worker
+    command: ["python", "scripts/run_tutor_reminder_worker.py", "--poll-seconds", "60"]
+
+  sandbox-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.runner
+    container_name: traittutor-sandbox-runner
+    restart: unless-stopped
+    volumes:
+      - ./data/user/workspace:/app/data/user/workspace
+      - ./data/users:/app/data/users
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /home/runner
+    pids_limit: 256
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8900/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - traittutor
+
+networks:
+  traittutor:
+    driver: bridge

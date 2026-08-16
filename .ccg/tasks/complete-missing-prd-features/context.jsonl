@@ -1,0 +1,12 @@
+{"_example": "Fill with {\"file\": \"path\", \"reason\": \"why\"}. Seed rows are skipped."}
+{"file":"docs/PRD.md","reason":"v2.7 权威需求与页面、状态、数据边界"}
+{"file":"docs/CODING-PLAN.md","reason":"当前实现状态、WS-5/8/11/12 缺口与验收约束"}
+{"file":"PROGRESS.md","reason":"已完成纵切、默认关闭开关与真实剩余边界"}
+{"file":"docs/adr/0005-traceable-l3-projection.md","reason":"WS-8 L3 可追溯迁移决策"}
+{"file":"docs/adr/0006-typed-tutor-persona.md","reason":"WS-12 Persona 类型、版本和隔离决策"}
+{"file":"docs/adr/0007-research-workspace-truth-source.md","reason":"WS-11 工作区真相源与持久化决策"}
+{"file":".ccg/tasks/complete-missing-prd-features/analysis.md","reason":"CCG 双路分析、方案选择、依赖和风险"}
+{"file":"traittutor/generate/service.py","reason":"实施前保护基线：76 additions / 2 deletions；本任务禁止触碰"}
+{"file":"web/components/learning/LearningCanvas.tsx","reason":"实施前保护基线：2121 additions / 596 deletions；本任务禁止触碰"}
+{"file":"web/components/personalization/WhyThisGeneration.tsx","reason":"实施前保护基线：31 additions / 37 deletions；本任务禁止触碰"}
+{"file":"web/lib/traittutor-api.ts","reason":"实施前保护基线：782 additions / 525 deletions；本任务禁止触碰"}

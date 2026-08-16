@@ -1,0 +1,1339 @@
+"""Chat capability assembly for the exploring-loop agent."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from typing import Any
+
+from traittutor.agents._shared.tool_composition import (
+    ToolMountFlags,
+    compose_enabled_tools,
+    default_optional_tools,
+    user_has_memory,
+    user_has_notebooks,
+)
+from traittutor.agents.chat.agent_loop import AgentLoop
+from traittutor.agents.chat.prompt_blocks import ChatPromptAssembler
+from traittutor.capabilities import (
+    LoopCapability,
+    active_loop_capabilities,
+    any_exclusive_capability_active,
+)
+from traittutor.core.agentic import (
+    DispatchOutcome,
+    UsageTracker,
+    build_completion_kwargs,
+    dispatch_tool_calls,
+)
+from traittutor.core.agentic.tool_dispatch import MAX_PARALLEL_TOOL_CALLS
+from traittutor.core.context import UnifiedContext
+from traittutor.core.stream_bus import StreamBus
+from traittutor.core.trace import (
+    build_trace_metadata,
+    derive_trace_metadata,
+    merge_trace_metadata,
+    new_call_id,
+)
+from traittutor.runtime.registry.deferred_tools import (
+    DeferredToolLoader,
+    render_deferred_tools_manifest,
+)
+from traittutor.runtime.registry.tool_registry import get_tool_registry
+from traittutor.services.config import get_chat_params
+from traittutor.services.llm import (
+    get_llm_config,
+    get_token_limit_kwargs,  # noqa: F401  (re-exported for tests)
+    prepare_multimodal_messages,
+    supports_tools,  # noqa: F401  (re-exported for tests)
+)
+from traittutor.services.llm.capabilities import supports_tools as gateway_supports_tools
+from traittutor.services.llm.context_window import resolve_effective_context_window
+from traittutor.services.prompt import PromptLoadError, get_prompt_manager
+
+logger = logging.getLogger(__name__)
+
+CHAT_EXCLUDED_TOOLS: set[str] = set()
+CHAT_OPTIONAL_TOOLS = default_optional_tools(excluded=CHAT_EXCLUDED_TOOLS)
+
+# Generation tools are user-toggleable + grant-gated, but only usable once an
+# admin has configured an active model for the service. Drop them from a turn's
+# tool list when unconfigured so the model never sees a tool that can only error.
+_GENERATION_TOOL_SERVICES: dict[str, str] = {"imagegen": "imagegen"}
+
+
+def _drop_unconfigured_generation_tools(tools: list[str]) -> list[str]:
+    present = [name for name in tools if name in _GENERATION_TOOL_SERVICES]
+    if not present:
+        return tools
+    try:
+        from traittutor.services.config.model_catalog import get_model_catalog_service
+
+        service = get_model_catalog_service()
+        catalog = service.load()
+        configured = {
+            name
+            for name in present
+            if (service.get_active_model(catalog, _GENERATION_TOOL_SERVICES[name]) or {}).get(
+                "model"
+            )
+        }
+    except Exception:
+        logger.debug("generation-tool config probe failed; dropping them", exc_info=True)
+        configured = set()
+    return [name for name in tools if name not in _GENERATION_TOOL_SERVICES or name in configured]
+
+
+KB_SEED_MAX_KBS = 3
+KB_SEED_CHARS_PER_KB = 4000
+# Exploring-loop budget: max LLM rounds in one turn's loop. A round without
+# tool calls ends the loop early — that is the normal exit.
+DEFAULT_MAX_ROUNDS = 8
+CONTEXT_WINDOW_GUARD_RATIO = 0.9
+_DispatchOutcome = DispatchOutcome
+
+
+def _read_int(cfg: Any, *, key: str, default: int) -> int:
+    if isinstance(cfg, dict):
+        value = cfg.get(key, default)
+    else:
+        value = default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalise_user_reply(raw: Any) -> tuple[str, list[dict[str, str]] | None]:
+    if not isinstance(raw, dict) or not isinstance(raw.get("answers"), list):
+        raise ValueError("ask_user replies require canonical answers")
+    answers: list[dict[str, str]] = []
+    for entry in raw["answers"]:
+        if not isinstance(entry, dict):
+            raise ValueError("ask_user answers must be objects")
+        qid = str(entry.get("questionId") or "").strip()
+        if not qid or "text" not in entry:
+            raise ValueError("ask_user answers require questionId and text")
+        answers.append({"questionId": qid, "text": str(entry["text"] or "")})
+    if not answers:
+        raise ValueError("ask_user answers cannot be empty")
+    reply_text = " | ".join(answer["text"] for answer in answers if answer["text"])
+    return reply_text, answers
+
+
+def _prompt_text(prompts: dict[str, Any], path: tuple[str, ...], default: str) -> str:
+    value: Any = prompts
+    for key in path:
+        if not isinstance(value, dict):
+            return default
+        value = value.get(key)
+    return value if isinstance(value, str) and value else default
+
+
+def _format_user_reply_body(
+    text: str,
+    answers: list[dict[str, str]] | None,
+    ask_user_payload: dict[str, Any],
+    *,
+    prompts: dict[str, Any] | None = None,
+) -> str:
+    prompt_map = prompts or {}
+    empty = _prompt_text(prompt_map, ("empty", "empty_reply"), "(empty reply)")
+    skipped = _prompt_text(prompt_map, ("empty", "skipped_reply"), "(skipped)")
+    question_fallback = _prompt_text(prompt_map, ("empty", "question_fallback"), "(question)")
+    user_answered = _prompt_text(prompt_map, ("empty", "user_answered"), "User answered:")
+    if answers:
+        prompts_by_id: dict[str, str] = {}
+        for q in ask_user_payload.get("questions") or []:
+            if isinstance(q, dict):
+                qid = str(q.get("id") or "")
+                prompts_by_id[qid] = str(q.get("prompt") or qid)
+        lines = [user_answered]
+        for entry in answers:
+            qid = entry.get("questionId", "")
+            prompt = prompts_by_id.get(qid) or qid or question_fallback
+            value = (entry.get("text") or "").strip() or skipped
+            lines.append(f"- {prompt}\n  -> {value}")
+        return "\n".join(lines)
+    flat = (text or "").strip() or empty
+    return f"{user_answered} {flat}"
+
+
+def _flatten_ask_user_summary(ask_user_payload: dict[str, Any]) -> str:
+    questions = ask_user_payload.get("questions") or []
+    if isinstance(questions, list) and questions:
+        prompts = [str(q.get("prompt") or "") for q in questions if isinstance(q, dict)]
+        prompts = [p for p in prompts if p]
+        if prompts:
+            return " | ".join(prompts)
+    return ""
+
+
+class AgenticChatPipeline:
+    """Run chat as one exploring agent loop followed by a respond stage."""
+
+    def __init__(
+        self,
+        language: str = "en",
+        *,
+        max_rounds: int | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> None:
+        self.language = "zh" if language.lower().startswith("zh") else "en"
+        self.llm_config = get_llm_config()
+        self.binding = getattr(self.llm_config, "binding", None) or "openai"
+        self.model = getattr(self.llm_config, "model", None)
+        self.reasoning_effort = getattr(self.llm_config, "reasoning_effort", None)
+        self.registry = get_tool_registry()
+        self._usage = UsageTracker(model=self.model)
+        self._deferred_loader: DeferredToolLoader | None = None
+        self._deferred_pool: list[Any] = []
+        self._exec_enabled = False
+
+        try:
+            chat_cfg = get_chat_params()
+        except Exception as exc:
+            logger.warning("Failed to load chat params, using defaults: %s", exc)
+            chat_cfg = {}
+        try:
+            self._chat_temperature = float(chat_cfg.get("temperature", 0.2))
+        except (TypeError, ValueError):
+            self._chat_temperature = 0.2
+        self._max_rounds = _read_int(chat_cfg, key="max_rounds", default=DEFAULT_MAX_ROUNDS)
+        self._exploring_max_tokens = _read_int(
+            chat_cfg.get("exploring"), key="max_tokens", default=1600
+        )
+        self._respond_max_tokens = _read_int(
+            chat_cfg.get("responding"), key="max_tokens", default=8000
+        )
+        # Per-capability overrides (e.g. deep solve forwards its own round
+        # budget / temperature / answer-token cap, read from the solve
+        # settings). Chat itself passes none and keeps the chat_cfg values.
+        if max_rounds is not None:
+            self._max_rounds = max(1, int(max_rounds))
+        if temperature is not None:
+            self._chat_temperature = float(temperature)
+        if max_tokens is not None:
+            self._respond_max_tokens = max(256, int(max_tokens))
+
+        self._prompts: dict[str, Any] = get_prompt_manager().load_prompts(
+            module_name="chat",
+            agent_name="agentic_chat",
+            language=self.language,
+            required_sections=("general", "runtime_policy", "loop.system"),
+        )
+        self._prompt_assembler = ChatPromptAssembler(
+            prompts=self._prompts,
+            language=self.language,
+        )
+
+    @property
+    def usage(self) -> UsageTracker:
+        return self._usage
+
+    @property
+    def max_rounds(self) -> int:
+        return max(1, self._max_rounds)
+
+    def effective_max_rounds(self, context: UnifiedContext) -> int:
+        """Round budget for this turn, lifted to satisfy any capability minimum.
+
+        A capability that needs guaranteed loop headroom can set
+        ``context.metadata["_min_loop_rounds"]``; the loop honours the larger
+        of that and the configured budget.
+        """
+        try:
+            floor = int(context.metadata.get("_min_loop_rounds") or 0)
+        except (TypeError, ValueError):
+            floor = 0
+        return max(self.max_rounds, floor)
+
+    @property
+    def exploring_max_tokens(self) -> int:
+        return max(128, self._exploring_max_tokens)
+
+    @property
+    def respond_max_tokens(self) -> int:
+        return max(256, self._respond_max_tokens)
+
+    @property
+    def loop_max_tokens(self) -> int:
+        """Single per-round token budget for the merged loop.
+
+        The loop has no separate exploring/respond split, so every round —
+        including the round that writes the final answer — uses one budget.
+        It must be large enough for a full answer; the responding budget is
+        that ceiling (tool-only rounds rarely approach it).
+        """
+        return self.respond_max_tokens
+
+    async def run(self, context: UnifiedContext, stream: StreamBus) -> None:
+        await self._prepare_deferred_tools(context)
+        self._exec_enabled = await self._exec_allowed(context)
+        enabled_tools = self._compose_enabled_tools(context)
+        if enabled_tools and not self._can_use_gateway_tool_calling():
+            # Gateway intentionally does not reproduce the legacy DSML
+            # text-parser fallback.  A provider that cannot accept the typed
+            # function schema must fail clearly before any tool prompt or
+            # side effect is produced, rather than silently interpreting
+            # model prose as a privileged tool invocation.
+            raise RuntimeError(
+                "Gateway agentic chat requires a provider with typed function-tool support."
+            )
+        use_native_tools = bool(enabled_tools) and self._can_use_native_tool_calling()
+        tool_schemas = (
+            self._build_llm_tool_schemas(enabled_tools, context) if use_native_tools else None
+        )
+        if tool_schemas is not None and self._deferred_loader is not None:
+            tool_schemas.extend(self._deferred_loader.initial_schemas())
+            self._deferred_loader.bind_live_schemas(tool_schemas)
+
+        loop = AgentLoop(
+            pipeline=self,
+            context=context,
+            stream=stream,
+            enabled_tools=enabled_tools if use_native_tools else [],
+            tool_schemas=tool_schemas,
+        )
+        await loop.run()
+
+    # ---- prompt assembly -------------------------------------------------
+
+    def _build_system_prompt(
+        self,
+        enabled_tools: list[str],
+        context: UnifiedContext,
+        *,
+        include_tool_manifest: bool = True,
+    ) -> str:
+        return self._prompt_assembler.system_prompt(
+            context=context,
+            tool_manifest=self._tool_manifest(enabled_tools),
+            kb_note=self._kb_system_note(context),
+            deferred_tools_manifest=(
+                self._deferred_tools_manifest() if include_tool_manifest else ""
+            ),
+            notebook_manifest=self._build_notebook_manifest(),
+            workspace_note=self._workspace_system_note(context),
+            capability_blocks=self._capability_system_blocks(context),
+            include_tool_manifest=include_tool_manifest,
+        )
+
+    def _build_loop_messages(
+        self,
+        *,
+        context: UnifiedContext,
+        enabled_tools: list[str],
+        kb_seed: str = "",
+        include_tool_manifest: bool = True,
+    ) -> list[dict[str, Any]]:
+        """Build the turn's ONE conversation.
+
+        The loop appends each round (assistant + ``role=tool`` results) to
+        this list, so the system prompt stays byte-stable for the whole turn
+        and the KB cache prefix is preserved. The KB seed rides inside the
+        trailing user message, not the system prompt.
+        """
+        system_prompt = self._build_system_prompt(
+            enabled_tools,
+            context,
+            include_tool_manifest=include_tool_manifest,
+        )
+        user_content = self._prompt_assembler.user_message(
+            context=context,
+            kb_seed=kb_seed,
+        )
+        messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
+        for item in context.conversation_history:
+            role = item.get("role")
+            content = item.get("content")
+            if role in {"user", "assistant"} and isinstance(content, (str, list)):
+                messages.append({"role": role, "content": content})
+            elif role == "system" and isinstance(content, str) and content.strip():
+                # ContextBuilder emits the compressed-history summary as a
+                # leading system message; deliver it right after the system
+                # prompt so compacted turns stay visible to the model.
+                header = _prompt_text(
+                    self._prompts,
+                    ("notices", "conversation_summary_header"),
+                    "[Conversation summary]",
+                )
+                messages.append({"role": "system", "content": f"{header}\n{content}"})
+        messages.append({"role": "user", "content": user_content})
+        return self._prepare_messages_with_attachments(messages, context)
+
+    def _finish_exhausted_instruction(self) -> str:
+        return self._prompt_assembler.finish_exhausted_instruction()
+
+    def _tool_manifest(self, enabled_tools: list[str]) -> str:
+        names = list(enabled_tools)
+        if self._deferred_loader is not None:
+            for name in sorted(self._deferred_loader.loaded_names):
+                if name not in names:
+                    names.append(name)
+        try:
+            return self.registry.build_prompt_text(
+                names,
+                format="list_with_usage",
+                language=self.language,
+            )
+        except TypeError:
+            return self.registry.build_prompt_text(names)
+        except Exception:
+            logger.warning("failed to build tool prompt text", exc_info=True)
+            return ""
+
+    def _tool_result_snip_marker(self) -> str:
+        return self._t(
+            "notices.tool_result_snipped",
+            default=(
+                "[earlier tool result snipped to stay within context window; "
+                "call the same tool again if the content is still needed]"
+            ),
+        )
+
+    def _prepare_messages_with_attachments(
+        self,
+        messages: list[dict[str, Any]],
+        context: UnifiedContext,
+    ) -> list[dict[str, Any]]:
+        return prepare_multimodal_messages(
+            messages,
+            context.attachments,
+            binding=self.binding,
+            model=self.model,
+        ).messages
+
+    # ---- deferred tools / tool composition ------------------------------
+
+    async def _prepare_deferred_tools(self, context: UnifiedContext) -> None:
+        self._pageindex_docs = {}
+        try:
+            from traittutor.services.mcp import get_mcp_manager, load_loaded_tools
+
+            await get_mcp_manager().ensure_started()
+            # Non-admin users fail closed until an administrator explicitly
+            # grants MCP tool names; administrators remain unrestricted.
+            from traittutor.multi_user.tool_access import allowed_mcp_tools
+
+            allowed = allowed_mcp_tools()
+
+            # Narrowed implicit grant: a turn with a PageIndex KB
+            # attached is authorized to use the built-in pageindex MCP
+            # server's tools — access to the KB is the permission. The tools
+            # are also preloaded (no load_tools round-trip) so retrieval
+            # works on the first turn.
+            self._pageindex_docs = self._pageindex_doc_maps(context)
+            pool = self.registry.deferred_tools()
+            pageindex_tools: set[str] = set()
+            if self._pageindex_docs:
+                from traittutor.services.mcp.pageindex_server import PAGEINDEX_SERVER_NAME
+
+                pageindex_tools = {
+                    t.get_definition().name
+                    for t in pool
+                    if getattr(t, "server_name", "") == PAGEINDEX_SERVER_NAME
+                }
+                if allowed is not None:
+                    allowed = allowed | pageindex_tools
+
+            if allowed is not None:
+                pool = [t for t in pool if t.get_definition().name in allowed]
+            self._deferred_pool = pool
+            if not pool:
+                self._deferred_loader = None
+                return
+            self._deferred_loader = DeferredToolLoader(
+                registry=self.registry,
+                session_id=context.session_id,
+                loaded=load_loaded_tools(context.session_id) | pageindex_tools,
+                allowed=allowed,
+            )
+        except Exception:
+            logger.warning("deferred-tool preparation failed", exc_info=True)
+            self._deferred_loader = None
+
+    def _pageindex_doc_maps(self, context: UnifiedContext) -> dict[str, dict[str, str]]:
+        """kb_name -> {file: doc_id} for bound KBs on the pageindex provider."""
+        out: dict[str, dict[str, str]] = {}
+        for kb in self._selected_kbs(context):
+            try:
+                from traittutor.multi_user.knowledge_access import resolve_kb
+                from traittutor.services.rag.factory import PAGEINDEX_PROVIDER
+                from traittutor.services.rag.pipelines.pageindex.pipeline import PageIndexPipeline
+                from traittutor.services.rag.provider_binding import resolve_bound_provider
+
+                resource = resolve_kb(kb, require_write=False)
+                base_dir = str(resource.base_dir)
+                if resolve_bound_provider(base_dir, resource.name) != PAGEINDEX_PROVIDER:
+                    continue
+                out[kb] = PageIndexPipeline(kb_base_dir=base_dir).document_map(resource.name)
+            except Exception:
+                logger.debug("pageindex doc-map resolution failed for %r", kb, exc_info=True)
+        return out
+
+    def _deferred_tools_manifest(self) -> str:
+        if self._deferred_loader is None:
+            return ""
+        return render_deferred_tools_manifest(
+            getattr(self, "_deferred_pool", None) or self.registry.deferred_tools(),
+            language=self.language,
+        )
+
+    async def _exec_allowed(self, context: UnifiedContext) -> bool:
+        try:
+            from traittutor.services.sandbox import IsolationLevel, get_sandbox_service
+
+            level = await get_sandbox_service().isolation_level()
+            if level is IsolationLevel.SYSTEM:
+                # Admin can switch exec off per user (grant v2). ``None``
+                # follows the policy: SYSTEM isolation serves everyone.
+                from traittutor.multi_user.tool_access import exec_override
+
+                return exec_override() is not False
+            if level is IsolationLevel.APPLICATION:
+                try:
+                    from traittutor.multi_user.context import get_current_user
+
+                    return bool(get_current_user().is_admin)
+                except Exception:
+                    # Single-user local runtime: APPLICATION isolation remains
+                    # an explicit local-development opt-in.
+                    return True
+            return False
+        except Exception:
+            logger.warning("exec policy gate failed; disabling exec", exc_info=True)
+            return False
+
+    def _compose_enabled_tools(self, context: UnifiedContext) -> list[str]:
+        composed = compose_enabled_tools(
+            registry=self.registry,
+            requested_tools=context.enabled_tools,
+            optional_whitelist=CHAT_OPTIONAL_TOOLS,
+            mount_flags=ToolMountFlags(
+                # PageIndex KBs are read via the preloaded MCP tools, not rag —
+                # a conversation with only PageIndex KBs doesn't mount rag at all.
+                # Excludes KBs owned by an exclusive capability (an Obsidian vault
+                # is read via its own tools, never rag) so a pure-vault turn still
+                # doesn't mount rag, while co-selected LlamaIndex KBs do (#650).
+                has_kb=bool(self._coexisting_rag_kbs(context)),
+                # read_source is owned by the explore_context pre-pass (it runs
+                # the investigation over attached sources), not the answer loop.
+                # Keep it off the answer surface even when sources are present.
+                has_sources=False,
+                has_memory=user_has_memory(),
+                has_notebooks=user_has_notebooks(),
+                has_skills=bool(context.skills_manifest),
+                has_deferred_tools=getattr(self, "_deferred_loader", None) is not None,
+                has_exec=getattr(self, "_exec_enabled", False),
+                has_code=getattr(self, "_exec_enabled", False),
+            ),
+            capability_owned=self._capability_owned_tools(context),
+            exclusive=self._exclusive_capability_active(context),
+            builtin_whitelist=(
+                set(context.allowed_builtin_tools)
+                if context.allowed_builtin_tools is not None
+                else None
+            ),
+        )
+        return _drop_unconfigured_generation_tools(composed)
+
+    def _active_loop_capabilities(self, context: UnifiedContext) -> tuple[LoopCapability, ...]:
+        return active_loop_capabilities(context)
+
+    @staticmethod
+    def _exclusive_capability_active(context: UnifiedContext) -> bool:
+        """True when a knowledge capability owns the turn (replaces the surface).
+
+        The capability's own tools replace chat's built-ins. rag scaffolding
+        (mount / KB seed / kb note) is still provided for any co-selected KBs the
+        capability does NOT own — see ``_coexisting_rag_kbs`` (issue #650).
+        """
+        return any_exclusive_capability_active(context)
+
+    def _capability_owned_tools(self, context: UnifiedContext) -> tuple[str, ...]:
+        """The active capabilities' own tools — added on top of chat's full surface."""
+        names: list[str] = []
+        for cap in self._active_loop_capabilities(context):
+            names.extend(cap.owned_tools)
+        return tuple(names)
+
+    def _capability_system_blocks(self, context: UnifiedContext):
+        blocks = []
+        for cap in self._active_loop_capabilities(context):
+            block = cap.system_block(
+                context,
+                language=self.language,
+                prompts=self._prompts,
+            )
+            if block is not None:
+                blocks.append(block)
+        # Capability-injected extras (e.g. learning-support read-only canvas
+        # and tutor-expression contracts) are staged in metadata by
+        # ``ChatCapability`` before the pipeline runs. Merge them here so they
+        # sit in the same prompt region as other capability playbooks.
+        extra = context.metadata.get("_extra_capability_blocks") if context.metadata else None
+        if extra:
+            blocks.extend(extra)
+        return blocks
+
+    def _capability_pre_loop_seed(self, context: UnifiedContext) -> str:
+        seeds = [
+            seed.strip()
+            for cap in self._active_loop_capabilities(context)
+            if (seed := cap.pre_loop_seed(context))
+        ]
+        return "\n\n".join(seed for seed in seeds if seed)
+
+    async def _capability_pre_loop_briefings(
+        self,
+        context: UnifiedContext,
+        stream: StreamBus,
+    ) -> str:
+        """Run each active capability's optional async ``pre_loop`` hook and
+        join their returned blocks into one seed fragment.
+
+        The hook is optional (read via ``getattr`` so plain capabilities are
+        unaffected) and runs once before the answer loop's first LLM call —
+        see the ``pre_loop`` note on :class:`LoopCapability`. Operational
+        failures are best-effort, but prompt configuration failures propagate:
+        a turn must not continue to the answer LLM with a missing capability
+        prompt.
+        """
+        blocks: list[str] = []
+        for cap in self._active_loop_capabilities(context):
+            hook = getattr(cap, "pre_loop", None)
+            if not callable(hook):
+                continue
+            try:
+                block = await hook(context, stream, usage=self._usage)
+            except PromptLoadError:
+                logger.exception(
+                    "pre_loop prompt configuration failed for capability %s",
+                    getattr(cap, "name", "?"),
+                )
+                raise
+            except Exception:
+                logger.warning(
+                    "pre_loop hook failed for capability %s",
+                    getattr(cap, "name", "?"),
+                    exc_info=True,
+                )
+                continue
+            content = (getattr(block, "content", "") or "").strip()
+            if content:
+                blocks.append(content)
+        return "\n\n".join(blocks)
+
+    def _build_llm_tool_schemas(
+        self,
+        enabled_tools: list[str],
+        context: UnifiedContext,
+    ) -> list[dict[str, Any]]:
+        schemas = self.registry.build_openai_schemas(enabled_tools)
+        kb_choices = self._coexisting_rag_kbs(context)
+        notebook_choices = self._notebook_choices()
+        for schema in schemas:
+            function = schema.get("function") if isinstance(schema, dict) else None
+            if not isinstance(function, dict):
+                continue
+            parameters = function.get("parameters")
+            if not isinstance(parameters, dict):
+                continue
+            properties = parameters.get("properties") or {}
+            if function.get("name") == "rag" and isinstance(properties, dict):
+                if isinstance(properties.get("query"), dict):
+                    properties["query"].setdefault("minLength", 1)
+                if isinstance(properties.get("kb_name"), dict):
+                    properties["kb_name"]["enum"] = kb_choices
+            if function.get("name") == "geogebra_analysis" and isinstance(properties, dict):
+                properties.pop("image_base64", None)
+                required = parameters.get("required")
+                if isinstance(required, list):
+                    parameters["required"] = [n for n in required if n != "image_base64"]
+            if (
+                function.get("name") in {"list_notebook", "write_note"}
+                and isinstance(properties, dict)
+                and notebook_choices
+                and isinstance(properties.get("notebook_id"), dict)
+            ):
+                nb_schema = properties["notebook_id"]
+                nb_schema["enum"] = [choice["id"] for choice in notebook_choices]
+                rendered = "; ".join(f"{c['id']} = {c['name']}" for c in notebook_choices)
+                nb_schema["description"] = (
+                    f"{nb_schema.get('description', '').rstrip(' .')}. Available: {rendered}."
+                )
+            parameters["additionalProperties"] = False
+        return schemas
+
+    # ---- notebook / context helpers -------------------------------------
+
+    def _build_notebook_manifest(self) -> str:
+        choices = self._notebook_choices_full()
+        if not choices:
+            return ""
+        capped = choices[:30]
+        lines = ["[用户的笔记本列表]" if self.language == "zh" else "[User's notebooks]"]
+        for entry in capped:
+            nid = entry.get("id", "")
+            name = entry.get("name", nid)
+            count = entry.get("record_count", 0)
+            lines.append(f"- `{nid}` - {name} ({count} records)")
+        if len(choices) > len(capped):
+            lines.append(
+                f"... (+{len(choices) - len(capped)} more; call `list_notebook` to see the rest)"
+            )
+        return "\n".join(lines)
+
+    @staticmethod
+    def _notebook_choices_full() -> list[dict[str, Any]]:
+        try:
+            from traittutor.services.notebook import get_notebook_manager
+
+            notebooks = get_notebook_manager().list_notebooks() or []
+        except Exception:
+            return []
+        rows: list[dict[str, Any]] = []
+        for nb in notebooks:
+            nid = str(nb.get("id") or "").strip()
+            if not nid:
+                continue
+            name = str(nb.get("name") or nb.get("title") or nid).strip() or nid
+            try:
+                count = int(nb.get("record_count") or 0)
+            except (TypeError, ValueError):
+                count = 0
+            rows.append({"id": nid, "name": name, "record_count": count})
+        return rows
+
+    @staticmethod
+    def _notebook_choices() -> list[dict[str, str]]:
+        return [
+            {"id": str(row["id"]), "name": str(row["name"])}
+            for row in AgenticChatPipeline._notebook_choices_full()
+        ]
+
+    # ---- tool execution --------------------------------------------------
+
+    async def _execute_tool_call(
+        self,
+        tool_name: str,
+        tool_args: dict[str, Any],
+        *,
+        stream: StreamBus | None = None,
+        retrieve_meta: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        from traittutor.core.agentic import execute_tool_call
+
+        stream = stream or StreamBus()
+        return await execute_tool_call(
+            registry=self.registry,
+            tool_name=tool_name,
+            tool_args=tool_args,
+            stream=stream,
+            source="chat",
+            stage="responding",
+            retrieve_meta=retrieve_meta,
+            empty_tool_result_message=self._t("notices.empty_tool_result"),
+            start_retrieval_message=self._t(
+                "notices.start_retrieval", default="Starting retrieval"
+            ),
+            retrieve_label=self._t("labels.retrieve", default="Retrieve"),
+            unknown_error_message_factory=lambda tn: self._t(
+                "notices.tool_unknown_error",
+                tool=tn,
+                default=f"An unknown error occurred while executing {tn}.",
+            ),
+        )
+
+    async def _dispatch_tool_calls(
+        self,
+        *,
+        tool_calls: list[dict[str, Any]],
+        context: UnifiedContext,
+        stream: StreamBus,
+        iteration_index: int,
+        stage: str = "exploring",
+    ) -> DispatchOutcome:
+        too_many = None
+        if len(tool_calls) > MAX_PARALLEL_TOOL_CALLS:
+            too_many = self._t(
+                "notices.too_many_tool_calls",
+                requested=len(tool_calls),
+                limit=MAX_PARALLEL_TOOL_CALLS,
+            )
+        return await dispatch_tool_calls(
+            tool_calls=tool_calls,
+            context=context,
+            stream=stream,
+            source="chat",
+            stage=stage,
+            iteration_index=iteration_index,
+            registry=self.registry,
+            kwarg_augmenter=self._augment_tool_kwargs,
+            retrieve_meta_factory=lambda meta, tn, ta: self._retrieve_trace_metadata(
+                meta, context=context, tool_name=tn, tool_args=ta
+            ),
+            tool_call_label=self._t("labels.tool_call", default="Tool call"),
+            retrieve_label=self._t("labels.retrieve", default="Retrieve"),
+            empty_tool_result_message=self._t("notices.empty_tool_result"),
+            start_retrieval_message=self._t(
+                "notices.start_retrieval", default="Starting retrieval"
+            ),
+            too_many_tool_calls_message=too_many,
+            unknown_error_message_factory=lambda tn: self._t(
+                "notices.tool_unknown_error",
+                tool=tn,
+                default=f"An unknown error occurred while executing {tn}.",
+            ),
+            trace_id_prefix="chat-loop",
+        )
+
+    async def _await_user_reply_and_resolve(
+        self,
+        *,
+        context: UnifiedContext,
+        stream: StreamBus,
+        dispatch: DispatchOutcome,
+    ) -> bool:
+        ask_user = (dispatch.pause_payload or {}).get("ask_user") or {}
+        waiter = context.metadata.get("wait_for_user_reply")
+        if not callable(waiter):
+            await self._emit_terminator_final_response(
+                stream,
+                {
+                    "tool_name": (dispatch.pause_payload or {}).get("tool_name", "ask_user"),
+                    "content": _flatten_ask_user_summary(ask_user),
+                    "metadata": {"ask_user": ask_user},
+                },
+            )
+            return False
+
+        raw_reply = await waiter()
+        if raw_reply is None:
+            return False
+        reply_text, answers = _normalise_user_reply(raw_reply)
+        body_text = _format_user_reply_body(
+            reply_text,
+            answers,
+            ask_user,
+            prompts=self._prompts,
+        )
+        continue_directive = self._t(
+            "notices.ask_user_resolved_directive",
+            default=(
+                "[ask_user resolved. Continue the user's original request using these answers. "
+                "Do not stop with an acknowledgement.]"
+            ),
+        )
+        directive = f"{body_text}\n\n{continue_directive}"
+        for tm in dispatch.tool_messages:
+            if tm.get("tool_call_id") == dispatch.pause_tool_call_id:
+                tm["content"] = directive
+                break
+        meta: dict[str, Any] = {
+            "trace_kind": "user_reply",
+            "ask_user_resolved": True,
+            "ask_user_tool_call_id": dispatch.pause_tool_call_id,
+        }
+        if answers:
+            meta["answers"] = list(answers)
+        await stream.progress("", source="chat", stage="responding", metadata=meta)
+        return True
+
+    def _augment_tool_kwargs(
+        self,
+        tool_name: str,
+        args: dict[str, Any],
+        context: UnifiedContext,
+    ) -> dict[str, Any]:
+        from traittutor.services.path_service import get_path_service
+
+        kwargs = dict(args)
+        workspace_key = self._workspace_key(context)
+        task_dir = (
+            get_path_service().get_task_workspace("chat", workspace_key) if workspace_key else None
+        )
+        exec_dir = task_dir / "exec" if task_dir is not None else None
+        if tool_name == "rag":
+            kwargs.setdefault("mode", "hybrid")
+        elif tool_name == "load_tools":
+            kwargs["_tool_loader"] = self._deferred_loader
+        elif tool_name == "exec":
+            from traittutor.services.sandbox import Mount
+
+            kwargs["_sandbox_user_id"] = self._current_user_id()
+            if exec_dir is not None:
+                exec_dir.mkdir(parents=True, exist_ok=True)
+                kwargs["_sandbox_workdir"] = str(exec_dir)
+                kwargs["_sandbox_mounts"] = (
+                    Mount(host_path=str(exec_dir), sandbox_path=str(exec_dir), read_only=False),
+                )
+        elif tool_name == "code_execution":
+            from traittutor.services.sandbox import Mount
+
+            kwargs["_sandbox_user_id"] = self._current_user_id()
+            code_dir = task_dir / "code_runs" if task_dir is not None else None
+            if code_dir is not None:
+                code_dir.mkdir(parents=True, exist_ok=True)
+                kwargs["_sandbox_workdir"] = str(code_dir)
+                kwargs["_sandbox_mounts"] = (
+                    Mount(host_path=str(code_dir), sandbox_path=str(code_dir), read_only=False),
+                )
+        elif tool_name in ("imagegen", "videogen"):
+            # Generated media lands in the turn's public workspace so it
+            # surfaces as a download card via /api/outputs (same convention as
+            # exec/code_execution artifacts).
+            media_dir = task_dir / "media" if task_dir is not None else None
+            if media_dir is not None:
+                media_dir.mkdir(parents=True, exist_ok=True)
+                kwargs["_workspace_dir"] = str(media_dir)
+        elif tool_name in {"reason", "brainstorm"}:
+            kwargs.setdefault("context", context.user_message)
+        elif tool_name == "paper_search":
+            kwargs.setdefault("max_results", 3)
+            kwargs.setdefault("years_limit", 3)
+            kwargs.setdefault("sort_by", "relevance")
+        elif tool_name == "web_search":
+            kwargs.setdefault("query", context.user_message)
+            if task_dir is not None:
+                kwargs.setdefault("output_dir", str(task_dir / "web_search"))
+        elif tool_name == "write_note":
+            kwargs["conversation_history"] = list(context.conversation_history or [])
+            kwargs["current_user_message"] = context.user_message or ""
+        elif tool_name == "geogebra_analysis":
+            first_image = next(
+                (
+                    att
+                    for att in (context.attachments or [])
+                    if getattr(att, "type", "") == "image" and getattr(att, "base64", "")
+                ),
+                None,
+            )
+            if first_image is not None:
+                raw_b64 = first_image.base64
+                if raw_b64.startswith("data:"):
+                    kwargs["image_base64"] = raw_b64
+                else:
+                    mime = getattr(first_image, "mime_type", "") or "image/png"
+                    kwargs["image_base64"] = f"data:{mime};base64,{raw_b64}"
+            kwargs["language"] = context.language or "zh"
+        for cap in self._active_loop_capabilities(context):
+            kwargs = cap.augment_kwargs(tool_name, kwargs, context)
+        return kwargs
+
+    def _retrieve_trace_metadata(
+        self,
+        tool_meta: dict[str, Any],
+        *,
+        context: UnifiedContext,
+        tool_name: str,
+        tool_args: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        _ = context
+        if tool_name == "rag":
+            return derive_trace_metadata(
+                tool_meta,
+                label=self._t("labels.retrieve", default="Retrieve"),
+                call_kind="rag_retrieval",
+                trace_role="retrieve",
+                trace_group="retrieve",
+                query=str(tool_args.get("query", "") or ""),
+            )
+        # imagegen/videogen are long-running: wiring retrieve_meta gives them an
+        # event_sink so their progress (esp. videogen's poll loop) streams to the
+        # client, which resets the chat idle-timeout watchdog mid-render.
+        if tool_name in ("imagegen", "videogen"):
+            return derive_trace_metadata(
+                tool_meta,
+                label=self._t("labels.tool_call", default="Tool call"),
+                call_kind="media_generation",
+                query=str(tool_args.get("prompt", "") or ""),
+            )
+        return None
+
+    # ---- KB seed ---------------------------------------------------------
+
+    async def _retrieve_kb_seed_block(
+        self,
+        context: UnifiedContext,
+        stream: StreamBus,
+    ) -> str:
+        # Seed every selected KB except those owned by an exclusive capability
+        # (an Obsidian vault is read agentically via its own tools, not seeded).
+        # Co-selected LlamaIndex KBs are still seeded so their context reaches
+        # the model even when a vault owns the turn (issue #650).
+        owned = self._capability_owned_kbs(context)
+        kbs = [kb for kb in self._selected_kbs(context) if kb not in owned]
+        query = (context.user_message or "").strip()
+        if not kbs or not query:
+            return ""
+        if len(kbs) > KB_SEED_MAX_KBS:
+            kbs = kbs[:KB_SEED_MAX_KBS]
+        results = await asyncio.gather(*(self._seed_search_one_kb(kb, query, stream) for kb in kbs))
+        sections: list[str] = []
+        sources: list[dict[str, Any]] = []
+        for kb, result in zip(kbs, results, strict=False):
+            if result is None:
+                continue
+            text, kb_sources = result
+            sections.append(f"## {kb}\n{text}")
+            sources.extend(kb_sources)
+        if not sections:
+            return ""
+        if sources:
+            await stream.sources(
+                sources, source="chat", stage="responding", metadata={"trace_kind": "sources"}
+            )
+        header = self._t(
+            "knowledge_base_seed.header",
+            default=(
+                "[Knowledge Base Context]\n"
+                "Passages retrieved from attached knowledge bases for the current question."
+            ),
+        )
+        return header + "\n\n" + "\n\n".join(sections)
+
+    async def _seed_search_one_kb(
+        self,
+        kb_name: str,
+        query: str,
+        stream: StreamBus,
+    ) -> tuple[str, list[dict[str, Any]]] | None:
+        call_id = new_call_id("chat-kb-seed")
+        retrieve_meta = build_trace_metadata(
+            call_id=call_id,
+            phase="responding",
+            label=self._t("labels.retrieve", default="Retrieve"),
+            call_kind="rag_retrieval",
+            trace_id=call_id,
+            trace_role="retrieve",
+            trace_group="retrieve",
+            query=query,
+        )
+        result = await self._execute_tool_call(
+            "rag",
+            {"query": query, "kb_name": kb_name, "mode": "hybrid"},
+            stream=stream,
+            retrieve_meta=retrieve_meta,
+        )
+        if not result.get("success"):
+            return None
+        metadata = result.get("metadata") or {}
+        if metadata.get("error_type") or metadata.get("needs_reindex"):
+            return None
+        text = str(metadata.get("content") or metadata.get("answer") or "").strip()
+        if not text:
+            return None
+        if len(text) > KB_SEED_CHARS_PER_KB:
+            text = text[:KB_SEED_CHARS_PER_KB].rstrip() + "\n...[truncated]"
+        return text, list(result.get("sources") or [])
+
+    # ---- emissions / context guard --------------------------------------
+
+    async def _emit_final_text(
+        self,
+        stream: StreamBus,
+        text: str,
+        final_meta: dict[str, Any],
+    ) -> None:
+        if not text:
+            return
+        await stream.content(
+            text,
+            source="chat",
+            stage="responding",
+            metadata=merge_trace_metadata(final_meta, {"trace_kind": "llm_output"}),
+        )
+
+    async def _emit_protocol_fallback_final_response(
+        self,
+        stream: StreamBus,
+        content: str,
+    ) -> None:
+        final_meta = build_trace_metadata(
+            call_id=new_call_id("chat-final-response"),
+            phase="responding",
+            label=self._t("labels.final_response", default="Final response"),
+            call_kind="llm_final_response",
+            trace_id="chat-final-response",
+            trace_role="response",
+            trace_group="stage",
+            fallback=True,
+        )
+        await self._emit_final_text(stream, content, final_meta)
+
+    async def _emit_terminator_final_response(
+        self,
+        stream: StreamBus,
+        payload: dict[str, Any] | None,
+    ) -> None:
+        if not payload:
+            return
+        content = str(payload.get("content") or "").strip()
+        if not content:
+            return
+        final_meta = build_trace_metadata(
+            call_id=new_call_id("chat-final-response"),
+            phase="responding",
+            label=self._t("labels.final_response", default="Final response"),
+            call_kind="llm_final_response",
+            trace_id="chat-final-response",
+            trace_role="response",
+            trace_group="stage",
+            terminator_tool=str(payload.get("tool_name") or ""),
+        )
+        merged: dict[str, Any] = {"trace_kind": "llm_output"}
+        tool_metadata = payload.get("metadata") or {}
+        if isinstance(tool_metadata, dict) and tool_metadata:
+            merged["tool_metadata"] = dict(tool_metadata)
+        await stream.content(
+            content,
+            source="chat",
+            stage="responding",
+            metadata=merge_trace_metadata(final_meta, merged),
+        )
+
+    async def _guard_context_window(
+        self,
+        messages: list[dict[str, Any]],
+        stream: StreamBus,
+    ) -> None:
+        try:
+            window = resolve_effective_context_window(
+                context_window=getattr(self.llm_config, "context_window", None),
+                model=str(self.model or ""),
+                max_tokens=getattr(self.llm_config, "max_tokens", None),
+            )
+        except Exception:
+            return
+        if not window or window <= 0:
+            return
+        budget = int(window * CONTEXT_WINDOW_GUARD_RATIO)
+        if self._estimate_messages_tokens(messages) <= budget:
+            return
+        snipped = False
+        for msg in messages:
+            if msg.get("role") != "tool":
+                continue
+            marker = self._tool_result_snip_marker()
+            if msg.get("content") == marker:
+                continue
+            msg["content"] = marker
+            snipped = True
+            if self._estimate_messages_tokens(messages) <= budget:
+                break
+        if snipped:
+            await stream.progress(
+                self._t("notices.context_window_guard"),
+                source="chat",
+                stage="responding",
+                metadata={"trace_kind": "warning"},
+            )
+
+    @staticmethod
+    def _estimate_messages_tokens(messages: list[dict[str, Any]]) -> int:
+        from traittutor.services.session.context_builder import count_tokens
+
+        total = 0
+        for msg in messages:
+            content = msg.get("content")
+            if isinstance(content, str):
+                total += count_tokens(content)
+            elif isinstance(content, list):
+                for part in content:
+                    if isinstance(part, dict) and part.get("type") == "text":
+                        total += count_tokens(str(part.get("text") or ""))
+        return total
+
+    def _completion_kwargs(self, max_tokens: int) -> dict[str, Any]:
+        return build_completion_kwargs(
+            temperature=self._chat_temperature,
+            model=self.model,
+            max_tokens=max_tokens,
+            binding=self.binding,
+            reasoning_effort=self.reasoning_effort,
+        )
+
+    def _can_use_native_tool_calling(self) -> bool:
+        return self._can_use_gateway_tool_calling()
+
+    def _can_use_gateway_tool_calling(self) -> bool:
+        """Gateway tool loops require an explicitly tool-capable provider.
+
+        The legacy client has a DSML text parser for deployments which emit
+        pseudo tool calls in prose.  That representation cannot carry the
+        validated Gateway replay contract, so the opt-in path must reject it
+        instead of silently executing parser-derived arguments.
+        """
+
+        return gateway_supports_tools(self.binding, self.model)
+
+    # ---- small helpers ---------------------------------------------------
+
+    @staticmethod
+    def _current_user_id() -> str:
+        try:
+            from traittutor.multi_user.context import get_current_user
+
+            return str(get_current_user().id or "anonymous")
+        except Exception:
+            return "anonymous"
+
+    @staticmethod
+    def _selected_kbs(context: UnifiedContext) -> list[str]:
+        return [str(kb).strip() for kb in context.knowledge_bases if str(kb).strip()]
+
+    def _rag_kbs(self, context: UnifiedContext) -> list[str]:
+        """Attached KBs served by the rag tool (PageIndex KBs are read via MCP)."""
+        pageindex = getattr(self, "_pageindex_docs", None) or {}
+        return [kb for kb in self._selected_kbs(context) if kb not in pageindex]
+
+    def _capability_owned_kbs(self, context: UnifiedContext) -> set[str]:
+        """Selected KBs consumed by an active capability's own tools (not rag).
+
+        An exclusive knowledge capability (Obsidian) reads its vault through its
+        own tools; those KB refs must be excluded from the rag surface. Read via
+        ``getattr`` so plain capabilities without the seam are unaffected.
+        """
+        owned: set[str] = set()
+        for cap in self._active_loop_capabilities(context):
+            hook = getattr(cap, "owned_kbs", None)
+            if callable(hook):
+                owned |= set(hook(context))
+        return owned
+
+    def _coexisting_rag_kbs(self, context: UnifiedContext) -> list[str]:
+        """rag-served KBs that coexist with an exclusive knowledge capability.
+
+        When an Obsidian vault owns the turn, co-selected LlamaIndex KBs would
+        otherwise be silently dropped (issue #650). These stay reachable via
+        rag; vault KBs (which have no rag index) are excluded. Equals
+        ``_rag_kbs`` for a plain chat turn (no capability owns any KB).
+        """
+        owned = self._capability_owned_kbs(context)
+        return [kb for kb in self._rag_kbs(context) if kb not in owned]
+
+    @staticmethod
+    def _workspace_key(context: UnifiedContext) -> str:
+        raw = str(
+            context.metadata.get("turn_id")
+            or context.session_id
+            or context.metadata.get("message_id")
+            or "direct"
+        )
+        cleaned = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in raw)
+        return cleaned.strip("_") or "direct"
+
+    def _kb_system_note(self, context: UnifiedContext) -> str:
+        if not self._selected_kbs(context):
+            return ""
+        rag_note = ""
+        # Coexisting rag KBs only: when an Obsidian vault owns the turn, its own
+        # system block covers the vault, and this note tells the model the
+        # co-selected LlamaIndex KBs are reachable via rag (issue #650). A
+        # pure-vault turn yields no coexisting KBs, so the note stays empty.
+        rag_kbs = self._coexisting_rag_kbs(context)
+        if rag_kbs:
+            joined = ", ".join(rag_kbs)
+            rag_note = (
+                f"用户已挂载知识库：{joined}。调用 rag 时，kb_name 必须从其中选一个。"
+                if self.language == "zh"
+                else (
+                    f"Attached knowledge bases: {joined}. When calling rag, kb_name "
+                    "must be one of these names."
+                )
+            )
+        return rag_note + self._pageindex_system_note()
+
+    def _pageindex_system_note(self) -> str:
+        """Doc list + retrieval instructions for attached PageIndex KBs.
+
+        Populated by ``_prepare_deferred_tools`` once per turn, so the system
+        prompt stays byte-stable for the whole turn (KB cache prefix).
+        """
+        doc_maps = getattr(self, "_pageindex_docs", None) or {}
+        if not doc_maps:
+            return ""
+        lines = []
+        for kb, doc_map in sorted(doc_maps.items()):
+            listed = "; ".join(
+                f"{name} (doc_id: {doc_id})" for name, doc_id in sorted(doc_map.items())
+            )
+            lines.append(f"- {kb}: {listed or '(no indexed documents)'}")
+        docs_block = "\n".join(lines)
+        if self.language == "zh":
+            return (
+                "\n以下知识库使用托管的 PageIndex 引擎，其文档通过已加载的 "
+                "PageIndex MCP 工具阅读：先用 mcp_pageindex_get_document_structure "
+                "查看结构，再用 mcp_pageindex_get_page_content 读取相关页面。文档清单：\n"
+                f"{docs_block}"
+            )
+        return (
+            "\nThe following knowledge bases are on the hosted PageIndex engine; read "
+            "their documents with the preloaded PageIndex MCP tools: "
+            "mcp_pageindex_get_document_structure for the outline, then "
+            "mcp_pageindex_get_page_content for the relevant pages. Documents:\n"
+            f"{docs_block}"
+        )
+
+    def _workspace_system_note(self, context: UnifiedContext) -> str:
+        if not getattr(self, "_exec_enabled", False):
+            return ""
+        try:
+            from traittutor.services.path_service import get_path_service
+
+            exec_dir = (
+                get_path_service().get_task_workspace(
+                    "chat",
+                    self._workspace_key(context),
+                )
+                / "exec"
+            )
+        except Exception:
+            return ""
+        if self.language == "zh":
+            return (
+                "[本轮工作区]\n"
+                f"脚本和临时文件应写入：{exec_dir}\n"
+                "相对路径会解析到这个目录。需要创建 PDF、图片、表格或其他下载文件时，"
+                "直接通过 exec 写入并运行脚本（如 heredoc：python - <<'PY' … PY，"
+                "或 cat > gen.py <<'EOF' … EOF 后再运行）。生成的文件会自动以可下载"
+                "卡片呈现给用户——在回答里描述你做了什么即可，不要粘贴原始 URL。"
+            )
+        return (
+            "[Turn workspace]\n"
+            f"Scripts and temporary files should be written under: {exec_dir}\n"
+            "Relative paths resolve to this directory. When creating PDFs, images, "
+            "spreadsheets, or other downloadable files, write and run scripts directly "
+            "through exec (e.g. a heredoc: python - <<'PY' … PY, or cat > gen.py <<'EOF' "
+            "… EOF then run it). Generated files are shown to the user automatically as "
+            "downloadable cards — describe what you made, do not paste raw URLs."
+        )
+
+    def _t(self, key: str, default: str = "", **kwargs: Any) -> str:
+        value: Any = self._prompts
+        for part in key.split("."):
+            if not isinstance(value, dict) or part not in value:
+                value = default
+                break
+            value = value[part]
+        if not isinstance(value, str):
+            value = default
+        if kwargs:
+            try:
+                return value.format(**kwargs)
+            except (KeyError, IndexError, ValueError):
+                return value
+        return value
+
+
+__all__ = [
+    "AgenticChatPipeline",
+    "CHAT_OPTIONAL_TOOLS",
+    "KB_SEED_CHARS_PER_KB",
+    "KB_SEED_MAX_KBS",
+    "_DispatchOutcome",
+    "_read_int",
+]

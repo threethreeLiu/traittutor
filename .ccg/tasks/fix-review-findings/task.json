@@ -1,0 +1,12 @@
+{
+  "id": "fix-review-findings",
+  "title": "修复 python-review 发现的 HIGH/MEDIUM 项（按难度分流 GPT/Claude）",
+  "status": "completed",
+  "strategy": "debug-investigate",
+  "currentPhase": "done",
+  "nextAction": "complete — 4 commits 3c0ec9a..f583c0d, 162 tests green, ruff clean on changed files",
+  "gate": null,
+  "branch": "main",
+  "scope": "fix-review-findings",
+  "createdAt": "2026-08-09T02:02:29Z"
+}

@@ -1,0 +1,32 @@
+{
+  "id": "coding-plan-v27",
+  "title": "基于 PRD v2.7 出 CODING-PLAN，更新 CLAUDE.md/AGENTS.md，codex gpt-5.6-sol 复核",
+  "status": "done",
+  "strategy": "team-plan + docs + codex-review",
+  "currentPhase": "done",
+  "nextAction": "等用户裁决复赛范围(H-03)与构建顺序(H-02)两个 open decision；初赛 WS-2/3/4/14/15 可立即开工",
+  "gate": null,
+  "branch": "main",
+  "scope": "docs-only (CODING-PLAN.md, CLAUDE.md, AGENTS.md, CODING-PLAN-REVIEW.md)",
+  "inputs": [
+    "docs/PRD.md (v2.7)",
+    "docs/AUDIT-FINDINGS-v24-ref.md",
+    "docs/REMEDIATION-PLAN-v24-ref.md"
+  ],
+  "outputs": [
+    "docs/CODING-PLAN.md (Phase A, 主循环直读 PRD 合成；已按 codex 复核修正 BKT 双路径/G1/G5/G6/F-05/F-13/F-01/F-03/附录)",
+    "CLAUDE.md + AGENTS.md (Phase B; 12/10 条铁律; 已修正 BKT 残留 + 补 2 条 PRD 不变量)",
+    "docs/CODING-PLAN-REVIEW.md (Phase C, codex gpt-5.6-sol, 结论: 小修后通过, 0 Critical / 4 High / 6 Medium / 2 Low)"
+  ],
+  "phases": {
+    "A": "主循环直读 PRD v2.7 + 代码合成 docs/CODING-PLAN.md（用户覆盖：不用 subagent team，直接读 PRD 合成）",
+    "B": "写 CLAUDE.md + AGENTS.md",
+    "C": "codex gpt-5.6-sol 全新后台任务复核 → docs/CODING-PLAN-REVIEW.md；关键发现: 真·贝叶斯 BKT 已存在（_bkt_update + ConceptSignal），原计划 BKT 缺失断言错误，已修正"
+  },
+  "openDecisions": [
+    "H-03: 复赛是否收敛为单条可演示纵切（见 CODING-PLAN.md §7 #11）",
+    "H-02: 复赛构建顺序 DAG 是否改为 WS-1A+9A 先行（见 CODING-PLAN.md §7 #12）"
+  ],
+  "createdAt": "2026-08-09T01:36:00+08:00",
+  "completedAt": "2026-08-09"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "complete-missing-prd-features",
+  "title": "按 PRD v2.7 搭建当前缺失功能并接入可验证主链路",
+  "status": "completed",
+  "strategy": "full-collaborate",
+  "currentPhase": "5-verification",
+  "nextAction": "Accepted missing-feature slice closed; keep production-readiness boundaries in CODING-PLAN before any enablement",
+  "gate": null,
+  "branch": "ws-1b",
+  "scope": "complete-missing-prd-features",
+  "createdAt": "2026-08-09T15:40:51Z"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "v27-overnight-sprint",
+  "title": "Execute PRD v2.7 plan on main (user overrode CLAUDE.md §7; architecture via Codex, rest via Claude, per-feature commits)",
+  "status": "in_progress",
+  "strategy": "full-collaborate",
+  "currentPhase": "1",
+  "nextAction": "Commit v2.7 PRD rewrite + WS-14 annotations; do WS-3/4/2 in parallel while Codex builds WS-1 context_assembler",
+  "gate": "user-confirmed-main-full-run",
+  "branch": "main",
+  "scope": "v27-overnight-sprint",
+  "createdAt": "2026-08-09T00:00:00Z"
+}

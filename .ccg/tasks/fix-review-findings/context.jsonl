@@ -1,0 +1,9 @@
+{"_example": "Fill with {\"file\": \"path\", \"reason\": \"why\"}. Seed rows are skipped."}
+{"file": "traittutor/learning_model/events.py", "reason": "HIGH#1 LearnerEventLedger.append 需加锁防 event_id 重放双计"}
+{"file": "traittutor/memory/store.py", "reason": "HIGH#1 MemoryStore._commit 需加锁保 supersede 链唯一"}
+{"file": "traittutor/orchestration/courseware_orchestrator.py", "reason": "HIGH#1 run 缓存检查+执行需原子；另 MEDIUM 三重校验冗余"}
+{"file": "traittutor/context_assembler/assembler.py", "reason": "HIGH#2 user_authorized 默认 True fail-open；另 MEDIUM 宽 except 需 logging"}
+{"file": "traittutor/learning_model/knowledge_state.py", "reason": "MEDIUM 校准后区间退化为零宽，需真实 spread"}
+{"file": "traittutor/learning_model/bkt.py", "reason": "MEDIUM 跨服务 import 私有 _bkt_update，需抽共享数学模块"}
+{"file": "traittutor/components/validation.py", "reason": "MEDIUM media_url 放行 svg data URI；_EXECUTABLE_MARKERS 正则有缺口"}
+{"file": "traittutor/generate/material_analysis.py", "reason": "MEDIUM normalize_language_tag 前缀匹配过松，需锚定正则"}

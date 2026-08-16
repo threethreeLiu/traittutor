@@ -1,0 +1,20 @@
+{
+  "version": "traittutor-learning-components-v1",
+  "boundary": "Learning components are temporary teaching supports selected from goals, source evidence, subject knowledge state, and governed support signals. They are not learning-style or ability labels.",
+  "components": {
+    "goal_map": {"executor": "lesson", "label_zh": "目标地图", "label_en": "Goal map", "completion_event": "courseware_outcome"},
+    "concept_explanation": {"executor": "lesson", "label_zh": "核心概念讲解", "label_en": "Concept explanation", "completion_event": "courseware_outcome"},
+    "worked_example": {"executor": "lesson", "label_zh": "分步例题", "label_en": "Worked example", "completion_event": "courseware_outcome"},
+    "visual_map": {"executor": "image", "label_zh": "知识图解", "label_en": "Visual map", "completion_event": "courseware_outcome"},
+    "video_explanation": {"executor": "video", "label_zh": "视频讲解", "label_en": "Video explanation", "completion_event": "courseware_outcome"},
+    "audio_explanation": {"executor": "audio", "label_zh": "播客讲解", "label_en": "Podcast explanation", "completion_event": "courseware_outcome"},
+    "diagnostic_check": {"executor": "assessment", "label_zh": "起点诊断", "label_en": "Diagnostic check", "completion_event": "quiz_answer"},
+    "guided_practice": {"executor": "assessment", "label_zh": "引导练习", "label_en": "Guided practice", "completion_event": "quiz_answer"},
+    "calibration_checkpoint": {"executor": "deterministic", "label_zh": "校准复盘", "label_en": "Calibration checkpoint", "completion_event": "self_assessment"},
+    "retrieval_card": {"executor": "retrieval", "label_zh": "主动回忆", "label_en": "Active recall", "completion_event": "flashcard_review"},
+    "progress_checkpoint": {"executor": "deterministic", "label_zh": "进度检查", "label_en": "Progress checkpoint", "completion_event": "strategy_feedback"},
+    "reflection_prompt": {"executor": "deterministic", "label_zh": "反思提示", "label_en": "Reflection prompt", "completion_event": "self_assessment"},
+    "transfer_challenge": {"executor": "assessment", "label_zh": "迁移挑战", "label_en": "Transfer challenge", "completion_event": "mastery_attempt"},
+    "review_queue": {"executor": "retrieval", "label_zh": "待复习队列", "label_en": "Review queue", "completion_event": "flashcard_review"}
+  }
+}

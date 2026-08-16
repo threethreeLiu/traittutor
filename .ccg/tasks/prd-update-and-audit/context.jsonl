@@ -1,0 +1,4 @@
+{"_example": "Fill with {\"file\": \"path\", \"reason\": \"why\"}. Seed rows are skipped."}
+{"file": "docs/PRD.md", "reason": "待更新的旧 PRD v2.0，将被 v2.4 替换"}
+{"file": "traittutor/api/routers/learning_packs.py", "reason": "学习包 API，F-02/F-03 核查入口"}
+{"file": "web/components/learning/LearningCanvas.tsx", "reason": "学习画布，F-07 核查入口"}

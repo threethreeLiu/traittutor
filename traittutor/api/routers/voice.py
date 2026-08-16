@@ -1,0 +1,175 @@
+"""Voice endpoints — text-to-speech and speech-to-text.
+
+These are thin HTTP surfaces over :mod:`traittutor.services.voice`. Config comes
+from the admin-managed model catalog (``services.tts`` / ``services.stt``), so
+voice is shared infrastructure like embedding/search — any authenticated user
+may call it; it is not gated by per-user LLM grants.
+"""
+
+from __future__ import annotations
+
+import io
+import logging
+import re
+import wave
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
+from pydantic import BaseModel, Field
+
+from traittutor.generate.tasks import get_generation_task_manager
+from traittutor.multi_user.context import get_current_user
+from traittutor.multi_user.models import CurrentUser
+from traittutor.services.path_service import get_path_service
+from traittutor.services.voice import (
+    VoiceProviderError,
+    synthesize_speech,
+    transcribe_audio,
+)
+from traittutor.tutor_persona.presentation import configured_voice_name
+from traittutor.tutor_persona.service import TutorPersonaService
+from traittutor.tutor_persona.store import TutorPersonaStore
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+# Guard against pathological uploads (the providers cap well below this anyway).
+_MAX_AUDIO_BYTES = 25 * 1024 * 1024  # 25 MB, matching OpenAI's limit.
+_DEFAULT_PCM_SAMPLE_RATE = 24_000
+_DEFAULT_PCM_CHANNELS = 1
+_PCM16_SAMPLE_WIDTH = 2
+
+
+class TTSRequest(BaseModel):
+    """Text-to-speech request body."""
+
+    # The learning canvas intentionally sends at most 4,000 characters. Keep
+    # the public API at the same bound so a direct caller cannot create an
+    # unbounded provider bill.
+    text: str = Field(..., min_length=1, max_length=4000)
+    voice: str | None = None
+    format: str | None = None
+    generation_id: str | None = Field(default=None, max_length=128)
+
+
+def _parse_pcm_content_type(content_type: str) -> tuple[int, int] | None:
+    """Return ``(sample_rate, channels)`` when a provider sent raw PCM audio."""
+    media_type, *params = (content_type or "").split(";")
+    if media_type.strip().lower() not in {"audio/pcm", "audio/x-pcm", "audio/l16"}:
+        return None
+    sample_rate = _DEFAULT_PCM_SAMPLE_RATE
+    channels = _DEFAULT_PCM_CHANNELS
+    for item in params:
+        key, sep, value = item.strip().partition("=")
+        if not sep:
+            continue
+        key = key.strip().lower()
+        value = value.strip().strip('"')
+        try:
+            parsed = int(value)
+        except ValueError:
+            continue
+        if key in {"rate", "sample-rate", "samplerate"} and parsed > 0:
+            sample_rate = parsed
+        elif key in {"channels", "channel"} and parsed > 0:
+            channels = parsed
+    return sample_rate, channels
+
+
+def _pcm16_to_wav(audio: bytes, *, sample_rate: int, channels: int) -> bytes:
+    """Wrap provider PCM16 bytes in a WAV container browsers can play."""
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav:
+        wav.setnchannels(channels)
+        wav.setsampwidth(_PCM16_SAMPLE_WIDTH)
+        wav.setframerate(sample_rate)
+        wav.writeframes(audio)
+    return buffer.getvalue()
+
+
+@router.post("/tts")
+async def text_to_speech(
+    payload: TTSRequest,
+    user: CurrentUser = Depends(get_current_user),
+) -> Response:
+    """Synthesize ``text`` to audio using the active TTS provider."""
+    generation_id = payload.generation_id
+    if generation_id and not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", generation_id):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid generation id"
+        )
+    if generation_id and get_generation_task_manager().get(generation_id) is None:
+        # Do this before calling the provider: generated media must belong to a
+        # generation task the current user is allowed to read.
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Generation task not found"
+        )
+    try:
+        persona = TutorPersonaService(TutorPersonaStore(user.id)).preview()
+        audio, content_type = await synthesize_speech(
+            payload.text,
+            voice=configured_voice_name(persona) or payload.voice,
+            speed=persona.modality.speech_rate,
+            response_format=payload.format,
+        )
+    except ValueError as exc:  # missing/invalid configuration
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except VoiceProviderError as exc:
+        logger.warning("TTS provider error: %s", exc)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    pcm_info = _parse_pcm_content_type(content_type)
+    if pcm_info:
+        sample_rate, channels = pcm_info
+        audio = _pcm16_to_wav(audio, sample_rate=sample_rate, channels=channels)
+        content_type = "audio/wav"
+    headers = {"Cache-Control": "no-store"}
+    if generation_id:
+        suffix = {"audio/mpeg": "mp3", "audio/wav": "wav", "audio/ogg": "ogg"}.get(
+            content_type.split(";", 1)[0], "bin"
+        )
+        service = get_path_service()
+        path = (
+            service.get_task_workspace("chat", f"traittutor-{generation_id}")
+            / "media"
+            / f"learning-audio.{suffix}"
+        )
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(audio)
+        relative = (
+            path.resolve().relative_to(service.get_public_outputs_root().resolve()).as_posix()
+        )
+        headers["X-TraitTutor-Audio-Url"] = f"/api/outputs/{relative}"
+    return Response(
+        content=audio,
+        media_type=content_type,
+        headers=headers,
+    )
+
+
+@router.post("/stt")
+async def speech_to_text(
+    file: UploadFile = File(...),
+    language: str | None = Form(default=None),
+) -> dict[str, str]:
+    """Transcribe an uploaded audio clip using the active STT provider."""
+    audio = await file.read()
+    if not audio:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty audio upload.")
+    if len(audio) > _MAX_AUDIO_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Audio exceeds the 25 MB limit.",
+        )
+    try:
+        text = await transcribe_audio(
+            audio,
+            filename=file.filename or "audio.webm",
+            content_type=file.content_type or "application/octet-stream",
+            language=language,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except VoiceProviderError as exc:
+        logger.warning("STT provider error: %s", exc)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    return {"text": text}

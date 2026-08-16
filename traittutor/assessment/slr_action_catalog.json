@@ -1,0 +1,68 @@
+{
+  "version": "traittutor-slr-actions-v2",
+  "purpose": "Product-facing self-regulation supports separated from instructional mechanisms; not a learner assessment.",
+  "boundaries": [
+    "这是学习支持建议，不是 SLR 测评结果。",
+    "它不用于判断学习能力、心理状态或固定学习风格。",
+    "人格线索只能调整支持的强度、节奏与选择空间，不能决定知识难度或是否启用有效教学机制。"
+  ],
+  "dimensions": {
+    "goal_planning": {
+      "label": "目标与计划",
+      "detail": "把任务拆成可完成的小步，明确证据、时间预算和下一次复习。",
+      "actions": ["明确本轮结果", "显示成功证据", "展示可见进度", "安排下一次复习"]
+    },
+    "monitoring_regulation": {
+      "label": "监控与调节",
+      "detail": "在关键节点检查理解，并依据可信表现选择恢复步骤。",
+      "actions": ["提交前预测把握度", "进行一分钟自检", "遇到卡点时使用恢复提示", "依据结果调整下一步"]
+    },
+    "reflection_transfer": {
+      "label": "反思与迁移",
+      "detail": "用自己的话解释关键规则，并连接到不同情境。",
+      "actions": ["用自己的话总结", "解释关键步骤", "尝试迁移到新例子"]
+    },
+    "motivation_emotion": {
+      "label": "动机与情绪支持",
+      "detail": "以小目标、可控选择和非评判反馈维持节奏。",
+      "actions": ["只突出一个推荐下一步", "提供可选节奏", "使用非评判性反馈"]
+    }
+  },
+  "mechanisms": {
+    "scaffolding_fading": {
+      "label": "支架递减",
+      "research_basis": "worked examples, completion problems, guided practice, and scaffold fading",
+      "trigger_conditions": ["new_or_weak_concept", "learner_requests_hint", "repeated_incorrect"],
+      "allowed_actions": ["learn", "try"],
+      "default_moves": ["完整示例", "分步提示", "补全练习", "独立练习"],
+      "success_signals": ["verified_correct", "independent_correct_streak"],
+      "stop_conditions": ["independent_correct_streak", "learner_rejects_support"]
+    },
+    "error_repair_feedback": {
+      "label": "错误修复",
+      "research_basis": "corrective feedback, contrast cases, metacognitive calibration, and immediate retry",
+      "trigger_conditions": ["verified_incorrect", "high_confidence_incorrect", "active_repair"],
+      "allowed_actions": ["fix", "decide"],
+      "default_moves": ["定位错误", "呈现正确规则", "对比或反例", "立即近似题重试"],
+      "success_signals": ["repair_retry_correct", "calibration_improved"],
+      "stop_conditions": ["repair_scheduled", "two_failed_retries_escalate_to_learn"]
+    },
+    "retrieval_spacing": {
+      "label": "提取与间隔",
+      "research_basis": "retrieval practice, distributed practice, and interleaving",
+      "trigger_conditions": ["review_due", "repair_completed", "mission_completed"],
+      "allowed_actions": ["remember"],
+      "default_moves": ["主动提取", "错项优先", "交错题型", "调整下次间隔"],
+      "success_signals": ["review_verified_correct", "retention_streak"],
+      "stop_conditions": ["daily_review_limit_reached", "no_due_items"]
+    }
+  },
+  "action_bindings": {
+    "mission": {"slr_dimensions": ["goal_planning", "motivation_emotion"], "mechanisms": []},
+    "learn": {"slr_dimensions": ["monitoring_regulation", "motivation_emotion"], "mechanisms": ["scaffolding_fading"]},
+    "try": {"slr_dimensions": ["monitoring_regulation", "reflection_transfer"], "mechanisms": ["scaffolding_fading"]},
+    "fix": {"slr_dimensions": ["monitoring_regulation", "motivation_emotion"], "mechanisms": ["error_repair_feedback"]},
+    "decide": {"slr_dimensions": ["monitoring_regulation", "reflection_transfer", "goal_planning"], "mechanisms": ["error_repair_feedback"]},
+    "remember": {"slr_dimensions": ["goal_planning", "monitoring_regulation"], "mechanisms": ["retrieval_spacing"]}
+  }
+}

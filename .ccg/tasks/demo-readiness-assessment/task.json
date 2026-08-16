@@ -1,0 +1,18 @@
+{
+  "id": "demo-readiness-assessment",
+  "title": "Full demo-readiness assessment: pipeline/function/UI/models/i18n/memory → assessment doc + modification plan (executing after user confirm)",
+  "status": "executing",
+  "strategy": "deep-research",
+  "currentPhase": "4-execute-in-progress",
+  "nextAction": "§2 录前冒烟 checklist 交用户手跑（后端层已验）；§3.2 i18n 统一建议演示后做（待用户拍板是否演示前做）",
+  "gate": "demo-blocking work done (config verified E2E, backend boots, §3.1+§3.3 committed); §3.2 deferred-pending-user-risk-call",
+  "branch": "ws-1b",
+  "scope": "demo-readiness-assessment",
+  "createdAt": "2026-08-09",
+  "executedAt": "2026-08-09",
+  "deliverables": ["ASSESSMENT.md", "MODIFICATION-PLAN.md"],
+  "method": "3 parallel Explore agents (pipeline+flows / models+memory / UI+i18n) + Claude empirical resolver checks + 12-invariant cross-validation",
+  "headline": "core learning loop demo-ready now; embedding+search configured & verified E2E; backend boots; 0 invariant violations; §3.1+§3.3 committed; §3.2 deferred (i18n already works, migration is pre-demo risk)",
+  "commits": ["18436ac (§3.3 stray key)", "41a2a52 (§3.1 dead-code annotation)"],
+  "pending": ["§2 UI smoke (user manual run)", "§3.2 i18n unification (deferred, user risk-call)"]
+}

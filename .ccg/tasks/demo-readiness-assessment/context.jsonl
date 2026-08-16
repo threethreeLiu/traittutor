@@ -1,0 +1,9 @@
+{"_example": "Fill with {\"file\": \"path\", \"reason\": \"why\"}. Seed rows are skipped."}
+{"file":"traittutor/generate/service.py","reason":"generation pipeline: flag-OFF _generate_courseware (line 335, default demo path) vs flag-ON orchestrator (line 1132)"}
+{"file":"traittutor/services/models/local_catalog.py","reason":"load_local_llm runtime LLM resolution; catalog currently shows llm empty"}
+{"file":"data/user/settings/model_catalog.json","reason":"gitignored local catalog; only imagegen configured, llm/embedding/search/tts/stt empty"}
+{"file":"traittutor/services/memory/","reason":"L1->L2->L3 markdown persistence + LLM consolidator; per-user partition (#6/#7)"}
+{"file":"web/i18n/I18nProvider.tsx","reason":"i18next+react-i18next setup exists; assess coverage not build"}
+{"file":"web/locales/","reason":"i18n language coverage + key counts"}
+{"file":"web/lib/traittutor-api.ts","reason":"frontend->backend wiring; which pages call it"}
+{"file":"traittutor/api/routers/traittutor_generate.py","reason":"generation API entry; default demo path"}

@@ -1,0 +1,6 @@
+{"_example": "Fill with {\"file\": \"path\", \"reason\": \"why\"}. Seed rows are skipped."}
+{"file": "traittutor/learning/event_chain.py", "reason": "canonical event-first chain; invariants #1/#2/#4 (event-before-derived, strong-evidence BKT, idempotent replay)"}
+{"file": "traittutor/components/projection.py", "reason": "generation->PageSchema projection; invariant #8 whitelist + #5 no answer keys"}
+{"file": "traittutor/orchestration/courseware_orchestrator.py", "reason": "run executor + idempotent run store; invariant #4 concurrent no-double-bill"}
+{"file": "web/components/learning/PageSchemaRenderer.tsx", "reason": "frontend whitelist render + CSP; invariant #8 + XSS"}
+{"file": "tests/e2e/test_p0b_joint_wiring.py", "reason": "joint E2E — verify it actually proves #2/#3/#4/#5/#6/#8/#11 claims"}

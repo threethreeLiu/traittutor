@@ -1,0 +1,23 @@
+{
+  "version": "traittutor-public-product-support-v1",
+  "score_bands": {"low_max": 4, "high_min": 7, "core_low_max": 3, "core_high_min": 8, "edge_low": 4, "edge_high": 7},
+  "need_levels": {"high_core": 5, "edge": 3, "default": 2, "interaction_default": 1},
+  "copy": {
+    "tone_high_agreeableness": "supportive and non-judgmental",
+    "tone_low_agreeableness": "direct and task-focused",
+    "tone_edge": "slightly adjusted in wording only; avoid adding new support structure",
+    "tone_default": "balanced and respectful",
+    "structure_high": "use explicit goals, checklist-like planning cues, and visible progress markers",
+    "structure_low": "use micro-learning chunks, immediate completion signals, and short checkpoint loops",
+    "structure_default": "keep structure academically neutral unless another core trait requires stronger scaffolding",
+    "interaction_high": "allow dialogic prompts, role-perspective cues, and high-address interaction",
+    "interaction_low": "prefer independent processing, low-distraction summaries, and internal self-check",
+    "interaction_default": "keep interaction light and avoid introducing standalone social scaffolds",
+    "scaffolding_high": "mark the task as non-evaluative, reduce ambiguity, and add positive confirmation at key nodes",
+    "scaffolding_low": "allow challenge-driven tasks, complex cases, and less emotional cushioning",
+    "scaffolding_depth": "can tolerate conceptual depth when anchored to clear goals",
+    "scaffolding_default": "for edge traits, adjust wording first and avoid adding independent structural modules",
+    "motivation": "core-zone traits may reshape SRL scaffolds; edge-zone traits should only nudge delivery tone; neutral traits stay silent",
+    "rationale": "Trait totals use a three-zone policy: core extremes drive structural SRL scaffolds, edge tendencies only adjust delivery tone, and neutral scores remain silent."
+  }
+}
