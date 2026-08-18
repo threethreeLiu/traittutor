@@ -3,10 +3,80 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TraitTutor — 人格驱动的 AI 学习教练 · Personality-Driven AI Learning Coach</title>
-<meta name="description" content="TraitTutor 是一位能长期对话、搜索和研究的 AI 学习教练。人格决定怎么教，BKT 决定教什么。An AI learning coach — personality shapes how we teach, evidence decides what to teach.">
+<title>TraitTutor AI 学习教练｜人格支持与证据驱动学习</title>
+<meta name="description" content="TraitTutor 是人格支持与学习证据驱动的 AI 学习教练。上传材料生成个性化学习路径，用 Big Five 调整教学支持，并以服务端判分证据持续安排讲解、练习与复习。">
+<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+<meta name="application-name" content="TraitTutor">
+<meta name="author" content="GOAI Boundless Agents">
+<meta name="theme-color" content="#ffffff">
+<meta name="color-scheme" content="light">
+<link rel="canonical" href="https://traittutor.com/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="TraitTutor">
+<meta property="og:url" content="https://traittutor.com/">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:locale:alternate" content="en_US">
+<meta property="og:title" content="TraitTutor AI 学习教练｜人格支持与证据驱动学习">
+<meta property="og:description" content="上传材料生成个性化学习路径。人格影响教学支持，可信作答证据决定下一步学什么。">
+<meta property="og:image" content="https://traittutor.com/assets/brand/traittutor-mark-snow.png">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta property="og:image:alt" content="TraitTutor 蓝色产品图标">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="TraitTutor AI 学习教练｜人格支持与证据驱动学习">
+<meta name="twitter:description" content="上传材料生成个性化学习路径。人格影响教学支持，可信作答证据决定下一步学什么。">
+<meta name="twitter:image" content="https://traittutor.com/assets/brand/traittutor-mark-snow.png">
+<meta name="twitter:image:alt" content="TraitTutor 蓝色产品图标">
 <link rel="icon" type="image/png" href="./assets/icons/favicon.png">
 <link rel="apple-touch-icon" href="./assets/icons/favicon.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://traittutor.com/#website",
+      "url": "https://traittutor.com/",
+      "name": "TraitTutor",
+      "alternateName": "TraitTutor AI Learning Coach",
+      "inLanguage": ["zh-CN", "en"],
+      "publisher": {"@id": "https://traittutor.com/#organization"}
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://traittutor.com/#organization",
+      "name": "GOAI Boundless Agents",
+      "url": "https://traittutor.com/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://traittutor.com/assets/brand/traittutor-mark-snow.png",
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://traittutor.com/#software",
+      "url": "https://traittutor.com/",
+      "name": "TraitTutor",
+      "alternateName": "TraitTutor AI Learning Coach",
+      "image": "https://traittutor.com/assets/brand/traittutor-mark-snow.png",
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "Web",
+      "inLanguage": ["zh-CN", "en"],
+      "description": "人格支持与学习证据驱动的 AI 学习教练，帮助学习者从材料建立个性化学习路径，并根据可信作答证据安排后续讲解、练习与复习。",
+      "featureList": [
+        "学习材料生成学习路径",
+        "Big Five 教学支持调节",
+        "基于可信作答证据的学习状态更新",
+        "个性化讲解、练习与复习安排",
+        "长期研究与学习工具"
+      ],
+      "publisher": {"@id": "https://traittutor.com/#organization"}
+    }
+  ]
+}
+</script>
 <style>
   :root{
     /* Mirrors web/app/globals.css .theme-snow. */
@@ -40,6 +110,8 @@
   ::selection{background:var(--frost-soft);color:var(--frost-deep)}
   a{color:inherit;text-decoration:none}
   .wrap{max-width:1120px;margin:0 auto;padding:0 28px}
+  .skip-link{position:fixed;left:18px;top:12px;z-index:200;transform:translateY(-150%);padding:9px 14px;border-radius:9px;background:var(--deep);color:#fff;font-size:14px;font-weight:600;transition:transform .2s}
+  .skip-link:focus{transform:translateY(0)}
 
   /* ---------- bilingual ---------- */
   .t-en{display:none}
@@ -329,8 +401,10 @@
 </head>
 <body>
 
+<a class="skip-link" href="#main-content"><span class="t-zh">跳到主要内容</span><span class="t-en">Skip to main content</span></a>
+
 <!-- ============ NAV ============ -->
-<nav id="nav">
+<nav id="nav" aria-label="主要导航">
   <div class="wrap nav-inner">
     <a class="logo" href="#top">
       <span class="logo-mark"><img src="./assets/brand/traittutor-mark-snow.png" alt="" width="32" height="32"></span>TraitTutor
@@ -343,11 +417,13 @@
       <a href="#trust"><span class="t-zh">边界与信任</span><span class="t-en">Trust</span></a>
     </div>
     <div class="nav-actions">
-      <button class="lang-btn" id="langBtn">EN</button>
-      <a class="btn btn-primary btn-sm" href="https://threethreeliu.top/traittutor-all-web/" target="_blank" rel="noopener"><span class="t-zh">免费试用 →</span><span class="t-en">Try Free →</span></a>
+      <button class="lang-btn" id="langBtn" type="button" aria-label="Switch language to English">EN</button>
+      <a class="btn btn-primary btn-sm" href="https://threethreeliu.top/traittutor-all-web/register" target="_blank" rel="noopener"><span class="t-zh">免费试用 →</span><span class="t-en">Try Free →</span></a>
     </div>
   </div>
 </nav>
+
+<main id="main-content">
 
 <!-- ============ HERO ============ -->
 <header class="hero" id="top">
@@ -356,15 +432,15 @@
     <div>
       <span class="eyebrow"><span class="t-zh">AI 学习教练 · 人格驱动</span><span class="t-en">AI LEARNING COACH · PERSONALITY-DRIVEN</span></span>
       <h1>
-        <span class="t-zh">人格决定<span class="accent">怎么教<svg viewBox="0 0 120 12" preserveAspectRatio="none"><path d="M2 9 C 30 3, 90 3, 118 8"/></svg></span>，<br>证据决定教什么。</span>
-        <span class="t-en">Personality shapes <span class="accent">how we teach<svg viewBox="0 0 120 12" preserveAspectRatio="none"><path d="M2 9 C 30 3, 90 3, 118 8"/></svg></span>.<br>Evidence decides what to teach.</span>
+        <span class="t-zh">TraitTutor：<br>人格决定<span class="accent">怎么教<svg viewBox="0 0 120 12" preserveAspectRatio="none"><path d="M2 9 C 30 3, 90 3, 118 8"/></svg></span>，<br>证据决定教什么。</span>
+        <span class="t-en">TraitTutor:<br>Personality shapes <span class="accent">how we teach<svg viewBox="0 0 120 12" preserveAspectRatio="none"><path d="M2 9 C 30 3, 90 3, 118 8"/></svg></span>.<br>Evidence decides what to teach.</span>
       </h1>
       <p class="hero-sub">
         <span class="t-zh">TraitTutor 是一位能长期对话、搜索和研究的 AI 学习教练。它用 <strong>Big&nbsp;Five 人格</strong>映射出你需要的支持方式，再用 <strong>BKT 学科证据</strong>追踪你真正掌握到哪里——每一次生成的学习页面，组件、顺序、节奏都为你而变。</span>
         <span class="t-en">TraitTutor is an AI learning coach that chats, searches, and researches with you over the long term. Your <strong>Big Five personality</strong> maps to the support you need, while <strong>BKT subject evidence</strong> tracks what you've truly mastered — every generated page adapts its components, order, and pace to you.</span>
       </p>
       <div class="hero-cta">
-        <a class="btn btn-primary btn-lg" href="https://threethreeliu.top/traittutor-all-web/" target="_blank" rel="noopener"><span class="t-zh">立即免费试用</span><span class="t-en">Start Free Trial</span></a>
+        <a class="btn btn-primary btn-lg" href="https://threethreeliu.top/traittutor-all-web/register" target="_blank" rel="noopener"><span class="t-zh">立即免费试用</span><span class="t-en">Start Free Trial</span></a>
         <a class="btn btn-ghost btn-lg" href="#personality"><span class="t-zh">看看它怎么工作</span><span class="t-en">See How It Works</span></a>
       </div>
       <p class="hero-note"><span class="t-zh">无需安装 · 浏览器打开即用 · 个性化可随时查看、修正或关闭</span><span class="t-en">No install · Runs in your browser · Personalization can be viewed, edited, or turned off anytime</span></p>
@@ -642,10 +718,11 @@
     <p class="sec-tag" style="margin-bottom:18px">GET STARTED</p>
     <h2><span class="t-zh">让学习结果，<br>真正改变你的下一步。</span><span class="t-en">Let learning outcomes truly<br>change your next step.</span></h2>
     <p><span class="t-zh">答一道题，看状态如何变化，再看下一页如何为你调整——这就是 TraitTutor 与普通 AI 学习工具的区别。</span><span class="t-en">Answer a question, watch your state change, and see the next page adapt — that's the difference between TraitTutor and ordinary AI study tools.</span></p>
-    <a class="btn btn-primary btn-lg" href="https://threethreeliu.top/traittutor-all-web/" target="_blank" rel="noopener"><span class="t-zh">免费试用 TraitTutor →</span><span class="t-en">Try TraitTutor Free →</span></a>
+    <a class="btn btn-primary btn-lg" href="https://threethreeliu.top/traittutor-all-web/register" target="_blank" rel="noopener"><span class="t-zh">免费试用 TraitTutor →</span><span class="t-en">Try TraitTutor Free →</span></a>
     <p class="hero-note"><span class="t-zh">注册即可体验完整系统 · 演示数据已脱敏</span><span class="t-en">Sign up to try the full system · Demo data anonymized</span></p>
   </div>
 </section>
+</main>
 
 <!-- ============ FOOTER ============ -->
 <footer>
@@ -671,9 +748,10 @@ function applyLang(){
   document.body.classList.toggle('en', lang === 'en');
   document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN';
   langBtn.textContent = lang === 'en' ? '中' : 'EN';
+  langBtn.setAttribute('aria-label', lang === 'en' ? '切换语言为中文' : 'Switch language to English');
   document.title = lang === 'en'
-    ? 'TraitTutor — Personality-Driven AI Learning Coach'
-    : 'TraitTutor — 人格驱动的 AI 学习教练';
+    ? 'TraitTutor AI Learning Coach | Personality Support & Learning Evidence'
+    : 'TraitTutor AI 学习教练｜人格支持与证据驱动学习';
   render(); // re-render dynamic tag
 }
 langBtn.addEventListener('click', () => {
