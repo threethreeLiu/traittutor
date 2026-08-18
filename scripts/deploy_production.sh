@@ -291,6 +291,10 @@ check_url() {
 check_url "http://127.0.0.1:${API_PORT}/api/v1/auth/status" "api"
 curl --fail --silent --show-error --head "http://127.0.0.1:${WEB_PORT}${BASE_PATH}/login" >/dev/null
 echo "health ok: web"
+AUTH_REDIRECT_HEADERS="$(curl --silent --show-error --head "http://127.0.0.1:${WEB_PORT}${BASE_PATH}/home")"
+printf '%s\n' "$AUTH_REDIRECT_HEADERS" | grep -Eq '^HTTP/[^ ]+ 30[1278]'
+printf '%s\n' "$AUTH_REDIRECT_HEADERS" | tr -d '\r' | grep -Eiq "^location: .*${BASE_PATH}/login([?]|$)"
+echo "health ok: unauthenticated workspace redirect"
 check_url "http://127.0.0.1:${WEB_PORT}${BASE_PATH}/api/v1/auth/status" "web api proxy"
 CSS_PATH="$(find "${RELEASE_DIR}/web/.next/static" -type f -name '*.css' | head -1 | sed "s#^${RELEASE_DIR}/web/.next/static#${BASE_PATH}/_next/static#")"
 [[ -n "$CSS_PATH" ]] || { echo "health failed: no built CSS" >&2; exit 1; }
@@ -334,6 +338,10 @@ sudo systemctl --no-pager --full status \
   traittutor-reminder-worker.service | sed -n '1,60p'
 curl --fail --silent --show-error "http://127.0.0.1:${API_PORT}/api/v1/auth/status" >/dev/null && echo "api: healthy"
 curl --fail --silent --show-error --head "http://127.0.0.1:${WEB_PORT}${BASE_PATH}/login" >/dev/null && echo "web: healthy"
+AUTH_REDIRECT_HEADERS="$(curl --silent --show-error --head "http://127.0.0.1:${WEB_PORT}${BASE_PATH}/home")"
+printf '%s\n' "$AUTH_REDIRECT_HEADERS" | grep -Eq '^HTTP/[^ ]+ 30[1278]'
+printf '%s\n' "$AUTH_REDIRECT_HEADERS" | tr -d '\r' | grep -Eiq "^location: .*${BASE_PATH}/login([?]|$)"
+echo "unauthenticated workspace redirect: healthy"
 curl --fail --silent --show-error "http://127.0.0.1:${WEB_PORT}${BASE_PATH}/api/v1/auth/status" >/dev/null && echo "web api proxy: healthy"
 if [[ -f "${TRAITTUTOR_HOME_REMOTE}/config/models.local.yaml" ]]; then
   echo "model config: present"
@@ -375,6 +383,9 @@ sudo systemctl restart traittutor-api.service traittutor-web.service \
   traittutor-research-worker.service traittutor-reminder-worker.service
 curl --fail --silent --show-error "http://127.0.0.1:${API_PORT}/api/v1/auth/status" >/dev/null
 curl --fail --silent --show-error --head "http://127.0.0.1:${WEB_PORT}${BASE_PATH}/login" >/dev/null
+AUTH_REDIRECT_HEADERS="$(curl --silent --show-error --head "http://127.0.0.1:${WEB_PORT}${BASE_PATH}/home")"
+printf '%s\n' "$AUTH_REDIRECT_HEADERS" | grep -Eq '^HTTP/[^ ]+ 30[1278]'
+printf '%s\n' "$AUTH_REDIRECT_HEADERS" | tr -d '\r' | grep -Eiq "^location: .*${BASE_PATH}/login([?]|$)"
 curl --fail --silent --show-error "http://127.0.0.1:${WEB_PORT}${BASE_PATH}/api/v1/auth/status" >/dev/null
 sudo systemctl is-active --quiet traittutor-api.service
 sudo systemctl is-active --quiet traittutor-web.service

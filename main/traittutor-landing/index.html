@@ -154,7 +154,9 @@
   }
   .chip.on{opacity:1;transform:none}
   .chip.hot{background:var(--cyan-soft);color:var(--frost-deep);border-color:rgba(37,99,235,.28)}
-  .pc-arrow{display:flex;align-items:center;gap:8px;margin:14px 0 12px;font-size:12.5px;color:var(--frost);font-weight:600}
+  .pc-arrow{display:flex;align-items:center;gap:8px;width:max-content;margin:14px 0 12px;font-size:12.5px;color:var(--frost);font-weight:600;transition:color .2s,transform .2s}
+  .pc-arrow:hover{color:var(--frost-deep);transform:translateX(2px)}
+  .pc-arrow:focus-visible{outline:2px solid var(--frost);outline-offset:4px;border-radius:4px}
   .pc-arrow svg{animation:nudge 1.8s ease-in-out infinite;flex-shrink:0}
   @keyframes nudge{0%,100%{transform:translateX(0)}50%{transform:translateX(5px)}}
 
@@ -380,7 +382,7 @@
       <div class="trait-row" style="margin-bottom:0"><span class="trait-name"><span class="t-zh">神经质</span><span class="t-en">Neuroticism</span></span><div class="trait-bar"><div class="trait-fill" data-w="38"></div></div><span class="trait-val">38</span></div>
       <div class="pc-divider"></div>
       <p class="pc-flow-label"><span class="t-zh">→ 映射为 SRL 支持维度，决定下一张学习页面</span><span class="t-en">→ Mapped to SRL support dimensions, shaping your next page</span></p>
-      <div class="pc-arrow"><span class="t-zh">生成组件计划</span><span class="t-en">Generating component plan</span> <svg width="16" height="12" viewBox="0 0 16 12" fill="none"><path d="M1 6h13M10 1.5 14.5 6 10 10.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <a class="pc-arrow" href="https://threethreeliu.top/traittutor-all-web/register" target="_blank" rel="noopener"><span class="t-zh">生成组件计划</span><span class="t-en">Generate a component plan</span> <svg width="16" height="12" viewBox="0 0 16 12" fill="none" aria-hidden="true"><path d="M1 6h13M10 1.5 14.5 6 10 10.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
       <div class="pc-chips">
         <span class="chip hot"><span class="t-zh">起点诊断</span><span class="t-en">Diagnostic</span></span>
         <span class="chip hot"><span class="t-zh">核心讲解</span><span class="t-en">Core Lesson</span></span>

@@ -62,5 +62,8 @@ def test_production_installer_defaults_to_deterministic_and_deploy_requires_repo
 
     assert 'COURSEWARE_MODE="${9:-deterministic}"' in installer
     assert "TRAITTUTOR_COURSEWARE_ORCHESTRATION_MODE=${COURSEWARE_MODE}" in installer
+    assert "Environment=TRAITTUTOR_AUTH_ENABLED=true" in installer
     assert 'COURSEWARE_MODE="${TRAITTUTOR_DEPLOY_COURSEWARE_MODE:-deterministic}"' in deploy
     assert "agentic production mode requires TRAITTUTOR_AGENTIC_ACCEPTANCE_REPORT" in deploy
+    assert "health ok: unauthenticated workspace redirect" in deploy
+    assert "unauthenticated workspace redirect: healthy" in deploy

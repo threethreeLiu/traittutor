@@ -68,6 +68,7 @@ Environment=PORT=${WEB_PORT}
 Environment=HOSTNAME=127.0.0.1
 Environment=NEXT_PUBLIC_BASE_PATH=${BASE_PATH}
 Environment=TRAITTUTOR_API_BASE_URL=http://127.0.0.1:${API_PORT}
+Environment=TRAITTUTOR_AUTH_ENABLED=true
 ExecStart=/usr/bin/node ${BASE_DIR}/current/web/.next/standalone/server.js
 Restart=always
 RestartSec=5
