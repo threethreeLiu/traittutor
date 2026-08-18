@@ -12,7 +12,6 @@
       <feBlend in="SourceGraphic" mode="normal"/>
     </filter>
   </defs>
-  <rect width="64" height="64" rx="16" fill="#090A17"/>
   <path
     d="M13 17h38a6 6 0 0 1 0 12H39a7 7 0 0 0-7 7v15a6 6 0 0 1-12 0V39a10 10 0 0 0-10-10"
     stroke="url(#tt-favicon-stroke)"
