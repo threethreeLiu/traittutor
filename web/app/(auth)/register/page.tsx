@@ -8,6 +8,9 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { register, login, fetchAuthStatus, safeAuthRedirect } from "@/lib/auth";
 import { TraitTutorMark } from "@/components/brand/TraitTutorMark";
 
+const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const USERNAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/;
+
 function RegisterPageContent() {
   const { t } = useTranslation();
   const router = useRouter();
@@ -33,20 +36,48 @@ function RegisterPageContent() {
     e.preventDefault();
     setError("");
 
+    const identity = username.trim();
+
+    if (!identity) {
+      setError(t("Email or username cannot be empty"));
+      return;
+    }
+
+    if (identity.includes("@") ? !EMAIL_PATTERN.test(identity) : !USERNAME_PATTERN.test(identity)) {
+      setError(t(identity.includes("@")
+        ? "Enter a valid email address"
+        : "Username must use 3-64 letters, numbers, dots, underscores, or hyphens"));
+      return;
+    }
+
+    if (password.length < 8) {
+      setError(t("Password must be at least 8 characters"));
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError(t("Passwords do not match"));
       return;
     }
 
     setLoading(true);
-    const result = await register(username.trim(), password);
+    const result = await register(identity, password);
 
     if (result.ok) {
-      const signedIn = await login(username.trim(), password);
-      if (signedIn.ok) router.replace(next);
-      else router.replace(`/login?registered=1&next=${encodeURIComponent(next)}`);
+      const signedIn = await login(identity, password);
+      if (signedIn.ok) {
+        const status = await fetchAuthStatus();
+        if (status?.authenticated) {
+          router.replace(next);
+          return;
+        }
+        setError(t("Account created, but the sign-in session was not established. Please sign in again."));
+        setLoading(false);
+      } else {
+        router.replace(`/login?registered=1&next=${encodeURIComponent(next)}`);
+      }
     } else {
-      setError(result.error ?? t("Registration failed"));
+      setError(t(result.error ?? "Registration failed"));
       setLoading(false);
     }
   }
@@ -105,6 +136,7 @@ function RegisterPageContent() {
               type={passwordVisible ? "text" : "password"}
               autoComplete="new-password"
               required
+              minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-3.5 py-2.5 pr-11 rounded-lg border border-[var(--border)]
@@ -132,6 +164,7 @@ function RegisterPageContent() {
               type={passwordVisible ? "text" : "password"}
               autoComplete="new-password"
               required
+              minLength={8}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="w-full px-3.5 py-2.5 pr-11 rounded-lg border border-[var(--border)]
