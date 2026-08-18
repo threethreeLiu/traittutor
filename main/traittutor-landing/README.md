@@ -31,7 +31,7 @@ English summary is at the [bottom of this file](#english-summary).
         ├── apple-touch-icon.png
         ├── favicon.png
         ├── favicon-32x32.png
-        └── favicon.svg
+        └── favicon-16x16.png
 ```
 
 ## 本地预览
