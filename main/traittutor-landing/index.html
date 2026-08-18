@@ -27,8 +27,9 @@
 <meta name="twitter:description" content="上传材料生成个性化学习路径。人格影响教学支持，可信作答证据决定下一步学什么。">
 <meta name="twitter:image" content="https://traittutor.com/assets/brand/traittutor-mark-snow.png">
 <meta name="twitter:image:alt" content="TraitTutor 蓝色产品图标">
-<link rel="icon" type="image/png" href="./assets/icons/favicon.png">
-<link rel="apple-touch-icon" href="./assets/icons/favicon.png">
+<link rel="icon" type="image/svg+xml" href="./assets/icons/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png">
+<link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -73,6 +74,54 @@
         "长期研究与学习工具"
       ],
       "publisher": {"@id": "https://traittutor.com/#organization"}
+    },
+    {
+      "@type": "FAQPage",
+      "@id": "https://traittutor.com/#faq",
+      "url": "https://traittutor.com/",
+      "inLanguage": "zh-CN",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "TraitTutor 是什么？",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "TraitTutor 是一位能长期对话、搜索和研究的 AI 学习教练。上传学习材料即可生成个性化学习路径：Big Five 人格决定教学支持的方式，服务端判分的学习证据决定下一步学什么。"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "TraitTutor 和普通 AI 聊天工具有什么区别？",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "普通工具记得你问过什么，却不知道你真正学会了什么。TraitTutor 只把服务端判分、归因可靠的作答写入学习状态（BKT），并据此调整下一页的组件、顺序和节奏；提问、阅读、搜索只算接触，不会更新掌握度。"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "TraitTutor 的人格测评会给用户贴标签吗？",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "不会。Big Five 可以通过 TIPI 测评完成，也可以手动调整，它只映射为可随时查看、修正或关闭的教学支持偏好，不用于能力判断、学习风格定型或任何心理诊断。"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "如何开始使用 TraitTutor？",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "在 traittutor.com 点击“立即免费试用”注册即可体验完整系统：无需安装，浏览器打开即用，演示数据已脱敏。"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "TraitTutor 如何处理我的学习数据？",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "用户数据相互隔离。学习记录与画像可以查看、更正、删除或关闭，基础功能不受影响；答案与判分逻辑保存在服务端，不会进入浏览器。"
+          }
+        }
+      ]
     }
   ]
 }
@@ -384,6 +433,16 @@
   .trust-item .no{font-size:13px;font-weight:800;color:var(--mist);letter-spacing:.08em;margin-bottom:12px}
   .trust-item b{display:block;font-size:15.5px;margin-bottom:8px}
   .trust-item span{font-size:13.5px;color:var(--ink-soft);line-height:1.6}
+
+  /* ---------- FAQ ---------- */
+  .faq-list{max-width:780px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+  .faq-item{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:0 24px;transition:border-color .25s}
+  .faq-item[open]{border-color:var(--frost)}
+  .faq-item summary{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:19px 0;font-size:15.5px;font-weight:600;cursor:pointer;list-style:none}
+  .faq-item summary::-webkit-details-marker{display:none}
+  .faq-item summary::after{content:"+";flex:none;font-size:20px;line-height:1;font-weight:600;color:var(--frost);transition:transform .25s}
+  .faq-item[open] summary::after{transform:rotate(45deg)}
+  .faq-item .faq-a{padding-bottom:20px;font-size:14.5px;color:var(--ink-soft);line-height:1.75}
 
   /* ---------- Final CTA ---------- */
   .final{text-align:center;padding:120px 0}
@@ -711,6 +770,39 @@
   </div>
 </section>
 </div>
+
+<!-- ============ FAQ ============ -->
+<section id="faq">
+  <div class="wrap">
+    <div class="sec-head center reveal">
+      <p class="sec-tag">FAQ</p>
+      <h2><span class="t-zh">常见问题</span><span class="t-en">Frequently asked questions</span></h2>
+      <p class="sec-desc"><span class="t-zh">关于个性化、证据和数据的边界，这里先说清楚。</span><span class="t-en">Clear answers on personalization, evidence, and your data.</span></p>
+    </div>
+    <div class="faq-list">
+      <details class="faq-item reveal">
+        <summary><span class="t-zh">TraitTutor 是什么？</span><span class="t-en">What is TraitTutor?</span></summary>
+        <p class="faq-a"><span class="t-zh">TraitTutor 是一位能长期对话、搜索和研究的 AI 学习教练。上传学习材料即可生成个性化学习路径：Big Five 人格决定教学支持的方式，服务端判分的学习证据决定下一步学什么。</span><span class="t-en">TraitTutor is an AI learning coach that chats, searches, and researches with you over the long term. Upload study materials to get a personalized learning path — your Big Five profile shapes how you're supported, and server-graded learning evidence decides what comes next.</span></p>
+      </details>
+      <details class="faq-item reveal">
+        <summary><span class="t-zh">它和普通 AI 聊天工具有什么区别？</span><span class="t-en">How is it different from ordinary AI chat tools?</span></summary>
+        <p class="faq-a"><span class="t-zh">普通工具记得你问过什么，却不知道你真正学会了什么。TraitTutor 只把服务端判分、归因可靠的作答写入学习状态（BKT），并据此调整下一页的组件、顺序和节奏；提问、阅读、搜索只算接触，不会更新掌握度。</span><span class="t-en">Most tools remember what you asked, not what you actually learned. TraitTutor updates your learning state (BKT) only from reliably graded, well-attributed answers, then adapts the components, order, and pace of your next page — asking, reading, and searching count as exposure, not mastery.</span></p>
+      </details>
+      <details class="faq-item reveal">
+        <summary><span class="t-zh">人格测评会给我贴标签吗？</span><span class="t-en">Will the personality assessment label me?</span></summary>
+        <p class="faq-a"><span class="t-zh">不会。Big Five 可以通过 TIPI 测评完成，也可以手动调整，它只映射为可随时查看、修正或关闭的教学支持偏好，不用于能力判断、学习风格定型或任何心理诊断。</span><span class="t-en">No. Your Big Five profile — from the TIPI or manual tuning — maps only to teaching-support preferences you can view, edit, or turn off anytime. It is never used for ability judgments, fixed learning styles, or diagnosis.</span></p>
+      </details>
+      <details class="faq-item reveal">
+        <summary><span class="t-zh">如何开始使用？</span><span class="t-en">How do I get started?</span></summary>
+        <p class="faq-a"><span class="t-zh">点击页面上的“立即免费试用”注册即可体验完整系统：无需安装，浏览器打开即用，演示数据已脱敏。</span><span class="t-en">Sign up via “Start Free Trial” to try the full system — no install needed, it runs in your browser, and demo data is anonymized.</span></p>
+      </details>
+      <details class="faq-item reveal">
+        <summary><span class="t-zh">我的学习数据如何处理？</span><span class="t-en">How is my learning data handled?</span></summary>
+        <p class="faq-a"><span class="t-zh">用户数据相互隔离。学习记录与画像可以查看、更正、删除或关闭，基础功能不受影响；答案与判分逻辑保存在服务端，不会进入浏览器。</span><span class="t-en">User data stays isolated. Learning records and profiles can be viewed, corrected, deleted, or disabled without losing core features — answers and grading logic stay on the server, never in the browser.</span></p>
+      </details>
+    </div>
+  </div>
+</section>
 
 <!-- ============ FINAL CTA ============ -->
 <section class="final">
