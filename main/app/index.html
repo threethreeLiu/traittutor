@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TraitTutor — 人格驱动的 AI 学习教练 · Personality-Driven AI Learning Coach</title>
+<meta name="description" content="TraitTutor 是一位能长期对话、搜索和研究的 AI 学习教练。人格决定怎么教，BKT 决定教什么。An AI learning coach — personality shapes how we teach, evidence decides what to teach.">
+<link rel="icon" type="image/png" href="./assets/icons/favicon.png">
+<link rel="apple-touch-icon" href="./assets/icons/favicon.png">
+<style>
+  :root{
+    /* Mirrors web/app/globals.css .theme-snow. */
+    --paper:#FFFFFF;
+    --paper-2:#F7F7F7;
+    --ink:#0D0D0D;
+    --ink-soft:#6E6E6E;
+    --ink-faint:#8A8A8A;
+    --frost:#2563EB;
+    --frost-deep:#1D4ED8;
+    --frost-soft:#EFF6FF;
+    --mist:#6E6E6E;
+    --mist-soft:#F2F2F2;
+    --cyan:#3B82F6;
+    --cyan-soft:#EFF6FF;
+    --line:#E5E5E5;
+    --card:#FFFFFF;
+    --deep:#0D0D0D;
+    --radius:18px;
+    --shadow:0 1px 2px rgba(13,13,13,.05),0 14px 36px -18px rgba(37,99,235,.2);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:"PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei",-apple-system,sans-serif;
+    background:var(--paper);color:var(--ink);
+    line-height:1.7;-webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  body.en{font-family:"Segoe UI","Helvetica Neue",Arial,-apple-system,sans-serif}
+  ::selection{background:var(--frost-soft);color:var(--frost-deep)}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 28px}
+
+  /* ---------- bilingual ---------- */
+  .t-en{display:none}
+  body.en .t-zh{display:none}
+  body.en .t-en{display:inline}
+
+  /* ---------- Nav ---------- */
+  nav{
+    position:fixed;top:0;left:0;right:0;z-index:100;
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    background:rgba(255,255,255,.86);
+    border-bottom:1px solid transparent;transition:border-color .3s;
+  }
+  nav.scrolled{border-bottom-color:var(--line)}
+  .nav-inner{display:flex;align-items:center;justify-content:space-between;height:64px}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:19px;letter-spacing:-.01em}
+  .logo-mark{
+    width:32px;height:32px;
+    display:grid;place-items:center;
+  }
+  .logo-mark img{width:100%;height:100%;display:block;object-fit:contain}
+  .nav-links{display:flex;gap:26px;font-size:14.5px;color:var(--ink-soft)}
+  .nav-links a{transition:color .2s}
+  .nav-links a:hover{color:var(--frost)}
+  .nav-actions{display:flex;align-items:center;gap:12px}
+  .lang-btn{
+    font-family:inherit;font-size:13px;font-weight:600;letter-spacing:.03em;
+    padding:7px 14px;border-radius:999px;border:1.5px solid var(--line);
+    background:var(--card);color:var(--ink-soft);cursor:pointer;transition:all .2s;
+  }
+  .lang-btn:hover{border-color:var(--frost);color:var(--frost)}
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;
+    padding:11px 24px;border-radius:999px;font-size:15px;font-weight:600;
+    transition:transform .2s,box-shadow .2s,background .2s;cursor:pointer;border:none;
+  }
+  .btn-primary{
+    background:var(--frost);color:#fff;
+    box-shadow:0 6px 20px -6px rgba(37,99,235,.5);
+  }
+  .btn-primary:hover{background:var(--frost-deep);transform:translateY(-2px);box-shadow:0 10px 26px -6px rgba(37,99,235,.5)}
+  .btn-ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+  .btn-ghost:hover{border-color:var(--ink);transform:translateY(-2px)}
+  .btn-sm{padding:8px 18px;font-size:14px}
+  .btn-lg{padding:15px 34px;font-size:16.5px}
+  @media(max-width:920px){.nav-links{display:none}}
+
+  /* ---------- Hero ---------- */
+  .hero{padding:168px 0 90px;position:relative}
+  .hero::before{
+    content:"";position:absolute;top:-200px;right:-180px;width:640px;height:640px;border-radius:50%;
+    background:radial-gradient(circle,rgba(37,99,235,.08),transparent 65%);pointer-events:none;
+  }
+  .hero::after{
+    content:"";position:absolute;bottom:-260px;left:-220px;width:560px;height:560px;border-radius:50%;
+    background:radial-gradient(circle,rgba(13,13,13,.045),transparent 65%);pointer-events:none;
+  }
+  /* gentle snow drift */
+  .snow{
+    position:absolute;inset:0;pointer-events:none;opacity:.55;
+    background-image:
+      radial-gradient(circle,rgba(37,99,235,.12) 1.6px,transparent 1.7px),
+      radial-gradient(circle,rgba(13,13,13,.07) 1.2px,transparent 1.3px),
+      radial-gradient(circle,rgba(59,130,246,.13) 2px,transparent 2.1px);
+    background-size:340px 340px,220px 220px,460px 460px;
+    background-position:0 0,80px 120px,200px 40px;
+    animation:drift 46s linear infinite;
+  }
+  @keyframes drift{to{background-position:340px 680px,300px 560px,660px 500px}}
+  .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:64px;align-items:center;position:relative;z-index:1}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;letter-spacing:.12em;
+    color:var(--frost);background:var(--frost-soft);padding:6px 14px;border-radius:999px;margin-bottom:26px;
+  }
+  .eyebrow::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--frost)}
+  h1{
+    font-size:clamp(36px,5vw,56px);line-height:1.18;letter-spacing:-.03em;font-weight:800;
+    margin-bottom:24px;
+  }
+  h1 .accent{color:var(--frost);position:relative;white-space:nowrap}
+  h1 .accent svg{position:absolute;left:0;bottom:-6px;width:100%;height:12px;overflow:visible}
+  h1 .accent path{stroke:var(--cyan);stroke-width:5;fill:none;stroke-linecap:round;opacity:.8}
+  .hero-sub{font-size:17.5px;color:var(--ink-soft);max-width:540px;margin-bottom:38px}
+  .hero-sub strong{color:var(--ink);font-weight:600}
+  .hero-cta{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+  .hero-note{margin-top:18px;font-size:13px;color:var(--ink-faint)}
+  @media(max-width:920px){.hero-grid{grid-template-columns:1fr;gap:48px}.hero{padding-top:140px}}
+
+  /* Hero visual: persona card */
+  .persona-card{
+    background:var(--card);border-radius:22px;box-shadow:var(--shadow);
+    border:1px solid var(--line);padding:26px 26px 22px;position:relative;
+    transform:rotate(.6deg);
+  }
+  .pc-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:8px;flex-wrap:wrap}
+  .pc-title{font-size:13px;font-weight:700;letter-spacing:.08em;color:var(--ink-faint)}
+  .pc-badge{font-size:12px;font-weight:600;color:var(--mist);background:var(--mist-soft);padding:4px 11px;border-radius:999px}
+  .trait-row{display:grid;grid-template-columns:96px 1fr 34px;align-items:center;gap:12px;margin-bottom:13px}
+  .trait-name{font-size:13px;color:var(--ink-soft);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  body.en .trait-row{grid-template-columns:150px 1fr 34px}
+  .trait-bar{height:8px;border-radius:99px;background:var(--paper-2);overflow:hidden}
+  .trait-fill{height:100%;border-radius:99px;background:var(--frost);width:0;transition:width 1.2s cubic-bezier(.22,1,.36,1)}
+  .trait-row:nth-child(odd) .trait-fill{background:var(--mist)}
+  .trait-val{font-size:12.5px;color:var(--ink-faint);text-align:right;font-variant-numeric:tabular-nums}
+  .pc-divider{height:1px;background:var(--line);margin:18px -26px 16px}
+  .pc-flow-label{font-size:12px;color:var(--ink-faint);margin-bottom:10px;letter-spacing:.05em}
+  .pc-chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{
+    font-size:12.5px;font-weight:500;padding:5px 12px;border-radius:999px;
+    background:var(--paper-2);color:var(--ink-soft);border:1px solid var(--line);
+    opacity:0;transform:translateY(6px);transition:opacity .5s,transform .5s;
+  }
+  .chip.on{opacity:1;transform:none}
+  .chip.hot{background:var(--cyan-soft);color:var(--frost-deep);border-color:rgba(37,99,235,.28)}
+  .pc-arrow{display:flex;align-items:center;gap:8px;margin:14px 0 12px;font-size:12.5px;color:var(--frost);font-weight:600}
+  .pc-arrow svg{animation:nudge 1.8s ease-in-out infinite;flex-shrink:0}
+  @keyframes nudge{0%,100%{transform:translateX(0)}50%{transform:translateX(5px)}}
+
+  /* ---------- Sections common ---------- */
+  section{padding:96px 0}
+  .sec-head{max-width:720px;margin-bottom:56px}
+  .sec-head.center{margin-left:auto;margin-right:auto;text-align:center}
+  .sec-tag{font-size:13px;font-weight:700;letter-spacing:.14em;color:var(--frost);margin-bottom:14px}
+  h2{font-size:clamp(27px,3.6vw,40px);line-height:1.28;letter-spacing:-.02em;font-weight:800;margin-bottom:16px}
+  .sec-desc{font-size:16.5px;color:var(--ink-soft)}
+
+  /* reveal animation */
+  .reveal{opacity:0;transform:translateY(28px);transition:opacity .7s ease,transform .7s cubic-bezier(.22,1,.36,1)}
+  .reveal.in{opacity:1;transform:none}
+  .d1{transition-delay:.08s}.d2{transition-delay:.16s}.d3{transition-delay:.24s}.d4{transition-delay:.32s}
+
+  /* ---------- Pain strip ---------- */
+  .pain{background:var(--deep);color:#E8EEF5;border-radius:28px;padding:56px 54px;position:relative;overflow:hidden}
+  .pain::after{content:"“";position:absolute;right:36px;top:-30px;font-size:220px;font-family:Georgia,serif;color:rgba(232,238,245,.06);line-height:1}
+  .pain-quote{font-size:clamp(19px,2.5vw,27px);font-weight:700;line-height:1.5;max-width:800px;letter-spacing:-.01em}
+  .pain-quote em{font-style:normal;color:#8FC3E8}
+  .pain-list{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:38px}
+  .pain-item{border-top:1px solid rgba(232,238,245,.18);padding-top:16px}
+  .pain-item b{display:block;font-size:15px;margin-bottom:6px;color:#fff}
+  .pain-item span{font-size:13.5px;color:rgba(232,238,245,.62);line-height:1.6}
+  @media(max-width:820px){.pain{padding:40px 28px}.pain-list{grid-template-columns:1fr}}
+
+  /* ---------- Personality core ---------- */
+  .core{background:var(--paper-2);border-radius:32px;padding:72px 0;margin:0 12px}
+  .core-equation{
+    display:flex;justify-content:center;align-items:center;gap:14px;flex-wrap:wrap;
+    margin:0 auto 54px;max-width:900px;
+  }
+  .eq-node{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 20px;
+    text-align:center;box-shadow:0 4px 14px -8px rgba(13,13,13,.18);
+  }
+  .eq-node b{display:block;font-size:15.5px}
+  .eq-node span{font-size:12px;color:var(--ink-faint)}
+  .eq-op{font-size:22px;font-weight:800;color:var(--frost)}
+  .eq-node.result{background:var(--frost);border-color:var(--frost);color:#fff}
+  .eq-node.result span{color:rgba(255,255,255,.75)}
+
+  .demo{display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:stretch;max-width:980px;margin:0 auto}
+  @media(max-width:880px){.demo{grid-template-columns:1fr}}
+  .demo-panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:28px;box-shadow:var(--shadow)}
+  .demo-panel h3{font-size:16px;margin-bottom:4px}
+  .demo-panel .hint{font-size:13px;color:var(--ink-faint);margin-bottom:22px}
+  .slider-row{margin-bottom:18px}
+  .slider-row label{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;font-weight:500;color:var(--ink-soft);margin-bottom:7px}
+  .slider-row label output{color:var(--frost);font-weight:700;font-variant-numeric:tabular-nums}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:99px;
+    background:var(--paper-2);outline:none;cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;width:20px;height:20px;border-radius:50%;
+    background:var(--frost);border:3px solid #fff;box-shadow:0 2px 8px rgba(37,99,235,.4);
+    transition:transform .15s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
+  input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--frost);border:3px solid #fff;box-shadow:0 2px 8px rgba(37,99,235,.4)}
+  .preset-row{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
+  .preset{
+    font-size:12.5px;padding:6px 14px;border-radius:999px;border:1px solid var(--line);
+    background:var(--paper);color:var(--ink-soft);cursor:pointer;transition:all .2s;font-family:inherit;
+  }
+  .preset:hover,.preset.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+  .page-preview{display:flex;flex-direction:column}
+  .pp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:8px;flex-wrap:wrap}
+  .pp-head h3{font-size:16px}
+  .pp-tag{font-size:12px;color:var(--mist);background:var(--mist-soft);padding:3px 10px;border-radius:999px;font-weight:600}
+  .srl-bars{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
+  .srl-cell{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  .srl-cell b{font-size:12px;color:var(--ink-soft);display:block;margin-bottom:6px;font-weight:600}
+  .srl-track{height:5px;border-radius:99px;background:var(--paper-2);overflow:hidden}
+  .srl-fill{height:100%;background:var(--cyan);border-radius:99px;width:50%;transition:width .6s cubic-bezier(.22,1,.36,1)}
+  .comp-list{display:flex;flex-direction:column;gap:9px;flex:1}
+  .comp-item{
+    display:flex;align-items:center;gap:11px;padding:10px 14px;border-radius:12px;
+    border:1px solid var(--line);background:var(--paper);
+    transition:opacity .4s,transform .4s,background .4s,border-color .4s;
+  }
+  .comp-item.off{opacity:.32;transform:scale(.98);background:transparent;border-style:dashed}
+  .comp-num{
+    width:24px;height:24px;border-radius:8px;background:var(--frost-soft);color:var(--frost-deep);
+    font-size:12px;font-weight:800;display:grid;place-items:center;flex-shrink:0;
+  }
+  .comp-item.off .comp-num{background:var(--paper-2);color:var(--ink-faint)}
+  .comp-item span{font-size:13.5px;font-weight:500}
+  .comp-item small{margin-left:auto;font-size:11.5px;color:var(--ink-faint);white-space:nowrap}
+  .pp-foot{margin-top:16px;font-size:12px;color:var(--ink-faint);text-align:center}
+
+  /* ---------- What changes ---------- */
+  .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+  @media(max-width:920px){.grid-4{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:560px){.grid-4{grid-template-columns:1fr}}
+  .tcard{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:28px 24px;transition:transform .3s,box-shadow .3s;
+  }
+  .tcard:hover{transform:translateY(-6px);box-shadow:var(--shadow)}
+  .tcard-icon{width:46px;height:46px;border-radius:13px;display:grid;place-items:center;margin-bottom:18px;font-size:21px}
+  .tcard:nth-child(1) .tcard-icon{background:var(--frost-soft)}
+  .tcard:nth-child(2) .tcard-icon{background:var(--mist-soft)}
+  .tcard:nth-child(3) .tcard-icon{background:var(--cyan-soft)}
+  .tcard:nth-child(4) .tcard-icon{background:var(--frost-soft)}
+  .tcard h3{font-size:17px;margin-bottom:10px}
+  .tcard p{font-size:14px;color:var(--ink-soft);line-height:1.65}
+  .tcard .vs{display:block;margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);font-size:12.5px;color:var(--ink-faint)}
+  .tcard .vs b{color:var(--frost);font-weight:600}
+
+  /* ---------- Flow ---------- */
+  .flow-steps{display:grid;grid-template-columns:repeat(6,1fr);gap:0;position:relative}
+  .flow-steps::before{
+    content:"";position:absolute;top:27px;left:6%;right:6%;height:2px;
+    background:repeating-linear-gradient(90deg,var(--line) 0 8px,transparent 8px 16px);
+  }
+  @media(max-width:920px){.flow-steps{grid-template-columns:repeat(3,1fr);row-gap:36px}.flow-steps::before{display:none}}
+  @media(max-width:560px){.flow-steps{grid-template-columns:repeat(2,1fr)}}
+  .fstep{text-align:center;padding:0 10px;position:relative}
+  .fstep-num{
+    width:54px;height:54px;border-radius:50%;background:var(--card);border:1.5px solid var(--line);
+    display:grid;place-items:center;margin:0 auto 16px;font-weight:800;font-size:16px;color:var(--frost);
+    position:relative;z-index:1;box-shadow:0 4px 12px -6px rgba(13,13,13,.15);
+  }
+  .fstep b{display:block;font-size:14.5px;margin-bottom:5px}
+  .fstep span{font-size:12.5px;color:var(--ink-faint);line-height:1.55;display:block}
+
+  /* ---------- Features ---------- */
+  .feat-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:20px}
+  .feat{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:28px;
+    grid-column:span 2;transition:transform .3s,box-shadow .3s;
+  }
+  .feat:nth-child(4),.feat:nth-child(5){grid-column:span 3}
+  .feat:hover{transform:translateY(-5px);box-shadow:var(--shadow)}
+  @media(max-width:880px){.feat{grid-column:span 6 !important}}
+  .feat-kicker{font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--mist);margin-bottom:12px}
+  .feat h3{font-size:18px;margin-bottom:10px}
+  .feat p{font-size:14px;color:var(--ink-soft)}
+  .feat.hl{background:var(--deep);border-color:var(--deep);color:#E8EEF5}
+  .feat.hl .feat-kicker{color:#8FC3E8}
+  .feat.hl p{color:rgba(232,238,245,.68)}
+
+  /* ---------- Trust ---------- */
+  .trust{background:var(--mist-soft);border-radius:32px;padding:72px 0;margin:0 12px}
+  .trust-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;max-width:980px;margin:0 auto}
+  @media(max-width:880px){.trust-grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:520px){.trust-grid{grid-template-columns:1fr}}
+  .trust-item{background:rgba(255,255,255,.84);border:1px solid var(--line);border-radius:16px;padding:24px 22px}
+  .trust-item .no{font-size:13px;font-weight:800;color:var(--mist);letter-spacing:.08em;margin-bottom:12px}
+  .trust-item b{display:block;font-size:15.5px;margin-bottom:8px}
+  .trust-item span{font-size:13.5px;color:var(--ink-soft);line-height:1.6}
+
+  /* ---------- Final CTA ---------- */
+  .final{text-align:center;padding:120px 0}
+  .final h2{font-size:clamp(29px,4.4vw,46px);margin-bottom:18px}
+  .final p{color:var(--ink-soft);font-size:17px;max-width:600px;margin:0 auto 40px}
+  .final .hero-note{margin-top:22px}
+
+  /* ---------- Footer ---------- */
+  footer{border-top:1px solid var(--line);padding:36px 0 44px}
+  .foot-inner{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px}
+  .foot-inner small{color:var(--ink-faint);font-size:13px}
+  .foot-links{display:flex;gap:22px;font-size:13.5px;color:var(--ink-soft);flex-wrap:wrap}
+  .foot-links a:hover{color:var(--frost)}
+</style>
+</head>
+<body>
+
+<!-- ============ NAV ============ -->
+<nav id="nav">
+  <div class="wrap nav-inner">
+    <a class="logo" href="#top">
+      <span class="logo-mark"><img src="./assets/brand/traittutor-mark-snow.png" alt="" width="32" height="32"></span>TraitTutor
+    </a>
+    <div class="nav-links">
+      <a href="#personality"><span class="t-zh">人格个性化</span><span class="t-en">Personality</span></a>
+      <a href="#changes"><span class="t-zh">改变了什么</span><span class="t-en">What Changes</span></a>
+      <a href="#flow"><span class="t-zh">核心流程</span><span class="t-en">How It Works</span></a>
+      <a href="#features"><span class="t-zh">产品功能</span><span class="t-en">Features</span></a>
+      <a href="#trust"><span class="t-zh">边界与信任</span><span class="t-en">Trust</span></a>
+    </div>
+    <div class="nav-actions">
+      <button class="lang-btn" id="langBtn">EN</button>
+      <a class="btn btn-primary btn-sm" href="https://threethreeliu.top/traittutor-all-web/" target="_blank" rel="noopener"><span class="t-zh">免费试用 →</span><span class="t-en">Try Free →</span></a>
+    </div>
+  </div>
+</nav>
+
+<!-- ============ HERO ============ -->
+<header class="hero" id="top">
+  <div class="snow"></div>
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow"><span class="t-zh">AI 学习教练 · 人格驱动</span><span class="t-en">AI LEARNING COACH · PERSONALITY-DRIVEN</span></span>
+      <h1>
+        <span class="t-zh">人格决定<span class="accent">怎么教<svg viewBox="0 0 120 12" preserveAspectRatio="none"><path d="M2 9 C 30 3, 90 3, 118 8"/></svg></span>，<br>证据决定教什么。</span>
+        <span class="t-en">Personality shapes <span class="accent">how we teach<svg viewBox="0 0 120 12" preserveAspectRatio="none"><path d="M2 9 C 30 3, 90 3, 118 8"/></svg></span>.<br>Evidence decides what to teach.</span>
+      </h1>
+      <p class="hero-sub">
+        <span class="t-zh">TraitTutor 是一位能长期对话、搜索和研究的 AI 学习教练。它用 <strong>Big&nbsp;Five 人格</strong>映射出你需要的支持方式，再用 <strong>BKT 学科证据</strong>追踪你真正掌握到哪里——每一次生成的学习页面，组件、顺序、节奏都为你而变。</span>
+        <span class="t-en">TraitTutor is an AI learning coach that chats, searches, and researches with you over the long term. Your <strong>Big Five personality</strong> maps to the support you need, while <strong>BKT subject evidence</strong> tracks what you've truly mastered — every generated page adapts its components, order, and pace to you.</span>
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-primary btn-lg" href="https://threethreeliu.top/traittutor-all-web/" target="_blank" rel="noopener"><span class="t-zh">立即免费试用</span><span class="t-en">Start Free Trial</span></a>
+        <a class="btn btn-ghost btn-lg" href="#personality"><span class="t-zh">看看它怎么工作</span><span class="t-en">See How It Works</span></a>
+      </div>
+      <p class="hero-note"><span class="t-zh">无需安装 · 浏览器打开即用 · 个性化可随时查看、修正或关闭</span><span class="t-en">No install · Runs in your browser · Personalization can be viewed, edited, or turned off anytime</span></p>
+    </div>
+
+    <div class="persona-card reveal in" id="heroCard">
+      <div class="pc-head">
+        <span class="pc-title"><span class="t-zh">支持画像 · BIG FIVE</span><span class="t-en">SUPPORT PROFILE · BIG FIVE</span></span>
+        <span class="pc-badge"><span class="t-zh">组件编排第一输入</span><span class="t-en">First input to orchestration</span></span>
+      </div>
+      <div class="trait-row"><span class="trait-name"><span class="t-zh">尽责性</span><span class="t-en">Conscientiousness</span></span><div class="trait-bar"><div class="trait-fill" data-w="82"></div></div><span class="trait-val">82</span></div>
+      <div class="trait-row"><span class="trait-name"><span class="t-zh">开放性</span><span class="t-en">Openness</span></span><div class="trait-bar"><div class="trait-fill" data-w="64"></div></div><span class="trait-val">64</span></div>
+      <div class="trait-row"><span class="trait-name"><span class="t-zh">外向性</span><span class="t-en">Extraversion</span></span><div class="trait-bar"><div class="trait-fill" data-w="45"></div></div><span class="trait-val">45</span></div>
+      <div class="trait-row"><span class="trait-name"><span class="t-zh">宜人性</span><span class="t-en">Agreeableness</span></span><div class="trait-bar"><div class="trait-fill" data-w="71"></div></div><span class="trait-val">71</span></div>
+      <div class="trait-row" style="margin-bottom:0"><span class="trait-name"><span class="t-zh">神经质</span><span class="t-en">Neuroticism</span></span><div class="trait-bar"><div class="trait-fill" data-w="38"></div></div><span class="trait-val">38</span></div>
+      <div class="pc-divider"></div>
+      <p class="pc-flow-label"><span class="t-zh">→ 映射为 SRL 支持维度，决定下一张学习页面</span><span class="t-en">→ Mapped to SRL support dimensions, shaping your next page</span></p>
+      <div class="pc-arrow"><span class="t-zh">生成组件计划</span><span class="t-en">Generating component plan</span> <svg width="16" height="12" viewBox="0 0 16 12" fill="none"><path d="M1 6h13M10 1.5 14.5 6 10 10.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="pc-chips">
+        <span class="chip hot"><span class="t-zh">起点诊断</span><span class="t-en">Diagnostic</span></span>
+        <span class="chip hot"><span class="t-zh">核心讲解</span><span class="t-en">Core Lesson</span></span>
+        <span class="chip"><span class="t-zh">分步例题</span><span class="t-en">Worked Example</span></span>
+        <span class="chip"><span class="t-zh">引导练习</span><span class="t-en">Guided Practice</span></span>
+        <span class="chip hot"><span class="t-zh">校准复盘</span><span class="t-en">Calibration Review</span></span>
+        <span class="chip"><span class="t-zh">主动回忆</span><span class="t-en">Active Recall</span></span>
+        <span class="chip"><span class="t-zh">反思提示</span><span class="t-en">Reflection</span></span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ============ PAIN ============ -->
+<section style="padding-top:20px">
+  <div class="wrap">
+    <div class="pain reveal">
+      <p class="pain-quote">
+        <span class="t-zh">很多 AI 工具记得你<em>问过什么</em>，<br>却不知道你<em>真正学会了什么</em>。</span>
+        <span class="t-en">Many AI tools remember <em>what you asked</em> —<br>but not <em>what you've actually learned</em>.</span>
+      </p>
+      <div class="pain-list">
+        <div class="pain-item">
+          <b><span class="t-zh">没有清晰的学习起点</span><span class="t-en">No clear starting point</span></b>
+          <span><span class="t-zh">AI 可以解释知识，却不知道你的掌握程度，不知道从哪里开始、下一步学什么。</span><span class="t-en">AI can explain knowledge, but doesn't know your mastery — where to begin, or what comes next.</span></span>
+        </div>
+        <div class="pain-item">
+          <b><span class="t-zh">反馈只停留在当下</span><span class="t-en">Feedback ends in the moment</span></b>
+          <span><span class="t-zh">作答结果不会写进学习进度，后续讲解和练习也不会随之调整。</span><span class="t-en">Your answers never update your progress, so later explanations and practice never adapt.</span></span>
+        </div>
+        <div class="pain-item">
+          <b><span class="t-zh">下次还要重新交代背景</span><span class="t-en">Re-explaining yourself, every time</span></b>
+          <span><span class="t-zh">工具保存了内容，却没有保存学习——个性化停留在语气与难度，没有落实到页面本身。</span><span class="t-en">Tools save your content, not your learning — personalization stops at tone and difficulty, never reaching the page itself.</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PERSONALITY CORE ============ -->
+<div class="core" id="personality">
+<section style="padding-top:0;padding-bottom:0">
+  <div class="wrap">
+    <div class="sec-head center reveal">
+      <p class="sec-tag"><span class="t-zh">CORE · 人格个性化</span><span class="t-en">CORE · PERSONALITY PERSONALIZATION</span></p>
+      <h2><span class="t-zh">组件编排的第一输入，<br>是你的人格。</span><span class="t-en">The first input to component<br>orchestration is your personality.</span></h2>
+      <p class="sec-desc">
+        <span class="t-zh">Big Five / TIPI 先映射为 SRL 支持维度——支架强度、节奏、反馈、结构、挑战、互动——再叠加 BKT 学科证据与你的明确偏好，由组件选择器输出「选哪些组件、什么顺序、是否必须」。人格不是附加的语气层，而是每一张学习页面的编排依据。</span>
+        <span class="t-en">Big Five / TIPI first maps to SRL support dimensions — scaffolding, pace, feedback, structure, challenge, interactivity — then combines with BKT subject evidence and your explicit preferences, so the component selector decides which components appear, in what order, and whether they're required. Personality isn't a tone layer on top; it's the orchestration basis of every learning page.</span>
+      </p>
+    </div>
+
+    <div class="core-equation reveal d1">
+      <div class="eq-node"><b><span class="t-zh">Big Five 人格</span><span class="t-en">Big Five</span></b><span><span class="t-zh">TIPI 可选量表</span><span class="t-en">Optional TIPI scale</span></span></div>
+      <span class="eq-op">→</span>
+      <div class="eq-node"><b><span class="t-zh">SRL 支持维度</span><span class="t-en">SRL Dimensions</span></b><span><span class="t-zh">支架 · 节奏 · 反馈 · 挑战</span><span class="t-en">Scaffold · Pace · Feedback · Challenge</span></span></div>
+      <span class="eq-op">+</span>
+      <div class="eq-node"><b><span class="t-zh">BKT 学科证据</span><span class="t-en">BKT Evidence</span></b><span><span class="t-zh">掌握 · 错题 · 复习</span><span class="t-en">Mastery · Errors · Review</span></span></div>
+      <span class="eq-op">=</span>
+      <div class="eq-node result"><b><span class="t-zh">你的学习页面</span><span class="t-en">Your Learning Page</span></b><span><span class="t-zh">组件 · 顺序 · 是否必须</span><span class="t-en">Components · Order · Necessity</span></span></div>
+    </div>
+
+    <!-- Interactive demo -->
+    <div class="demo reveal d2">
+      <div class="demo-panel">
+        <h3><span class="t-zh">试着拖动你的人格</span><span class="t-en">Try dragging your personality</span></h3>
+        <p class="hint"><span class="t-zh">看看同一份材料，会为你生成怎样不同的学习页面。</span><span class="t-en">See how the same material becomes a different page for you.</span></p>
+        <div class="slider-row">
+          <label><span><span class="t-zh">尽责性</span><span class="t-en">Conscientiousness</span></span> <output id="o-c">80</output></label>
+          <input type="range" id="s-c" min="0" max="100" value="80">
+        </div>
+        <div class="slider-row">
+          <label><span><span class="t-zh">开放性</span><span class="t-en">Openness</span></span> <output id="o-o">60</output></label>
+          <input type="range" id="s-o" min="0" max="100" value="60">
+        </div>
+        <div class="slider-row">
+          <label><span><span class="t-zh">外向性</span><span class="t-en">Extraversion</span></span> <output id="o-e">45</output></label>
+          <input type="range" id="s-e" min="0" max="100" value="45">
+        </div>
+        <div class="slider-row">
+          <label><span><span class="t-zh">宜人性</span><span class="t-en">Agreeableness</span></span> <output id="o-a">70</output></label>
+          <input type="range" id="s-a" min="0" max="100" value="70">
+        </div>
+        <div class="slider-row" style="margin-bottom:22px">
+          <label><span><span class="t-zh">神经质（情绪敏感度）</span><span class="t-en">Neuroticism</span></span> <output id="o-n">35</output></label>
+          <input type="range" id="s-n" min="0" max="100" value="35">
+        </div>
+        <div class="preset-row">
+          <button class="preset active" data-p="80,60,45,70,35"><span class="t-zh">规划者</span><span class="t-en">Planner</span></button>
+          <button class="preset" data-p="45,90,75,50,40"><span class="t-zh">探索者</span><span class="t-en">Explorer</span></button>
+          <button class="preset" data-p="55,40,35,85,75"><span class="t-zh">稳健者</span><span class="t-en">Steady</span></button>
+        </div>
+      </div>
+
+      <div class="demo-panel page-preview">
+        <div class="pp-head">
+          <h3><span class="t-zh">为你生成的页面</span><span class="t-en">Your generated page</span></h3>
+          <span class="pp-tag" id="ppTag">高结构 · 稳节奏</span>
+        </div>
+        <div class="srl-bars">
+          <div class="srl-cell"><b><span class="t-zh">支架强度</span><span class="t-en">Scaffolding</span></b><div class="srl-track"><div class="srl-fill" id="f-scaffold"></div></div></div>
+          <div class="srl-cell"><b><span class="t-zh">结构清晰</span><span class="t-en">Structure</span></b><div class="srl-track"><div class="srl-fill" id="f-structure"></div></div></div>
+          <div class="srl-cell"><b><span class="t-zh">挑战强度</span><span class="t-en">Challenge</span></b><div class="srl-track"><div class="srl-fill" id="f-challenge"></div></div></div>
+          <div class="srl-cell"><b><span class="t-zh">反馈温和度</span><span class="t-en">Feedback</span></b><div class="srl-track"><div class="srl-fill" id="f-feedback"></div></div></div>
+          <div class="srl-cell"><b><span class="t-zh">互动频率</span><span class="t-en">Interactivity</span></b><div class="srl-track"><div class="srl-fill" id="f-interact"></div></div></div>
+          <div class="srl-cell"><b><span class="t-zh">节奏切片</span><span class="t-en">Pacing</span></b><div class="srl-track"><div class="srl-fill" id="f-pace"></div></div></div>
+        </div>
+        <div class="comp-list" id="compList">
+          <div class="comp-item" data-k="plan"><span class="comp-num">1</span><span><span class="t-zh">起点诊断</span><span class="t-en">Diagnostic Check</span></span><small><span class="t-zh">确认先备</span><span class="t-en">Prereqs</span></small></div>
+          <div class="comp-item" data-k="lecture"><span class="comp-num">2</span><span><span class="t-zh">核心讲解</span><span class="t-en">Core Lesson</span></span><small><span class="t-zh">概念主线</span><span class="t-en">Concepts</span></small></div>
+          <div class="comp-item" data-k="example"><span class="comp-num">3</span><span><span class="t-zh">分步例题</span><span class="t-en">Worked Example</span></span><small><span class="t-zh">支架</span><span class="t-en">Scaffold</span></small></div>
+          <div class="comp-item" data-k="visual"><span class="comp-num">4</span><span><span class="t-zh">知识图解</span><span class="t-en">Visual Map</span></span><small><span class="t-zh">多模态</span><span class="t-en">Multimodal</span></small></div>
+          <div class="comp-item" data-k="practice"><span class="comp-num">5</span><span><span class="t-zh">引导练习</span><span class="t-en">Guided Practice</span></span><small><span class="t-zh">提示阶梯</span><span class="t-en">Hint ladder</span></small></div>
+          <div class="comp-item" data-k="recall"><span class="comp-num">6</span><span><span class="t-zh">主动回忆</span><span class="t-en">Active Recall</span></span><small><span class="t-zh">挑战</span><span class="t-en">Challenge</span></small></div>
+          <div class="comp-item" data-k="transfer"><span class="comp-num">7</span><span><span class="t-zh">迁移挑战</span><span class="t-en">Transfer Challenge</span></span><small><span class="t-zh">挑战</span><span class="t-en">Challenge</span></small></div>
+          <div class="comp-item" data-k="reflect"><span class="comp-num">8</span><span><span class="t-zh">反思提示</span><span class="t-en">Reflection</span></span><small><span class="t-zh">复盘</span><span class="t-en">Review</span></small></div>
+        </div>
+        <p class="pp-foot"><span class="t-zh">实际产品中，组件计划同时叠加 BKT 掌握证据、材料模态与你的显式偏好。</span><span class="t-en">In the product, the plan also weighs BKT mastery evidence, material modality, and your explicit preferences.</span></p>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+
+<!-- ============ WHAT CHANGES ============ -->
+<section id="changes">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <p class="sec-tag">PERSONALIZATION</p>
+      <h2><span class="t-zh">个性化在产品里，到底改变了什么？</span><span class="t-en">What does personalization actually change?</span></h2>
+      <p class="sec-desc"><span class="t-zh">不是换一个皮肤、调一种语气。同一份材料，不同的学习者会得到结构、节奏、反馈和挑战强度都不同的学习过程。</span><span class="t-en">Not a new skin or a different tone. The same material becomes a genuinely different learning process — in structure, pace, feedback, and challenge.</span></p>
+    </div>
+    <div class="grid-4">
+      <div class="tcard reveal">
+        <div class="tcard-icon">🧭</div>
+        <h3><span class="t-zh">结构</span><span class="t-en">Structure</span></h3>
+        <p><span class="t-zh">有人需要先看到清晰的路线和检查点，有人更适合先从例子进入概念。</span><span class="t-en">Some need a clear roadmap with checkpoints first; others learn best by entering through examples.</span></p>
+        <span class="vs"><span class="t-zh"><b>同一份讲义 →</b> 路线图先行，或例题先行</span><span class="t-en"><b>Same handout →</b> roadmap first, or example first</span></span>
+      </div>
+      <div class="tcard reveal d1">
+        <div class="tcard-icon">⏱️</div>
+        <h3><span class="t-zh">节奏</span><span class="t-en">Pace</span></h3>
+        <p><span class="t-zh">需要更多支架时，内容拆得更细；已经熟悉时，减少不必要的停顿。</span><span class="t-en">When you need more scaffolding, content is sliced finer; when you're fluent, it skips the pauses.</span></p>
+        <span class="vs"><span class="t-zh"><b>同一个知识点 →</b> 五步小切，或一步直达</span><span class="t-en"><b>Same concept →</b> five small steps, or one direct leap</span></span>
+      </div>
+      <div class="tcard reveal d2">
+        <div class="tcard-icon">💬</div>
+        <h3><span class="t-zh">反馈</span><span class="t-en">Feedback</span></h3>
+        <p><span class="t-zh">有人需要更温和、确定的反馈，有人更喜欢直接指出问题所在。</span><span class="t-en">Some need gentle, reassuring feedback; others prefer the problem pointed out directly.</span></p>
+        <span class="vs"><span class="t-zh"><b>同一次答错 →</b> 鼓励式引导，或直给式辨析</span><span class="t-en"><b>Same wrong answer →</b> encouraging guidance, or direct analysis</span></span>
+      </div>
+      <div class="tcard reveal d3">
+        <div class="tcard-icon">🎯</div>
+        <h3><span class="t-zh">挑战</span><span class="t-en">Challenge</span></h3>
+        <p><span class="t-zh">系统可以先给线索、拆成步骤，也可以增加主动回忆和自我测试。</span><span class="t-en">The system can offer hints and steps first — or dial up active recall and self-testing.</span></p>
+        <span class="vs"><span class="t-zh"><b>同一轮练习 →</b> 提示阶梯，或迁移挑战</span><span class="t-en"><b>Same practice set →</b> hint ladder, or transfer challenge</span></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FLOW ============ -->
+<section id="flow" style="background:var(--paper-2);border-radius:32px;margin:0 12px">
+  <div class="wrap">
+    <div class="sec-head center reveal">
+      <p class="sec-tag">HOW IT WORKS</p>
+      <h2><span class="t-zh">先看目标和证据，再决定怎么教</span><span class="t-en">Goals and evidence first, then teaching</span></h2>
+      <p class="sec-desc"><span class="t-zh">系统不是直接生成答案，而是先理解任务、读取证据、编排组件，再让可靠的作答结果回流，改变下一次生成。</span><span class="t-en">The system doesn't just generate answers — it understands the task, reads the evidence, orchestrates components, then lets verified answers flow back to change what comes next.</span></p>
+    </div>
+    <div class="flow-steps reveal d1">
+      <div class="fstep"><div class="fstep-num">1</div><b><span class="t-zh">开始学习</span><span class="t-en">Start Learning</span></b><span><span class="t-zh">输入学习目标、上传材料或直接提问</span><span class="t-en">Set a goal, upload materials, or just ask</span></span></div>
+      <div class="fstep"><div class="fstep-num">2</div><b><span class="t-zh">读取支持方式</span><span class="t-en">Support Profile</span></b><span><span class="t-zh">人格映射的 SRL 偏好与显式设置</span><span class="t-en">SRL preferences mapped from personality</span></span></div>
+      <div class="fstep"><div class="fstep-num">3</div><b><span class="t-zh">读取学习证据</span><span class="t-en">Learning Evidence</span></b><span><span class="t-zh">BKT 掌握、错题、复习到期项</span><span class="t-en">BKT mastery, errors, due reviews</span></span></div>
+      <div class="fstep"><div class="fstep-num">4</div><b><span class="t-zh">编排教学</span><span class="t-en">Orchestrate</span></b><span><span class="t-zh">Planner 分派任务，生成组件 DAG</span><span class="t-en">Planner dispatches tasks, builds the DAG</span></span></div>
+      <div class="fstep"><div class="fstep-num">5</div><b><span class="t-zh">生成并校验</span><span class="t-en">Generate &amp; Verify</span></b><span><span class="t-zh">组件白名单渲染，Evaluator 把关</span><span class="t-en">Whitelisted components, Evaluator checks</span></span></div>
+      <div class="fstep"><div class="fstep-num">6</div><b><span class="t-zh">作答回流</span><span class="t-en">Answers Flow Back</span></b><span><span class="t-zh">服务端判分，更新状态与下一页</span><span class="t-en">Server-side grading updates the next page</span></span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FEATURES ============ -->
+<section id="features">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <p class="sec-tag">PRODUCT</p>
+      <h2><span class="t-zh">五个入口，一套持续生长的学习状态</span><span class="t-en">Five entries, one living learning state</span></h2>
+      <p class="sec-desc"><span class="t-zh">对话、研究、学习路径共享同一份经过授权和裁剪的上下文——但它们都不会把「问过、读过、搜过」当成「已经掌握」。</span><span class="t-en">Chat, research, and learning paths share the same authorized, scoped context — but none of them mistakes "asked, read, or searched" for "mastered".</span></p>
+    </div>
+    <div class="feat-grid">
+      <div class="feat reveal">
+        <p class="feat-kicker"><span class="t-zh">LEARN · 学习入口</span><span class="t-en">LEARN</span></p>
+        <h3><span class="t-zh">上传材料，得到一条能完成的学习路径</span><span class="t-en">Upload materials, get a path you can finish</span></h3>
+        <p><span class="t-zh">PDF、PPT、Word、图片或文本统一解析，建立一条可以持续推进、有历史记录的学习路径。</span><span class="t-en">PDF, PPT, Word, images, or text are parsed into a learning path that persists and progresses with you.</span></p>
+      </div>
+      <div class="feat reveal d1">
+        <p class="feat-kicker"><span class="t-zh">RESEARCH · 研究入口</span><span class="t-en">RESEARCH</span></p>
+        <h3><span class="t-zh">复杂问题，先澄清范围再持续研究</span><span class="t-en">Complex questions: scope first, research deep</span></h3>
+        <p><span class="t-zh">保存来源、主张、笔记与带引用的报告；研究结果还能继续转成课件、题目和复习材料。</span><span class="t-en">Sources, claims, notes, and cited reports are preserved — and results can turn into courseware, quizzes, and review materials.</span></p>
+      </div>
+      <div class="feat reveal d2">
+        <p class="feat-kicker"><span class="t-zh">MY LEARNING · 我的学习</span><span class="t-en">MY LEARNING</span></p>
+        <h3><span class="t-zh">背景不用反复交代</span><span class="t-en">Never re-explain your background</span></h3>
+        <p><span class="t-zh">目标、材料、进行中的路径和学习结果都在同一个空间里；从上次的位置继续，从薄弱点继续。</span><span class="t-en">Goals, materials, active paths, and outcomes live in one space. Resume where you left off — and from your weak points.</span></p>
+      </div>
+      <div class="feat hl reveal">
+        <p class="feat-kicker"><span class="t-zh">PERSONALITY · 性格设置</span><span class="t-en">PERSONALITY SETTINGS</span></p>
+        <h3><span class="t-zh">完成 TIPI，或手动调整支持方式</span><span class="t-en">Take the TIPI, or tune support manually</span></h3>
+        <p><span class="t-zh">结构、节奏、反馈和挑战强度随你调整。这些数据只调整学习支持，不用于判断能力或贴学习风格标签——你可以随时查看、修正、关闭或删除。</span><span class="t-en">Adjust structure, pace, feedback, and challenge your way. This data only tunes learning support — never judges ability or labels your learning style. View, correct, disable, or delete it anytime.</span></p>
+      </div>
+      <div class="feat reveal d1">
+        <p class="feat-kicker"><span class="t-zh">TOOLS · 学习工具</span><span class="t-en">LEARNING TOOLS</span></p>
+        <h3><span class="t-zh">找到不会的那一步</span><span class="t-en">Find the exact step you're stuck on</span></h3>
+        <p><span class="t-zh">输入题目或上传作业，系统结合 BKT 判断卡在概念、步骤还是应用，先给提示让你自己作答，再把错误变成后续的补充练习。</span><span class="t-en">Type a problem or upload homework. BKT pinpoints whether you're stuck on concept, steps, or application — hints come first, and mistakes become future practice.</span></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TRUST ============ -->
+<div class="trust" id="trust">
+<section style="padding-top:0;padding-bottom:0">
+  <div class="wrap">
+    <div class="sec-head center reveal">
+      <p class="sec-tag" style="color:var(--mist)"><span class="t-zh">BOUNDARIES · 边界与信任</span><span class="t-en">BOUNDARIES &amp; TRUST</span></p>
+      <h2><span class="t-zh">个性化有边界，证据有门槛</span><span class="t-en">Personalization with boundaries, evidence with thresholds</span></h2>
+      <p class="sec-desc"><span class="t-zh">人格帮助你学得更好，而不是替你下结论。每一步都有明确的规则。</span><span class="t-en">Personality helps you learn better — it doesn't draw conclusions about you. Every step follows explicit rules.</span></p>
+    </div>
+    <div class="trust-grid">
+      <div class="trust-item reveal">
+        <p class="no"><span class="t-zh">01 · 教学诚信</span><span class="t-en">01 · INTEGRITY</span></p>
+        <b><span class="t-zh">不代写、不作弊</span><span class="t-en">No ghostwriting, no cheating</span></b>
+        <span><span class="t-zh">提供提示、讲解和练习；个性化不改变正确答案和判分标准。</span><span class="t-en">Hints, explanations, and practice only; personalization never changes correct answers or grading standards.</span></span>
+      </div>
+      <div class="trust-item reveal d1">
+        <p class="no"><span class="t-zh">02 · 证据门槛</span><span class="t-en">02 · EVIDENCE</span></p>
+        <b><span class="t-zh">接触 ≠ 掌握</span><span class="t-en">Exposure ≠ mastery</span></b>
+        <span><span class="t-zh">问过、读过、搜过只算接触；只有可靠判分且归因明确的作答才更新 BKT。</span><span class="t-en">Asking, reading, and searching count as exposure; only reliably graded, well-attributed answers update BKT.</span></span>
+      </div>
+      <div class="trust-item reveal d2">
+        <p class="no"><span class="t-zh">03 · 不做诊断</span><span class="t-en">03 · NO DIAGNOSIS</span></p>
+        <b><span class="t-zh">不贴人格标签</span><span class="t-en">No personality labels</span></b>
+        <span><span class="t-zh">Big Five 只映射为可撤销的支持线索，不用于能力判断、学习风格定型或心理诊断。</span><span class="t-en">Big Five maps only to revocable support cues — never to ability judgments, fixed learning styles, or psychological diagnosis.</span></span>
+      </div>
+      <div class="trust-item reveal d3">
+        <p class="no"><span class="t-zh">04 · 数据权利</span><span class="t-en">04 · YOUR DATA</span></p>
+        <b><span class="t-zh">可查看、可删除</span><span class="t-en">Your data, your call</span></b>
+        <span><span class="t-zh">用户数据相互隔离；学习记录与画像可以查看、更正、删除或关闭，基础功能不受影响。</span><span class="t-en">User data stays isolated; learning records and profiles can be viewed, corrected, deleted, or disabled — core features keep working.</span></span>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+
+<!-- ============ FINAL CTA ============ -->
+<section class="final">
+  <div class="wrap reveal">
+    <p class="sec-tag" style="margin-bottom:18px">GET STARTED</p>
+    <h2><span class="t-zh">让学习结果，<br>真正改变你的下一步。</span><span class="t-en">Let learning outcomes truly<br>change your next step.</span></h2>
+    <p><span class="t-zh">答一道题，看状态如何变化，再看下一页如何为你调整——这就是 TraitTutor 与普通 AI 学习工具的区别。</span><span class="t-en">Answer a question, watch your state change, and see the next page adapt — that's the difference between TraitTutor and ordinary AI study tools.</span></p>
+    <a class="btn btn-primary btn-lg" href="https://threethreeliu.top/traittutor-all-web/" target="_blank" rel="noopener"><span class="t-zh">免费试用 TraitTutor →</span><span class="t-en">Try TraitTutor Free →</span></a>
+    <p class="hero-note"><span class="t-zh">注册即可体验完整系统 · 演示数据已脱敏</span><span class="t-en">Sign up to try the full system · Demo data anonymized</span></p>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="wrap foot-inner">
+    <a class="logo" href="#top" style="font-size:16px">
+      <span class="logo-mark" style="width:26px;height:26px"><img src="./assets/brand/traittutor-mark-snow.png" alt="" width="26" height="26"></span>TraitTutor
+    </a>
+    <div class="foot-links">
+      <a href="#personality"><span class="t-zh">人格个性化</span><span class="t-en">Personality</span></a>
+      <a href="#features"><span class="t-zh">产品功能</span><span class="t-en">Features</span></a>
+      <a href="#trust"><span class="t-zh">边界与信任</span><span class="t-en">Trust</span></a>
+      <a href="https://threethreeliu.top/traittutor-all-web/" target="_blank" rel="noopener"><span class="t-zh">在线体验</span><span class="t-en">Live Demo</span></a>
+    </div>
+    <small>© 2026 TraitTutor · GOAI Boundless Agents · AI + <span class="t-zh">教育</span><span class="t-en">Education</span></small>
+  </div>
+</footer>
+
+<script>
+/* ---------- language toggle ---------- */
+const langBtn = document.getElementById('langBtn');
+let lang = localStorage.getItem('tt-lang') || 'zh';
+function applyLang(){
+  document.body.classList.toggle('en', lang === 'en');
+  document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN';
+  langBtn.textContent = lang === 'en' ? '中' : 'EN';
+  document.title = lang === 'en'
+    ? 'TraitTutor — Personality-Driven AI Learning Coach'
+    : 'TraitTutor — 人格驱动的 AI 学习教练';
+  render(); // re-render dynamic tag
+}
+langBtn.addEventListener('click', () => {
+  lang = lang === 'en' ? 'zh' : 'en';
+  localStorage.setItem('tt-lang', lang);
+  applyLang();
+});
+
+/* nav scroll state */
+const nav = document.getElementById('nav');
+addEventListener('scroll', () => nav.classList.toggle('scrolled', scrollY > 8), {passive:true});
+
+/* reveal on scroll */
+const io = new IntersectionObserver(es => es.forEach(e => {
+  if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+}), {threshold:.12});
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+/* hero trait bars + chips */
+addEventListener('load', () => {
+  setTimeout(() => {
+    document.querySelectorAll('.trait-fill').forEach(f => f.style.width = f.dataset.w + '%');
+    document.querySelectorAll('#heroCard .chip').forEach((c, i) =>
+      setTimeout(() => c.classList.add('on'), 500 + i * 110));
+  }, 350);
+});
+
+/* ---------- interactive personality demo ---------- */
+function el(id){ return document.getElementById(id); }
+const S = { c: el('s-c'), o: el('s-o'), e: el('s-e'), a: el('s-a'), n: el('s-n') };
+const O = { c: el('o-c'), o: el('o-o'), e: el('o-e'), a: el('o-a'), n: el('o-n') };
+
+function readTraits(){
+  return { c:+S.c.value, o:+S.o.value, e:+S.e.value, a:+S.a.value, n:+S.n.value };
+}
+
+/* Big Five -> SRL support dimensions (0-100) */
+function mapSRL(t){
+  return {
+    structure:  Math.round(.62*t.c + .24*(100-t.o) + .14*(100-t.e)),
+    scaffold:   Math.round(.46*t.n + .30*(100-t.c) + .24*t.a),
+    challenge:  Math.round(.48*t.o + .30*t.c + .22*(100-t.n)),
+    feedback:   Math.round(.55*t.a + .30*t.n + .15*(100-t.e)),
+    interact:   Math.round(.66*t.e + .34*t.o),
+    pace:       Math.round(.50*t.n + .28*(100-t.c) + .22*(100-t.o))
+  };
+}
+
+/* SRL -> component plan */
+function planComponents(s){
+  return {
+    plan:     true,
+    lecture:  true,
+    example:  s.scaffold  >= 38,
+    visual:   s.structure < 72 || s.challenge >= 55,
+    practice: true,
+    recall:   s.challenge >= 50,
+    transfer: s.challenge >= 68,
+    reflect:  s.feedback  >= 45
+  };
+}
+
+function tagFor(s){
+  const zh = (s.structure >= 62 ? '高结构' : (s.structure >= 42 ? '中结构' : '轻结构'))
+           + ' · ' + (s.challenge >= 62 ? '强挑战' : (s.challenge >= 42 ? '中挑战' : '稳节奏'));
+  const en = (s.structure >= 62 ? 'High structure' : (s.structure >= 42 ? 'Mid structure' : 'Light structure'))
+           + ' · ' + (s.challenge >= 62 ? 'High challenge' : (s.challenge >= 42 ? 'Mid challenge' : 'Steady pace'));
+  return lang === 'en' ? en : zh;
+}
+
+function render(){
+  const t = readTraits();
+  O.c.value = t.c; O.o.value = t.o; O.e.value = t.e; O.a.value = t.a; O.n.value = t.n;
+
+  const s = mapSRL(t);
+  el('f-structure').style.width = s.structure + '%';
+  el('f-scaffold').style.width  = s.scaffold  + '%';
+  el('f-challenge').style.width = s.challenge + '%';
+  el('f-feedback').style.width  = s.feedback  + '%';
+  el('f-interact').style.width  = s.interact  + '%';
+  el('f-pace').style.width      = s.pace      + '%';
+
+  el('ppTag').textContent = tagFor(s);
+
+  const plan = planComponents(s);
+  let n = 0;
+  document.querySelectorAll('#compList .comp-item').forEach(item => {
+    const on = plan[item.dataset.k];
+    item.classList.toggle('off', !on);
+    if (on) item.querySelector('.comp-num').textContent = ++n;
+  });
+}
+
+Object.values(S).forEach(sl => sl.addEventListener('input', () => {
+  document.querySelectorAll('.preset').forEach(p => p.classList.remove('active'));
+  render();
+}));
+
+document.querySelectorAll('.preset').forEach(btn => btn.addEventListener('click', () => {
+  const v = btn.dataset.p.split(',').map(Number);
+  [S.c, S.o, S.e, S.a, S.n].forEach((sl, i) => sl.value = v[i]);
+  document.querySelectorAll('.preset').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}));
+
+applyLang();
+</script>
+</body>
+</html>
